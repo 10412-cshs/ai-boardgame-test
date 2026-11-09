@@ -1,0 +1,2063 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Gemini×OpenSCAD">
+    <title>Gemini × OpenSCAD 桌遊再製歷程互動導覽 (iPad 6 全螢幕體驗版)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js for Authentic OpenSCAD 3D Viewport Simulation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Tone.js for UI & Render Sound Effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            overscroll-behavior: none;
+            font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #FFFFFF;
+            color: #1F1F1F;
+        }
+
+        /* ================================================================== */
+        /* 1. Authentic Google Gemini Light Theme Styling                     */
+        /* ================================================================== */
+        .gemini-gradient-text {
+            background: linear-gradient(90deg, #4285F4 0%, #9B72CB 50%, #D96570 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .gemini-sparkle-bg {
+            background: linear-gradient(135deg, #4285F4 0%, #9B72CB 52%, #D96570 100%);
+        }
+        .gemini-user-bubble {
+            background-color: #E9EEF6;
+            color: #1F1F1F;
+            border-radius: 20px 20px 4px 20px;
+        }
+        .gemini-pill-input {
+            background-color: #F0F4F9;
+            border-radius: 24px;
+            transition: box-shadow 0.2s ease, background-color 0.2s ease;
+        }
+        .gemini-pill-input:focus-within {
+            background-color: #E9EEF6;
+            box-shadow: 0 1px 6px rgba(32, 33, 36, 0.18);
+        }
+
+        /* ================================================================== */
+        /* 2. Authentic OpenSCAD 2021.01 Classic Windows Qt Styling           */
+        /* ================================================================== */
+        .scad-ui-font {
+            font-family: 'Microsoft JhengHei', 'Noto Sans TC', 'Segoe UI', sans-serif;
+            font-size: 12px;
+            color: #000000;
+        }
+        .scad-code-font {
+            font-family: 'Consolas', 'Courier New', 'JetBrains Mono', monospace;
+            font-size: 12px;
+            line-height: 1.42;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+        .scad-dock-header {
+            background: #E4E4E4;
+            border-top: 1px solid #FFFFFF;
+            border-bottom: 1px solid #A0A0A0;
+            height: 21px;
+            padding: 0 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11.5px;
+            color: #000000;
+        }
+        .scad-toolbar-btn {
+            width: 24px;
+            height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid transparent;
+            border-radius: 2px;
+            background: transparent;
+            cursor: pointer;
+            color: #222222;
+        }
+        .scad-toolbar-btn:hover {
+            background: #E5F1FB;
+            border-color: #0078D7;
+        }
+        .scad-toolbar-btn:active {
+            background: #CCE4F7;
+        }
+        .scad-toolbar-btn.active-toggle {
+            background: #BCDFFA;
+            border-color: #569DE5;
+        }
+        .scad-customizer-cat {
+            background: #D9EBF9;
+            border: 1px solid #A0C5E8;
+            padding: 3px 6px;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: #000000;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            margin-bottom: 2px;
+        }
+        .scad-customizer-cat:hover {
+            background: #C7E2F7;
+        }
+        .scad-win-btn {
+            background: #E1E1E1;
+            border: 1px solid #ADADAD;
+            padding: 1px 8px;
+            font-size: 11px;
+            color: #000000;
+            cursor: pointer;
+        }
+        .scad-win-btn:hover {
+            background: #E5F1FB;
+            border-color: #0078D7;
+        }
+
+        /* OpenSCAD Syntax Highlighting + Fluorescent Teaching Highlighter */
+        .scad-comment {
+            color: #008080; /* Exact Teal/Cyan comment color from screenshot */
+        }
+        .scad-keyword {
+            color: #0000FF;
+            font-weight: 600;
+        }
+        .scad-module {
+            color: #000080;
+            font-weight: 700;
+        }
+        .scad-number {
+            color: #098658;
+        }
+        .scad-string {
+            color: #A31515;
+        }
+
+        /* Fluorescent Marker Styles when Teaching Highlight Mode is ON */
+        .hl-marker-yellow {
+            background: rgba(255, 235, 59, 0.55);
+            border-left: 3px solid #F59E0B;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: background 0.15s;
+        }
+        .hl-marker-green {
+            background: rgba(110, 231, 183, 0.48);
+            border-left: 3px solid #10B981;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: background 0.15s;
+        }
+        .hl-marker-cyan {
+            background: rgba(125, 211, 252, 0.48);
+            border-left: 3px solid #0284C7;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: background 0.15s;
+        }
+        .hl-marker-pink {
+            background: rgba(251, 207, 232, 0.65);
+            border-left: 3px solid #DB2777;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: background 0.15s;
+        }
+        .hl-marker-yellow:hover, .hl-marker-green:hover, .hl-marker-cyan:hover, .hl-marker-pink:hover {
+            filter: brightness(0.95);
+            outline: 1px dashed #333;
+        }
+
+        /* Guided Bouncing Arrow */
+        @keyframes bounce-guide {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-7px); }
+        }
+        .animate-bounce-guide {
+            animation: bounce-guide 1.05s infinite ease-in-out;
+        }
+
+        @keyframes gemini-rotate {
+            0% { transform: rotate(0deg) scale(0.92); }
+            50% { transform: rotate(180deg) scale(1.1); }
+            100% { transform: rotate(360deg) scale(0.92); }
+        }
+        .gemini-spin-icon {
+            animation: gemini-rotate 1.8s infinite linear;
+        }
+
+        /* Subtle light scrollbars */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #F1F1F1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #C1C1C1;
+            border-radius: 2px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #A8A8A8;
+        }
+    </style>
+</head>
+<body class="flex flex-col w-screen h-screen overflow-hidden select-none">
+
+    <!-- ====================================================================== -->
+    <!-- MAIN SPLIT CONTAINER: Left = Google Gemini | Right = OpenSCAD 2021.01  -->
+    <!-- ====================================================================== -->
+    <div class="flex-1 flex flex-row w-full h-full overflow-hidden relative">
+
+        <!-- ================================================================== -->
+        <!-- LEFT PANEL: Authentic Google Gemini Light Theme Conversation UI    -->
+        <!-- (Starts Fullscreen w-full; switches to left split when triggered)  -->
+        <!-- ================================================================== -->
+        <section id="gemini-panel" class="w-full h-full flex flex-col bg-[#FFFFFF] z-20 transition-all duration-300">
+            
+            <!-- Gemini Top Navigation Bar -->
+            <header class="h-12 px-4 bg-[#FFFFFF] border-b border-[#F0F4F9] flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-2">
+                    <!-- Gemini Brand Title -->
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-6 h-6 rounded-full gemini-sparkle-bg flex items-center justify-center text-white text-xs shadow-sm">
+                            ✦
+                        </span>
+                        <span class="font-bold text-[17px] tracking-tight text-[#1F1F1F]">Gemini</span>
+                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-[#F0F4F9] text-[#444746] font-medium">4 Argon</span>
+                    </div>
+                </div>
+
+                <!-- Step Progress Pills (1 to 4) & Reset -->
+                <div class="flex items-center gap-1">
+                    <button onclick="jumpToTourStep(1)" id="g-step-1" class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#D3E3FD] text-[#041E49]" title="步驟 1：搜尋桌遊配件與幾何形狀">1.拆解</button>
+                    <button onclick="jumpToTourStep(2)" id="g-step-2" class="px-2.5 py-1 rounded-full text-[11px] font-medium bg-[#F0F4F9] text-[#444746] hover:bg-[#E9EEF6]" title="步驟 2：生成 OpenSCAD 程式碼與螢光筆註解">2.程式碼</button>
+                    <button onclick="jumpToTourStep(3)" id="g-step-3" class="px-2.5 py-1 rounded-full text-[11px] font-medium bg-[#F0F4F9] text-[#444746] hover:bg-[#E9EEF6]" title="步驟 3：OpenSCAD F5預覽與F6渲染剖面">3.渲染</button>
+                    <button onclick="jumpToTourStep(4)" id="g-step-4" class="px-2.5 py-1 rounded-full text-[11px] font-medium bg-[#F0F4F9] text-[#444746] hover:bg-[#E9EEF6]" title="步驟 4：修改為招財貓連連最終版">4.招財貓</button>
+                    <button onclick="resetFullTour()" class="ml-1 w-7 h-7 rounded-full bg-[#F0F4F9] hover:bg-[#E9EEF6] text-[#444746] flex items-center justify-center text-xs" title="重頭開始體驗對話">
+                        <i class="fa-solid fa-rotate-left"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Gemini Scrollable Conversation Stream -->
+            <div id="gemini-chat-stream" class="flex-1 overflow-y-auto px-4 py-4 bg-[#FFFFFF]">
+                <div id="gemini-inner-container" class="max-w-3xl mx-auto w-full h-full flex flex-col">
+                
+                    <!-- Initial Blank Welcome Screen (Before Step 1 is sent) -->
+                    <div id="gemini-welcome-view" class="flex-1 flex flex-col justify-center px-2 py-6">
+                        <div class="mb-3">
+                            <h2 class="text-3xl sm:text-4xl font-black tracking-tight gemini-gradient-text leading-snug">
+                                你好，我是 Gemini
+                            </h2>
+                            <p class="text-lg sm:text-xl font-bold text-[#444746] mt-1">
+                                今天想一起用 OpenSCAD 設計什麼 3D 列印桌遊呢？
+                            </p>
+                        </div>
+                        <p class="text-sm sm:text-[15px] text-[#444746] leading-relaxed mb-6">
+                            本互動導覽將重現兩份對話紀錄的完整歷程：從搜尋《<strong>奇雞連連 Gobblet Gobblers</strong>》配件形狀、撰寫含螢光筆註解的 <strong>OpenSCAD 參數化程式碼</strong>，到最後改裝為《<strong>招財貓連連</strong>》並展開 OpenSCAD 視窗檢視 3D 套疊剖面！
+                        </p>
+
+                        <!-- Step Cards Preview -->
+                        <div class="grid grid-cols-2 gap-3 text-xs sm:text-sm">
+                            <div class="p-4 rounded-2xl bg-[#F0F4F9] text-[#1F1F1F]">
+                                <div class="font-bold text-[#0B57D0] mb-1">🔍 步驟 1 ~ 2：拆解配件與生成程式碼</div>
+                                <div class="text-xs text-[#444746] leading-relaxed">AI 辨識桌遊 16 件配件幾何結構，生成參數化程式碼與彩色螢光筆重點註解</div>
+                            </div>
+                            <div class="p-4 rounded-2xl bg-[#F0F4F9] text-[#1F1F1F]">
+                                <div class="font-bold text-[#0B57D0] mb-1">🐱 步驟 3 ~ 4：改裝招財貓與展開 OpenSCAD</div>
+                                <div class="text-xs text-[#444746] leading-relaxed">完成招財貓造型修改後，點擊「檢視三層套疊剖面」展開左右雙欄 OpenSCAD 模擬器</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Chat History Container -->
+                    <div id="gemini-messages-box" class="space-y-5 pb-4 hidden"></div>
+
+                    <!-- Authentic Gemini Spinning Sparkle Loader (Appears for ~1.7s after clicking Send) -->
+                    <div id="gemini-loader-row" class="hidden flex items-start gap-3 py-3">
+                        <div class="w-7 h-7 rounded-full gemini-sparkle-bg flex items-center justify-center text-white text-xs shrink-0 gemini-spin-icon shadow-sm">
+                            ✦
+                        </div>
+                        <div class="flex-1 pt-0.5">
+                            <div id="gemini-loader-title" class="text-xs sm:text-[13px] font-bold text-[#1F1F1F]">
+                                正在分析桌遊配件結構與 OpenSCAD 參數...
+                            </div>
+                            <div id="gemini-loader-sub" class="text-[11px] text-[#444746] mt-0.5">
+                                檢索《Gobblet Gobblers》配件清單與計算 3D 列印套疊公差...
+                            </div>
+                            <div class="w-full h-1.5 bg-[#E9EEF6] rounded-full overflow-hidden mt-2">
+                                <div id="gemini-loader-bar" class="h-full gemini-sparkle-bg w-1/4 transition-all duration-300"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Gemini Bottom Pill Input Area with Bouncing Guided Arrow -->
+            <div class="p-3 bg-[#FFFFFF] border-t border-[#F0F4F9] shrink-0">
+                <div id="gemini-input-wrapper" class="max-w-3xl mx-auto w-full relative">
+                
+                    <!-- Bouncing Guided Arrow pointing at the Send Button -->
+                    <div id="gemini-guide-arrow" class="absolute -top-10 right-2 z-30 pointer-events-none flex items-center gap-1.5 bg-[#0B57D0] text-white font-bold text-xs px-3.5 py-1.5 rounded-full shadow-lg animate-bounce-guide">
+                        <span id="gemini-guide-text">👇 點擊發送第 1 步提問</span>
+                        <i class="fa-solid fa-arrow-down"></i>
+                    </div>
+
+                    <!-- Authentic #F0F4F9 Rounded Pill Input Box -->
+                    <div class="gemini-pill-input px-4 py-2.5 flex items-end gap-2.5 border border-[#D3E3FD]">
+                        <div class="flex-1 min-w-0">
+                            <div id="gemini-prompt-step-tag" class="text-[11px] font-bold text-[#0B57D0] mb-0.5 flex items-center gap-1">
+                                <span>✦ 預設提問 (步驟 1 / 4)</span>
+                            </div>
+                            <div id="gemini-prefilled-input" class="text-xs sm:text-[13px] text-[#1F1F1F] leading-relaxed max-h-[82px] overflow-y-auto pr-1 font-normal">
+                                我想要用openscad設計出桌遊"Gobblet Gobblers"的物件，運用3D列印來再製出來，請幫我先搜尋完整的"Gobblet Gobblers"中的配件應該要有各種形狀，再告訴我是否可以運用openscad製作出相同的物件。
+                            </div>
+                        </div>
+
+                        <!-- Send Button (Google Blue Circle) -->
+                        <button id="btn-gemini-send" class="w-10 h-10 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] active:scale-95 text-white flex items-center justify-center shrink-0 shadow-md transition-all" title="傳送對話">
+                            <i class="fa-solid fa-paper-plane text-sm"></i>
+                        </button>
+                    </div>
+
+                    <div class="text-[10px] text-center text-[#747775] mt-1.5 flex items-center justify-between px-1">
+                        <span>Gemini 可能會顯示不準確的資訊，因此請查證其回覆。</span>
+                        <button onclick="toggleSound()" class="text-[#0B57D0] font-medium flex items-center gap-1">
+                            <i id="sound-toggle-icon" class="fa-solid fa-volume-high"></i>
+                            <span id="sound-toggle-text">音效開啟</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================================================================== -->
+        <!-- CENTER SPLIT DIVIDER WITH COLLAPSE RIGHT PANEL BUTTON              -->
+        <!-- ================================================================== -->
+        <div id="split-divider-control" class="hidden w-3 bg-[#E0E2E0] hover:bg-[#D3E3FD] relative z-30 items-center justify-center shrink-0 transition-colors">
+            <button onclick="setSplitScreenLayout(false)" class="absolute left-1/2 -translate-x-1/2 px-2 py-3 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] active:scale-95 text-white font-bold text-[11px] shadow-xl border-2 border-white flex flex-col items-center gap-1 cursor-pointer whitespace-nowrap" title="隱藏右側 OpenSCAD 畫面，恢復左側滿版">
+                <i class="fa-solid fa-angles-right text-xs"></i>
+                <span style="writing-mode: vertical-rl; letter-spacing: 1px;">隱藏右側</span>
+            </button>
+        </div>
+
+        <!-- ================================================================== -->
+        <!-- RIGHT PANEL: Authentic OpenSCAD 2021.01 Window (Initially Hidden)  -->
+        <!-- Appears in Step 3/4 or 4/4 when clicking "檢視三層套疊剖面"        -->
+        <!-- ================================================================== -->
+        <section id="openscad-panel" class="hidden flex-1 h-full flex-col bg-[#F0F0F0] scad-ui-font overflow-hidden select-none">
+
+            <!-- 1. OpenSCAD Top Menu Bar: 檔案(F) 編輯(E) 設計(D) 檢視(V) Window 說明(H) -->
+            <div class="h-6 bg-[#F0F0F0] border-b border-[#CCCCCC] px-2 flex items-center justify-between shrink-0">
+                <div class="flex items-center gap-3 text-[12px] text-[#000000]">
+                    <span class="hover:bg-[#E5F1FB] px-1.5 py-0.5 cursor-pointer">檔案(<u>F</u>)</span>
+                    <span class="hover:bg-[#E5F1FB] px-1.5 py-0.5 cursor-pointer">編輯(<u>E</u>)</span>
+                    <span onclick="triggerScadAction('F6')" class="hover:bg-[#E5F1FB] px-1.5 py-0.5 cursor-pointer" title="點擊執行 F6 渲染">設計(<u>D</u>)</span>
+                    <span onclick="toggleScadEdges()" class="hover:bg-[#E5F1FB] px-1.5 py-0.5 cursor-pointer" title="點擊切換網格邊線">檢視(<u>V</u>)</span>
+                    <span class="hover:bg-[#E5F1FB] px-1.5 py-0.5 cursor-pointer">Window</span>
+                    <span class="hover:bg-[#E5F1FB] px-1.5 py-0.5 cursor-pointer">說明(<u>H</u>)</span>
+                </div>
+
+                <!-- Right Side Helper Buttons for iPad Exhibition -->
+                <div class="flex items-center gap-1.5">
+                    <button onclick="setSplitScreenLayout(false)" class="px-2 py-0.5 bg-[#FEE2E2] hover:bg-[#FECACA] border border-[#F87171] text-[11px] font-bold text-[#991B1B] flex items-center gap-1" title="隱藏右側 OpenSCAD 畫面">
+                        <i class="fa-solid fa-angles-right text-[10px]"></i>
+                        <span>隱藏右側</span>
+                    </button>
+                    <button id="btn-toggle-split" onclick="toggleMaximizeOpenSCAD()" class="px-2 py-0.5 bg-[#E1E1E1] hover:bg-[#D5E8F7] border border-[#ADADAD] text-[11px] text-black flex items-center gap-1">
+                        <i class="fa-solid fa-maximize text-[10px]"></i>
+                        <span id="split-toggle-label">放大 OpenSCAD</span>
+                    </button>
+                    <button id="btn-open-ipad-guide" class="px-2 py-0.5 bg-[#D9F2E6] hover:bg-[#BFE8D5] border border-[#55B688] text-[11px] font-bold text-[#064E3B] flex items-center gap-1">
+                        <span>🔒 iPad鎖定教學</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 2. OpenSCAD Main 3-Column Dock Workspace (Editor | Viewport+Console | Customizer) -->
+            <div class="flex-1 flex flex-row overflow-hidden bg-[#CCCCCC] gap-[2px]">
+
+                <!-- ========================================================== -->
+                <!-- LEFT DOCK: 編輯器 (Code Editor with Teal Comments & Icons) -->
+                <!-- ========================================================== -->
+                <div id="scad-editor-dock" class="w-[33%] min-w-[230px] h-full flex flex-col bg-[#FFFFFF]">
+                    
+                    <!-- Dock Title Bar: 編輯器 -->
+                    <div class="scad-dock-header">
+                        <span class="font-medium">編輯器</span>
+                        <div class="flex items-center gap-2">
+                            <button onclick="toggleHighlighterMode()" id="btn-toggle-highlighter" class="px-1.5 py-0 rounded bg-[#FEF08A] border border-[#EAB308] text-[10.5px] font-bold text-black flex items-center gap-1" title="開關螢光筆重點標註">
+                                <span>🖍️ 螢光筆註解: 開</span>
+                            </button>
+                            <span class="text-[#555555] font-bold cursor-pointer hover:text-black">×</span>
+                        </div>
+                    </div>
+
+                    <!-- Editor Icon Toolbar (Matches screenshot: New, Open, Save, Undo, Redo, Unindent, Indent, F5, F6, STL, Print) -->
+                    <div class="h-7 bg-[#F5F5F5] border-b border-[#D4D4D4] px-1.5 flex items-center gap-0.5 shrink-0">
+                        <!-- New / Open / Save -->
+                        <button class="scad-toolbar-btn" title="新增檔案"><i class="fa-regular fa-file text-[13px]"></i></button>
+                        <button class="scad-toolbar-btn" title="開啟檔案"><i class="fa-regular fa-folder-open text-[13px]"></i></button>
+                        <button class="scad-toolbar-btn" title="儲存檔案"><i class="fa-regular fa-floppy-disk text-[13px]"></i></button>
+                        <span class="h-4 w-[1px] bg-[#CCCCCC] mx-0.5"></span>
+                        <!-- Undo / Redo -->
+                        <button class="scad-toolbar-btn" title="復原"><i class="fa-solid fa-rotate-left text-[12px]"></i></button>
+                        <button class="scad-toolbar-btn" title="重做"><i class="fa-solid fa-rotate-right text-[12px]"></i></button>
+                        <span class="h-4 w-[1px] bg-[#CCCCCC] mx-0.5"></span>
+                        <!-- Unindent / Indent -->
+                        <button class="scad-toolbar-btn" title="減少縮排"><i class="fa-solid fa-outdent text-[12px]"></i></button>
+                        <button class="scad-toolbar-btn" title="增加縮排"><i class="fa-solid fa-indent text-[12px]"></i></button>
+                        <span class="h-4 w-[1px] bg-[#CCCCCC] mx-0.5"></span>
+                        <!-- F5 Preview (Cube with >>) -->
+                        <button onclick="triggerScadAction('F5')" class="scad-toolbar-btn" title="預覽 (F5)">
+                            <span class="relative flex items-center">
+                                <i class="fa-solid fa-cube text-[13px] text-[#333]"></i>
+                                <span class="text-[8px] font-black text-[#D97706] -ml-0.5">≫</span>
+                            </span>
+                        </button>
+                        <!-- F6 Render (Cube with CGAL grid) -->
+                        <button onclick="triggerScadAction('F6')" class="scad-toolbar-btn" title="渲染 (F6)">
+                            <span class="relative flex items-center">
+                                <i class="fa-solid fa-cubes text-[13px] text-[#059669]"></i>
+                            </span>
+                        </button>
+                        <!-- Export STL Icon -->
+                        <button onclick="triggerScadAction('STL')" class="scad-toolbar-btn px-1 w-auto" title="匯出 STL 檔案 (F7)">
+                            <span class="border border-[#444] px-1 py-0 text-[9px] font-black leading-tight bg-white">STL</span>
+                        </button>
+                    </div>
+
+                    <!-- Interactive Highlight Explanation Callout (Shows when clicking a highlighted parameter) -->
+                    <div id="scad-annotation-bar" class="hidden bg-[#FFFBEB] border-b border-[#F59E0B] px-2.5 py-1.5 text-[11px] text-[#1F1F1F]">
+                        <div class="flex items-center justify-between">
+                            <span id="scad-annot-title" class="font-bold text-[#B45309]">🖍️ 參數工程意義</span>
+                            <button onclick="document.getElementById('scad-annotation-bar').classList.add('hidden')" class="text-[#78716C] hover:text-black font-bold">✕</button>
+                        </div>
+                        <div id="scad-annot-desc" class="text-[11px] text-[#44403C] mt-0.5 leading-snug"></div>
+                    </div>
+
+                    <!-- Code Editor Content with Line Numbers & Right-side Wrap Symbols (⇄) -->
+                    <div id="scad-editor-scroll" class="flex-1 overflow-y-auto bg-[#FFFFFF] flex flex-row scad-code-font">
+                        <!-- Line Number Gutter (#F0F0F0) -->
+                        <div id="scad-line-numbers" class="w-8 py-1.5 bg-[#F0F0F0] border-r border-[#E0E0E0] text-right pr-1.5 text-[#666666] select-none shrink-0">
+                            1
+                        </div>
+                        <!-- Code Lines Container -->
+                        <div id="scad-code-lines" class="flex-1 py-1.5 pl-2 pr-1 overflow-x-hidden">
+                            <!-- Dynamically populated according to tour step -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========================================================== -->
+                <!-- CENTER COLUMN: Top 3D Viewport + Bottom Console & ErrorLog -->
+                <!-- ========================================================== -->
+                <div class="flex-1 h-full flex flex-col bg-[#CCCCCC] gap-[2px] min-w-[300px]">
+
+                    <!-- Top: 3D Viewport Area (Background #FFFFE5 Cornfield) -->
+                    <div class="flex-[64] flex flex-col bg-[#FFFFE5] relative overflow-hidden">
+                        
+                        <!-- Three.js Container -->
+                        <div id="scad-3d-container" class="flex-1 w-full h-full relative overflow-hidden">
+                            <!-- Overlay Floating Nesting Cutaway / Lift Control when in Step 3 or 4 -->
+                            <div class="absolute top-2 right-2 z-10 flex items-center gap-1.5 bg-white/90 border border-[#A0A0A0] px-2 py-1 rounded shadow-sm text-[11px]">
+                                <span class="font-bold text-[#333]">套疊分解高度:</span>
+                                <input id="scad-explode-slider" type="range" min="0" max="100" value="0" class="w-20 accent-[#0078D7] cursor-pointer">
+                                <button onclick="toggleSectionCutaway()" id="btn-quick-section" class="px-1.5 py-0.5 bg-[#F0F0F0] hover:bg-[#D9EBF9] border border-[#999] text-[10.5px] font-bold">
+                                    ✂️ 剖面檢查
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Authentic OpenSCAD Viewport Bottom Icon Toolbar -->
+                        <div class="h-7 bg-[#F0F0F0] border-t border-[#C0C0C0] px-1.5 flex items-center gap-1 shrink-0 overflow-x-auto">
+                            <!-- Preview & Render -->
+                            <button onclick="triggerScadAction('F5')" class="scad-toolbar-btn" title="預覽 (F5)"><i class="fa-solid fa-cube text-[12px]"></i></button>
+                            <button onclick="triggerScadAction('F6')" class="scad-toolbar-btn" title="渲染 (F6)"><i class="fa-solid fa-cubes text-[12px] text-[#059669]"></i></button>
+                            <span class="h-4 w-[1px] bg-[#CCCCCC] mx-0.5"></span>
+                            <!-- View All / Reset / Zoom In / Zoom Out / Reset Rotation -->
+                            <button onclick="resetScadViewportCamera()" class="scad-toolbar-btn" title="檢視全部 (View All)"><i class="fa-solid fa-magnifying-glass-Location text-[12px] fa-expand"></i></button>
+                            <button onclick="zoomScadCamera(-32)" class="scad-toolbar-btn" title="放大 (Zoom In)"><i class="fa-solid fa-magnifying-glass-plus text-[12px]"></i></button>
+                            <button onclick="zoomScadCamera(32)" class="scad-toolbar-btn" title="縮小 (Zoom Out)"><i class="fa-solid fa-magnifying-glass-minus text-[12px]"></i></button>
+                            <button onclick="resetScadViewportCamera()" class="scad-toolbar-btn" title="重設視角"><i class="fa-solid fa-rotate-right text-[12px]"></i></button>
+                            <span class="h-4 w-[1px] bg-[#CCCCCC] mx-0.5"></span>
+                            <!-- Standard Angle Presets (Front, Back, Top, Diagonal) -->
+                            <button onclick="setScadPresetAngle('screenshot')" class="scad-toolbar-btn" title="標準斜角 (截圖視角)"><i class="fa-solid fa-dice-d6 text-[13px]"></i></button>
+                            <button onclick="setScadPresetAngle('front')" class="scad-toolbar-btn" title="前視圖 (觀察五官與剖面)"><i class="fa-regular fa-square text-[12px]"></i></button>
+                            <button onclick="setScadPresetAngle('top')" class="scad-toolbar-btn" title="俯視圖 (觀察九宮格)"><i class="fa-solid fa-border-all text-[12px]"></i></button>
+                            <span class="h-4 w-[1px] bg-[#CCCCCC] mx-0.5"></span>
+                            <!-- Show Edges (Active Blue Highlight Box like screenshot!) -->
+                            <button id="btn-scad-edges" onclick="toggleScadEdges()" class="scad-toolbar-btn active-toggle" title="顯示邊線 (Show Edges)">
+                                <i class="fa-solid fa-draw-polygon text-[12px]"></i>
+                            </button>
+                            <!-- Show Axes (Active Blue Highlight Box like screenshot!) -->
+                            <button id="btn-scad-axes" onclick="toggleScadAxes()" class="scad-toolbar-btn active-toggle" title="顯示座標軸 (Show Axes)">
+                                <i class="fa-solid fa-arrows-up-down-left-right text-[12px]"></i>
+                            </button>
+                            <!-- Show Scale Markers (10 ruler icon active like screenshot!) -->
+                            <button id="btn-scad-ticks" onclick="toggleScadAxes()" class="scad-toolbar-btn active-toggle font-mono font-bold text-[10px]" title="顯示刻度標記 (Scale Markers)">
+                                ⊥10
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Split: Left = 控制台 (Console) | Right = Error-Log -->
+                    <div class="flex-[36] flex flex-row bg-[#CCCCCC] gap-[2px] overflow-hidden">
+                        
+                        <!-- Left Sub-Dock: 控制台 (Console) -->
+                        <div class="flex-[55] flex flex-col bg-[#FFFFFF] overflow-hidden">
+                            <div class="scad-dock-header">
+                                <span>控制台</span>
+                                <span class="text-[#555555] font-bold cursor-pointer">×</span>
+                            </div>
+                            <div id="scad-console-output" class="flex-1 p-2 overflow-y-auto scad-code-font text-[11.5px] leading-snug text-[#000000] whitespace-pre-wrap">Rendering Polygon Mesh using CGAL...
+Geometries in cache: 464
+Geometry cache size in bytes: 104138176
+CGAL Polyhedrons in cache: 4
+CGAL cache size in bytes: 102677632
+Total rendering time: 0:41:11.899
+   Top level object is a 3D object:
+   Simple:        yes
+   Vertices:   141246
+   Halfedges:  734648
+   Edges:      367324
+   Halffacets: 452132
+   Facets:     226066
+   Volumes:        11
+Rendering finished.
+STL export finished: C:/Users/user/Downloads/招財貓連連.stl</div>
+                        </div>
+
+                        <!-- Right Sub-Dock: Error-Log -->
+                        <div class="flex-[45] flex flex-col bg-[#FFFFFF] overflow-hidden">
+                            <div class="scad-dock-header">
+                                <span>Error-Log</span>
+                                <span class="text-[#555555] font-bold cursor-pointer">×</span>
+                            </div>
+                            <div class="px-2 py-1 bg-[#F5F5F5] border-b border-[#D4D4D4] flex items-center gap-2 text-[11px]">
+                                <span>Show</span>
+                                <select class="border border-[#ADADAD] bg-white px-1 py-0.5 text-[11px]">
+                                    <option>全部取代</option>
+                                    <option>僅錯誤</option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-3 border-b border-[#E0E0E0] bg-[#F9F9F9] text-[11px] text-[#333] px-2 py-0.5">
+                                <span class="border-r border-[#E0E0E0]">Group</span>
+                                <span class="border-r border-[#E0E0E0] pl-2">File</span>
+                                <span class="pl-2">Line</span>
+                            </div>
+                            <div id="scad-error-table" class="flex-1 p-2 text-[11px] text-[#666666] overflow-y-auto">
+                                <!-- Empty means 0 errors, matching screenshot -->
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- ========================================================== -->
+                <!-- RIGHT DOCK: 自訂 (Customizer matching screenshot)          -->
+                <!-- ========================================================== -->
+                <div class="w-[22%] min-w-[185px] max-w-[235px] h-full flex flex-col bg-[#F0F0F0]">
+                    <div class="scad-dock-header">
+                        <span>自訂</span>
+                    </div>
+
+                    <!-- Top Customizer Controls (自動預覽, 顯示明細, 重設, +, -, 儲存預設) -->
+                    <div class="p-1.5 bg-[#F0F0F0] border-b border-[#CCCCCC] space-y-1.5 text-[11px]">
+                        <div class="flex items-center justify-between gap-1">
+                            <label class="flex items-center gap-1 cursor-pointer">
+                                <input type="checkbox" checked class="accent-[#0078D7]">
+                                <span>自動預覽</span>
+                            </label>
+                            <select class="border border-[#ADADAD] bg-white px-1 py-0.5 text-[11px]">
+                                <option>顯示明細</option>
+                            </select>
+                            <button onclick="resetCustomizerParams()" class="scad-win-btn">重設</button>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <select class="flex-1 border border-[#ADADAD] bg-white px-1 py-0.5 text-[11px]">
+                                <option>預設值</option>
+                            </select>
+                            <button class="scad-win-btn px-1.5">+</button>
+                            <button class="scad-win-btn px-1.5">-</button>
+                            <button class="scad-win-btn text-[#666]">儲存預設</button>
+                        </div>
+                    </div>
+
+                    <!-- Collapsible Light-Blue Categories (#D9EBF9) matching screenshot -->
+                    <div class="flex-1 overflow-y-auto p-1 bg-[#FFFFFF]">
+                        
+                        <!-- Category 1: 輸出模式選擇 (Render Mode) -->
+                        <div onclick="toggleCustSection('cust-sec-1')" class="scad-customizer-cat">
+                            <span id="icon-cust-sec-1">▼</span>
+                            <span>輸出模式選擇 (Render Mode)</span>
+                        </div>
+                        <div id="cust-sec-1" class="p-2 mb-1 bg-[#F9FBFD] border border-[#D9EBF9] space-y-1.5 text-[11px]">
+                            <div class="text-[#333] font-medium">part_to_render:</div>
+                            <select id="select-part-to-render" onchange="changeScadPartMode(this.value)" class="w-full border border-[#999] bg-white px-1.5 py-1 text-[11px]">
+                                <option value="screenshot_scene">all_preview (招財貓與長條組)</option>
+                                <option value="nesting_section">nesting_section (套疊剖面檢查)</option>
+                                <option value="p1_right_paw_pieces">p1_right_paw_pieces (單人6顆)</option>
+                                <option value="grid_bars">grid_bars (棋盤長條4根)</option>
+                            </select>
+                            <div class="pt-1 border-t border-[#E5E7EB]">
+                                <div class="text-[#333] font-medium mb-1">色彩檢視模式:</div>
+                                <select id="select-color-scheme" onchange="changeScadColorScheme(this.value)" class="w-full border border-[#999] bg-white px-1.5 py-1 text-[11px]">
+                                    <option value="cgal">OpenSCAD 原生金黃配色 (CGAL)</option>
+                                    <option value="team">雙隊分色預覽 (黃貓 vs 藍貓)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Category 2: 全域精細度 -->
+                        <div onclick="toggleCustSection('cust-sec-2')" class="scad-customizer-cat">
+                            <span id="icon-cust-sec-2">▶</span>
+                            <span>全域精細度</span>
+                        </div>
+                        <div id="cust-sec-2" class="hidden p-2 mb-1 bg-[#F9FBFD] border border-[#D9EBF9] space-y-1 text-[11px]">
+                            <div class="flex justify-between"><span>$fn (圓柱平滑度):</span><span id="val-fn" class="font-mono font-bold">48</span></div>
+                            <input type="range" min="16" max="64" step="8" value="48" oninput="updateFnParam(this.value)" class="w-full accent-[#0078D7]">
+                        </div>
+
+                        <!-- Category 3: 招財貓手部方向設定 -->
+                        <div onclick="toggleCustSection('cust-sec-3')" class="scad-customizer-cat">
+                            <span id="icon-cust-sec-3">▶</span>
+                            <span>招財貓手部方向設定</span>
+                        </div>
+                        <div id="cust-sec-3" class="hidden p-2 mb-1 bg-[#F9FBFD] border border-[#D9EBF9] space-y-1.5 text-[11px]">
+                            <div class="flex items-center justify-between">
+                                <span>p1_paw_side (黃貓):</span>
+                                <select onchange="updatePawSideParam(this.value)" class="border border-[#999] bg-white px-1 py-0.5">
+                                    <option value="-1" selected>-1 (右手招財)</option>
+                                    <option value="1">1 (左手招福)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Category 4: 棋子基礎與套疊參數 (單位: mm) -->
+                        <div onclick="toggleCustSection('cust-sec-4')" class="scad-customizer-cat">
+                            <span id="icon-cust-sec-4">▶</span>
+                            <span>棋子基礎與套疊參數 (單位: mm)</span>
+                        </div>
+                        <div id="cust-sec-4" class="hidden p-2 mb-1 bg-[#F9FBFD] border border-[#D9EBF9] space-y-1 text-[11px]">
+                            <div class="flex justify-between"><span>base_radius:</span><span class="font-mono">10.5 mm</span></div>
+                            <div class="flex justify-between"><span>wall_thickness:</span><span class="font-mono">2.4 mm</span></div>
+                            <div class="flex justify-between"><span>radial_clearance:</span><span class="font-mono text-[#0078D7] font-bold">4.2 mm</span></div>
+                            <div class="flex justify-between"><span>vertical_clearance:</span><span class="font-mono">3.2 mm</span></div>
+                        </div>
+
+                        <!-- Category 5: 棋盤格網參數 (單位: mm) -->
+                        <div onclick="toggleCustSection('cust-sec-5')" class="scad-customizer-cat">
+                            <span id="icon-cust-sec-5">▶</span>
+                            <span>棋盤格網參數 (單位: mm)</span>
+                        </div>
+                        <div id="cust-sec-5" class="hidden p-2 mb-1 bg-[#F9FBFD] border border-[#D9EBF9] space-y-1 text-[11px]">
+                            <div class="flex justify-between"><span>cell_size:</span><span class="font-mono">52.0 mm</span></div>
+                            <div class="flex justify-between"><span>bar_width:</span><span class="font-mono">8.0 mm</span></div>
+                            <div class="flex justify-between"><span>slot_tolerance:</span><span class="font-mono">0.25 mm</span></div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 3. OpenSCAD Bottom Status Bar (Exact match to screenshot) -->
+            <div class="h-5 bg-[#F0F0F0] border-t border-[#CCCCCC] px-2 flex items-center justify-between text-[11px] text-[#000000] shrink-0">
+                <div id="scad-status-viewport" class="truncate font-mono">
+                    Viewport: translate = [ -4.00 -4.80 -3.80 ], rotate = [ 55.00 0.00 25.00 ], distance = 292.71, fov = 22.50 (728x360)
+                </div>
+                <div class="pl-3 border-l border-[#CCCCCC] shrink-0">
+                    OpenSCAD 2021.01
+                </div>
+            </div>
+
+        </section>
+
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- End-of-Tour Completion Message Overlay (Click anywhere to restart)     -->
+    <!-- ====================================================================== -->
+    <div id="tour-end-overlay" class="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs hidden items-center justify-center p-6 cursor-pointer">
+        <div class="bg-white rounded-3xl p-8 max-w-lg w-full text-center shadow-2xl border-2 border-[#D3E3FD] transform transition-all">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-full gemini-sparkle-bg flex items-center justify-center text-white text-3xl shadow-lg">
+                ✦
+            </div>
+            <h3 class="text-xl sm:text-2xl font-black text-[#1F1F1F] mb-3 leading-relaxed">
+                對話模擬已結束，<br>歡迎體驗3D列印實體桌遊~
+            </h3>
+            <p class="text-xs sm:text-sm text-[#0B57D0] font-bold bg-[#F0F4F9] py-2.5 px-5 rounded-full inline-block mt-2 animate-pulse">
+                👆 請再按畫面一下返回最初畫面
+            </p>
+        </div>
+    </div>
+
+    <!-- ====================================================================== -->
+    <!-- iPad Exhibition Fullscreen & Guided Access Lock Tutorial Modal         -->
+    <!-- ====================================================================== -->
+    <div id="ipad-guide-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs hidden items-center justify-center p-4">
+        <div class="max-w-lg w-full rounded-3xl p-6 bg-white border border-slate-200 shadow-2xl text-[#1F1F1F]">
+            <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">🔒</span>
+                    <h3 class="text-base sm:text-lg font-black text-[#0B57D0]">iPad 6 展場全螢幕與防手勢跳出設定步驟</h3>
+                </div>
+                <button id="btn-close-ipad-guide" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="space-y-3 text-xs sm:text-sm leading-relaxed">
+                <div class="p-3.5 rounded-2xl bg-[#F0F4F9]">
+                    <div class="font-bold text-[#0B57D0] mb-1">步驟 1：隱藏 Safari 網址列 (加入主畫面)</div>
+                    <p class="text-[#444746]">在 iPad Safari 點擊右上角「<strong>分享</strong>」圖示 ➜ 選擇「<strong>加入主畫面</strong>」，從桌面開啟即可獲得 100% 滿版全螢幕體驗。</p>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-[#F0F4F9]">
+                    <div class="font-bold text-[#064E3B] mb-1">步驟 2：開啟「引導使用模式 (Guided Access)」</div>
+                    <p class="text-[#444746]">前往 iPad「<strong>設定</strong>」➜「<strong>輔助使用</strong>」➜ 開啟「<strong>引導使用模式</strong>」並設定密碼。</p>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-[#F0F4F9]">
+                    <div class="font-bold text-[#B45309] mb-1">步驟 3：連按三下電源鍵 / Home 鍵鎖定畫面</div>
+                    <p class="text-[#444746]">進入本導覽畫面後<strong>連按三下電源鍵或 Home 鍵</strong>，即可徹底鎖定四指抓攏回桌面與控制中心手勢！</p>
+                </div>
+            </div>
+            <div class="mt-5 flex justify-end">
+                <button id="btn-got-it-ipad" class="px-5 py-2 rounded-full bg-[#0B57D0] text-white font-bold text-xs sm:text-sm shadow">
+                    我知道了
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================================
+        // 1. Procedural Sound Engine (Tone.js)
+        // ============================================================================
+        let soundOn = true;
+        let synth = null;
+
+        function playSoundEffect(type) {
+            if (!soundOn) return;
+            try {
+                if (Tone.context.state !== 'running') Tone.context.resume();
+                if (!synth) {
+                    synth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: 'triangle' },
+                        envelope: { attack: 0.01, decay: 0.12, sustain: 0.04, release: 0.2 }
+                    }).toDestination();
+                    synth.volume.value = -10;
+                }
+                const now = Tone.now();
+                if (type === 'send') {
+                    synth.triggerAttackRelease(['C5', 'G5'], '16n', now);
+                } else if (type === 'reply') {
+                    synth.triggerAttackRelease('E5', '16n', now);
+                    synth.triggerAttackRelease('A5', '12n', now + 0.08);
+                } else if (type === 'render') {
+                    // Authentic OpenSCAD render completion chime
+                    synth.triggerAttackRelease('D5', '16n', now);
+                    synth.triggerAttackRelease('A5', '8n', now + 0.09);
+                } else if (type === 'click') {
+                    synth.triggerAttackRelease('G5', '32n', now);
+                }
+            } catch (e) {}
+        }
+
+        function toggleSound() {
+            soundOn = !soundOn;
+            document.getElementById('sound-toggle-icon').className = soundOn ? 'fa-solid fa-volume-high' : 'fa-solid fa-volume-xmark';
+            document.getElementById('sound-toggle-text').textContent = soundOn ? '音效開啟' : '音效靜音';
+        }
+
+        // ============================================================================
+        // 2. Guided Tour 4-Step Conversation Data (Authentic Gemini Light UI)
+        // ============================================================================
+        const GUIDED_STEPS = [
+            {
+                step: 1,
+                tag: '✦ 預設提問 (步驟 1 / 4：搜尋桌遊配件與幾何結構)',
+                arrowLabel: '👇 點擊發送第 1 步提問',
+                prompt: '我想要用openscad設計出桌遊"Gobblet Gobblers"的物件，運用3D列印來再製出來，請幫我先搜尋完整的"Gobblet Gobblers"中的配件應該要有各種形狀，再告訴我是否可以運用openscad製作出相同的物件。',
+                loaderTitle: 'Gemini 正在搜尋桌遊配件與進行幾何結構拆解...',
+                loaderSub: '比對《奇雞連連 Gobblet Gobblers》16 件實體配件：4 根半搭接長條 + 12 顆俄羅斯娃娃套疊棋子...',
+                responseHTML: `
+                    <div class="space-y-3 text-xs sm:text-[13px] leading-relaxed text-[#1F1F1F]">
+                        <p class="font-bold text-[14px] text-[#0B57D0]">
+                            桌遊 奇雞連連 Gobblet Gobblers 是一款結合井字遊戲與大吃小套疊機制的雙人策略遊戲，配件的幾何結構十分明確，非常適合使用 OpenSCAD 建模並透過 3D 列印重製。
+                        </p>
+                        <div class="p-3 rounded-2xl bg-[#F0F4F9] space-y-1.5">
+                            <div class="font-bold text-[#1F1F1F]">一、完整配件清單與幾何形狀模擬圖（全套共 16 個物件）：</div>
+                            <ul class="list-disc list-inside space-y-1 text-[#444746] text-xs">
+                                <li><strong>井字棋盤格網（4 根長條）：</strong>每根長 172mm，在 1/3 與 2/3 處各挖一個半深卡槽（<strong>半搭接榫 Half-lap joint</strong>），2 上 2 下垂直卡合成九宮格。</li>
+                                <li><strong>吞食棋子（12 顆，2 色 × 大中小各 2 顆）：</strong>底部開口、內部中空的「<strong>俄羅斯娃娃杯狀圓柱體</strong>」，大號可罩住中號、中號可罩住小號。</li>
+                            </ul>
+
+                            <!-- Embedded Simple Shape Simulation SVG Diagram inside Gemini Reply -->
+                            <div class="mt-2 bg-white rounded-xl p-2.5 border border-[#D3E3FD]">
+                                <div class="text-[11px] font-bold text-[#0B57D0] mb-1 flex items-center justify-between">
+                                    <span>📐 配件簡單幾何形狀與中空套疊剖面模擬圖</span>
+                                    <span class="text-[10px] text-[#444746]">cylinder() + sphere() - 內部空腔</span>
+                                </div>
+                                <svg viewBox="0 0 380 128" class="w-full h-28">
+                                    <line x1="10" y1="108" x2="235" y2="108" stroke="#94A3B8" stroke-width="1.5"/>
+                                    <!-- Small Cup -->
+                                    <g transform="translate(42, 0)">
+                                        <circle cx="0" cy="54" r="4" fill="#F59E0B"/>
+                                        <path d="M -16 108 L -16 72 A 16 16 0 0 1 16 72 L 16 108 Z" fill="#FEF3C7" stroke="#D97706" stroke-width="2"/>
+                                        <path d="M -12 108 L -12 72 A 12 12 0 0 1 12 72 L 12 108" fill="none" stroke="#B45309" stroke-width="1.2" stroke-dasharray="3,2"/>
+                                        <text x="0" y="122" text-anchor="middle" fill="#1F1F1F" font-size="9.5" font-weight="bold">小 S (Ø22)</text>
+                                    </g>
+                                    <!-- Medium Cup -->
+                                    <g transform="translate(110, 0)">
+                                        <circle cx="0" cy="38" r="4.5" fill="#F59E0B"/>
+                                        <path d="M -23 108 L -23 61 A 23 23 0 0 1 23 61 L 23 108 Z" fill="#FDE68A" stroke="#D97706" stroke-width="2"/>
+                                        <path d="M -19 108 L -19 61 A 19 19 0 0 1 19 61 L 19 108" fill="none" stroke="#B45309" stroke-width="1.2" stroke-dasharray="3,2"/>
+                                        <text x="0" y="122" text-anchor="middle" fill="#1F1F1F" font-size="9.5" font-weight="bold">中 M (Ø30.8)</text>
+                                    </g>
+                                    <!-- Large Cup Nesting All 3 -->
+                                    <g transform="translate(190, 0)">
+                                        <circle cx="0" cy="18" r="5" fill="#F59E0B"/>
+                                        <path d="M -30 108 L -30 48 A 30 30 0 0 1 30 48 L 30 108 Z" fill="#FCD34D" stroke="#B45309" stroke-width="2"/>
+                                        <path d="M -26 108 L -26 48 A 26 26 0 0 1 26 48 L 26 108" fill="none" stroke="#78350F" stroke-width="1.2" stroke-dasharray="3,2"/>
+                                        <path d="M -23 108 L -23 61 A 23 23 0 0 1 23 61 L 23 108" fill="none" stroke="#D97706" stroke-width="1"/>
+                                        <path d="M -16 108 L -16 72 A 16 16 0 0 1 16 72 L 16 108" fill="none" stroke="#B45309" stroke-width="1"/>
+                                        <text x="0" y="122" text-anchor="middle" fill="#0B57D0" font-size="9.5" font-weight="bold">大 L 套疊剖面</text>
+                                    </g>
+                                    <!-- Right: 4 Grid Bars Half-Lap -->
+                                    <g transform="translate(310, 58)">
+                                        <rect x="-45" y="-14" width="90" height="6" rx="3" fill="#D97706"/>
+                                        <rect x="-45" y="8" width="90" height="6" rx="3" fill="#D97706"/>
+                                        <rect x="-14" y="-42" width="6" height="84" rx="3" fill="#F59E0B"/>
+                                        <rect x="8" y="-42" width="6" height="84" rx="3" fill="#F59E0B"/>
+                                        <text x="0" y="64" text-anchor="middle" fill="#1F1F1F" font-size="9.5" font-weight="bold">4根卡榫長條</text>
+                                    </g>
+                                </svg>
+                            </div>
+                        </div>
+                        <p class="text-xs text-[#0B57D0] font-bold">
+                            👉 請點擊下方發送第 2 步提問，讓 Gemini 為您撰寫含螢光筆重點註解的 OpenSCAD 參數化程式碼！
+                        </p>
+                    </div>
+                `
+            },
+            {
+                step: 2,
+                tag: '✦ 預設提問 (步驟 2 / 4：生成參數化程式碼與螢光筆註解)',
+                arrowLabel: '👇 點擊發送第 2 步：產生 OpenSCAD 程式碼',
+                prompt: '請幫我撰寫一份完整的 OpenSCAD 參數化程式碼製作以上的配件，並且在程式碼中增加註解，告訴我每個部分代表的物件意義。',
+                loaderTitle: 'Gemini 正在推導遞迴尺寸公式與生成 OpenSCAD 程式碼...',
+                loaderSub: '寫入 wall_thickness = 2.4mm (噴嘴整數倍)、radial_clearance 套疊間隙與 difference() 中空杯腔...',
+                responseHTML: `
+                    <div class="space-y-2.5 text-xs sm:text-[13px] leading-relaxed text-[#1F1F1F]">
+                        <p>
+                            以下為您產生的完整 OpenSCAD 參數化程式碼與<strong>彩色螢光筆重點註解</strong>，說明每個區塊代表的工程與幾何意義：
+                        </p>
+                        <!-- Embedded Highlighted Code Preview Box inside Gemini Fullscreen Chat -->
+                        <div class="rounded-2xl border border-[#D3E3FD] bg-[#F8FAFC] p-3 font-mono text-[11.5px] leading-relaxed space-y-1.5 overflow-x-auto">
+                            <div class="text-[#008080]">// ========= Gobblet Gobblers (奇雞連連) 參數化 3D 列印模型 =========</div>
+                            <div class="p-1.5 rounded bg-[#FEF9C3] border-l-4 border-[#F59E0B]">
+                                <span class="text-[#008080]">/* [1. 棋子基礎尺寸與 0.4mm 噴嘴整數倍壁厚] */</span><br>
+                                base_radius = <span class="text-[#098658]">11.0</span>; &nbsp;&nbsp;<span class="text-[#008080]">// 小號棋子底部外半徑 (直徑 22mm 符合手指抓握)</span><br>
+                                wall_thickness = <span class="text-[#098658]">2.4</span>; <span class="text-[#008080]">// 外殼壁厚設為噴嘴 0.4mm 的 6 倍，內外各 3 圈完整壁厚最耐摔</span>
+                            </div>
+                            <div class="p-1.5 rounded bg-[#D1FAE5] border-l-4 border-[#10B981]">
+                                <span class="text-[#008080]">/* [2. 俄羅斯娃娃大吃小套疊空氣間隙] */</span><br>
+                                radial_clearance = <span class="text-[#098658]">2.0</span>; &nbsp;&nbsp;<span class="text-[#008080]">// 單邊水平間隙 (越大越容易蓋上與拿取)</span><br>
+                                vertical_clearance = <span class="text-[#098658]">2.5</span>; <span class="text-[#008080]">// 垂直頂部間隙 (避免外層內部圓頂撞到下一層的雞冠)</span>
+                            </div>
+                            <div class="p-1.5 rounded bg-[#FCE7F3] border-l-4 border-[#DB2777]">
+                                <span class="text-[#008080]">/* [3. 自動推算大中小尺寸遞迴函數 (lv: 0=小, 1=中, 2=大)] */</span><br>
+                                <span class="text-[#0000FF] font-bold">function</span> outer_r(lv) = base_radius + lv * (radial_clearance + wall_thickness);<br>
+                                <span class="text-[#0000FF] font-bold">function</span> cyl_h(lv) = (lv == <span class="text-[#098658]">0</span>) ? base_cyl_h : cyl_h(lv-<span class="text-[#098658]">1</span>) + crest_h(lv-<span class="text-[#098658]">1</span>) + vertical_clearance;
+                            </div>
+                            <div class="p-1.5 rounded bg-[#E0F2FE] border-l-4 border-[#0284C7]">
+                                <span class="text-[#008080]">/* [4. CSG 差集挖空：外部圓柱圓頂 union() 減去 內部中空杯腔 difference()] */</span><br>
+                                <span class="text-[#000080] font-bold">module</span> gobbler(lv = <span class="text-[#098658]">0</span>) { <span class="text-[#0000FF] font-bold">difference</span>() { <span class="text-[#0000FF] font-bold">union</span>() { cylinder(...); sphere(...); } cylinder(r=inner_r(lv)...); } }
+                            </div>
+                        </div>
+                        <p class="text-xs text-[#0B57D0] font-bold">
+                            👉 請點擊下方發送第 3 步提問，模擬 OpenSCAD 執行 CGAL 網格渲染與驗證套疊間隙！
+                        </p>
+                    </div>
+                `
+            },
+            {
+                step: 3,
+                tag: '✦ 預設提問 (步驟 3 / 4：模擬 OpenSCAD 預覽與套疊剖面檢查)',
+                arrowLabel: '👇 點擊發送第 3 步：模擬 CGAL 渲染分析',
+                prompt: '請幫我模擬在 OpenSCAD 中進行 F5 預覽、F6 渲染與 nesting_section 套疊剖面檢查的過程，確認大中小棋子不會碰撞。',
+                loaderTitle: '正在執行 OpenSCAD 幾何干涉驗證與 CGAL 剖面推演...',
+                loaderSub: '計算大、中、小三顆棋子疊合時的內部空腔高度與水平公差...',
+                responseHTML: `
+                    <div class="space-y-2.5 text-xs sm:text-[13px] leading-relaxed text-[#1F1F1F]">
+                        <p>
+                            透過在 OpenSCAD 程式碼中加入 <code>inspect_nesting_section()</code> 剖面檢查模組，我們可以用一個方塊切開大、中、小三顆疊在一起的棋子前半部：
+                        </p>
+                        <div class="p-3 rounded-2xl bg-[#F0F4F9] space-y-1.5 text-xs">
+                            <div>
+                                ✅ <strong>F5 快速預覽 vs F6 CGAL 實體渲染：</strong>在 OpenSCAD 中，正向建立的外表面呈現<strong>金黃色 (#F2CF23)</strong>，而透過 <code>difference()</code> 挖空或切開的截面則呈現<strong>橄欖綠 (#8E9B19)</strong>，能清楚確認三層杯壁與頂部皆保有 2.0mm~2.5mm 的安全空氣層！
+                            </div>
+                        </div>
+                        <div class="p-3 rounded-2xl bg-[#FFFBEB] border border-[#F59E0B] space-y-2 mt-2">
+                            <div class="text-xs font-bold text-[#B45309] flex items-center gap-1.5">
+                                <span>👇 點擊下方按鈕，即可展開右側 OpenSCAD 視窗檢視三層套疊剖面：</span>
+                            </div>
+                            <div class="flex flex-wrap gap-2 pt-0.5">
+                                <button onclick="revealSplitScreenAndInspect('nesting_section', 'rooster')" class="px-4 py-2 rounded-xl bg-[#0B57D0] hover:bg-[#0842A0] text-white font-black text-xs sm:text-sm shadow-md flex items-center gap-1.5 animate-pulse">
+                                    <span>✂️ 檢視三層套疊剖面</span>
+                                </button>
+                                <button onclick="revealSplitScreenAndInspect('screenshot_scene', 'rooster')" class="px-3.5 py-2 rounded-xl bg-white hover:bg-[#F0F4F9] border border-[#0B57D0] text-[#0B57D0] font-bold text-xs sm:text-sm">
+                                    🐔 檢視奇雞棋盤組裝
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-xs text-[#0B57D0] font-bold">
+                            👉 接著請點擊下方發送最後第 4 步提問，將奇雞改裝為「招財貓連連」最終定案版！
+                        </p>
+                    </div>
+                `
+            },
+            {
+                step: 4,
+                tag: '✦ 預設提問 (步驟 4 / 4：改裝為「招財貓連連」最終定案版)',
+                arrowLabel: '👇 點擊發送最後一步：升級招財貓連連！',
+                prompt: '請幫我將棋子的造型修改為招財貓的造型（P1黃色招財貓舉右手、P2藍色招福貓舉左手，手掌加大並往側面外推），並且維持可以大中小像俄羅斯娃娃一般免支撐套住！',
+                loaderTitle: 'Gemini 正在將奇雞模組改裝為「招財貓連連」最終定案版...',
+                loaderSub: '加入雙側尖貓耳、>55° 免支撐外推大貓掌、肉球凹槽、項圈鈴鐺，並將水平套疊間隙擴大至 4.2mm...',
+                responseHTML: `
+                    <div class="space-y-2.5 text-xs sm:text-[13px] leading-relaxed text-[#1F1F1F]">
+                        <p class="font-bold text-[#0B57D0]">
+                            🎉 已完成最終定案版《招財貓連連 (Maneki-neko Edition)》OpenSCAD 程式碼與 3D 模型建構！
+                        </p>
+                        <ul class="list-disc list-inside space-y-1 text-xs text-[#444746]">
+                            <li><strong>手掌加大外推 & 免支撐列印：</strong>P1 黃色招財貓舉右手、P2 藍色招福貓舉左手；手臂由身體側邊以 55°~60° 斜角向上延伸，<strong>免支撐即可直接 FDM 列印</strong>。</li>
+                            <li><strong>任意角度俄羅斯娃娃套疊：</strong>單邊水平間隙同步加大至 <code>4.2mm</code>、垂直間隙 <code>3.2mm</code>，確保雙耳與大貓掌在內部絕不碰撞！</li>
+                        </ul>
+                        <div class="p-3 rounded-2xl bg-[#FFFBEB] border border-[#F59E0B] space-y-2 mt-2">
+                            <div class="text-xs font-bold text-[#B45309] flex items-center gap-1.5">
+                                <span>👇 點擊下方按鈕，在右側 OpenSCAD 視窗切換檢視招財貓 3D 模型與套疊剖面：</span>
+                            </div>
+                            <div class="flex flex-wrap gap-2 pt-0.5">
+                                <button onclick="revealSplitScreenAndInspect('nesting_section', 'maneki')" class="px-4 py-2 rounded-xl bg-[#0B57D0] hover:bg-[#0842A0] text-white font-black text-xs sm:text-sm shadow-md flex items-center gap-1.5 animate-pulse">
+                                    <span>✂️ 檢視三層套疊剖面</span>
+                                </button>
+                                <button onclick="revealSplitScreenAndInspect('screenshot_scene', 'maneki')" class="px-3.5 py-2 rounded-xl bg-white hover:bg-[#F0F4F9] border border-[#0B57D0] text-[#0B57D0] font-bold text-xs sm:text-sm">
+                                    🎲 檢視完整棋盤組裝
+                                </button>
+                                <button onclick="revealSplitScreenAndInspect('team_color', 'maneki')" class="px-3.5 py-2 rounded-xl bg-[#FEF3C7] hover:bg-[#FDE68A] border border-[#F59E0B] text-[#92400E] font-bold text-xs sm:text-sm">
+                                    🎨 切換黃貓/藍貓雙隊彩繪
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `
+            }
+        ];
+
+        // ============================================================================
+        // 3. OpenSCAD Editor Code Templates (Matches Screenshot Exact Line-by-Line!)
+        // ============================================================================
+        const HIGHLIGHT_NOTES = {
+            wall: {
+                title: '🖍️ 棋子基礎尺寸與 0.4mm 噴嘴整數倍壁厚 (DFM)',
+                desc: 'base_radius = 10.5mm (直徑21mm) 最適合手指捏取；wall_thickness = 2.4mm 為 0.4mm 噴嘴的 6 倍，切片時剛好生成內外各 3 圈完整壁厚，不產生零碎填充，列印最快且耐摔！'
+            },
+            clearance: {
+                title: '🖍️ 俄羅斯娃娃套疊水平間隙 (4.2mm) 與垂直間隙 (3.2mm)',
+                desc: '為了容納招財貓加大外推的手掌與胸前金鈴鐺，單邊水平間隙設為 radial_clearance = 4.2mm，垂直頂部預留 3.2mm 避開雙側尖貓耳，確保任意旋轉角度大蓋小都不會碰撞卡死。'
+            },
+            formula: {
+                title: '🖍️ 參數化遞迴公式：outer_r(lv) 與 cyl_h(lv)',
+                desc: '只寫一個模組，利用等級變數 lv (0=小, 1=中, 2=大) 自動累加每一層的「間隙 + 壁厚」與「內層貓耳高度 + 垂直間隙」，修改任何參數時三顆棋子會自動同步更新！'
+            },
+            csg: {
+                title: '🖍️ CSG 布林差集挖空 difference() 與底部喇叭口導角',
+                desc: '用外部聯集實體減去內部小一號的膠囊空腔；底部特別以圓錐台 cylinder(r1=r_in+1.2, r2=r_in, h=1.8) 切出喇叭口導角，讓大貓蓋小貓時具備自動置中導正效果。'
+            }
+        };
+
+        let highlighterEnabled = true;
+
+        function explainCodeHighlight(key) {
+            playSoundEffect('click');
+            const note = HIGHLIGHT_NOTES[key];
+            if (!note) return;
+            const bar = document.getElementById('scad-annotation-bar');
+            bar.classList.remove('hidden');
+            document.getElementById('scad-annot-title').textContent = note.title;
+            document.getElementById('scad-annot-desc').textContent = note.desc;
+        }
+
+        function toggleHighlighterMode() {
+            highlighterEnabled = !highlighterEnabled;
+            playSoundEffect('click');
+            const btn = document.getElementById('btn-toggle-highlighter');
+            btn.innerHTML = highlighterEnabled ? '<span>🖍️ 螢光筆註解: 開</span>' : '<span>🖍️ 螢光筆註解: 關</span>';
+            btn.className = highlighterEnabled
+                ? 'px-1.5 py-0 rounded bg-[#FEF08A] border border-[#EAB308] text-[10.5px] font-bold text-black flex items-center gap-1'
+                : 'px-1.5 py-0 rounded bg-[#E5E7EB] border border-[#9CA3AF] text-[10.5px] text-[#4B5563] flex items-center gap-1';
+            renderScadEditorCode(currentModelEdition);
+        }
+
+        // Exact line structure matching the user's screenshot `image_c36a5d.png`
+        function getScadEditorLines(edition) {
+            const hlY = highlighterEnabled ? 'hl-marker-yellow' : '';
+            const hlG = highlighterEnabled ? 'hl-marker-green' : '';
+            const hlP = highlighterEnabled ? 'hl-marker-pink' : '';
+            const hlC = highlighterEnabled ? 'hl-marker-cyan' : '';
+
+            if (edition === 'maneki') {
+                return [
+                    { num: 1, wrap: true, html: `<span class="scad-comment">// ============================================================================</span>` },
+                    { num: 2, wrap: true, html: `<span class="scad-comment">// Gobblet Gobblers (<span class="bg-[#0078D7] text-white px-0.5">招財貓連連</span>) 參數化 3D 列印模型 - 最終定案版</span>` },
+                    { num: 3, wrap: false, html: `<span class="scad-comment">// 特色：</span>` },
+                    { num: 4, wrap: true, html: `<div onclick="explainCodeHighlight('wall')" class="${hlY}"><span class="scad-comment">// 1. P1 黃色招財貓 (舉右手/右前腳 -1)、P2 藍色招福貓 (舉左手/左前腳 +1)</span></div>` },
+                    { num: 5, wrap: true, html: `<div onclick="explainCodeHighlight('wall')" class="${hlY}"><span class="scad-comment">// 2. 手臂與招財貓掌加大加粗，並往身體側面外推 (55°~60°)，立體感鮮明且不遮擋臉部</span></div>` },
+                    { num: 6, wrap: true, html: `<div onclick="explainCodeHighlight('clearance')" class="${hlG}"><span class="scad-comment">// 3. 單邊套疊間隙同步加大至 4.2mm，確保大、中、小三層在任意旋轉角度下皆能順暢套疊</span></div>` },
+                    { num: 7, wrap: true, html: `<div onclick="explainCodeHighlight('csg')" class="${hlC}"><span class="scad-comment">// 4. 全部件免支撐 (Support-Free) 設計，開口朝下正放即可直接 FDM 3D 列印</span></div>` },
+                    { num: 8, wrap: true, html: `<span class="scad-comment">// ============================================================================</span>` },
+                    { num: 9, wrap: false, html: `&nbsp;` },
+                    { num: 10, wrap: false, html: `<span class="scad-comment">/* [輸出模式選擇 (Render Mode)] */</span>` },
+                    { num: 11, wrap: false, html: `part_to_render = <span class="scad-string">"all_preview"</span>; <span class="scad-comment">// [all_preview, p1_right_paw_pieces, grid_bars, nesting_section]</span>` },
+                    { num: 12, wrap: false, html: `$fn = <span class="scad-number">64</span>; <span class="scad-comment">// 圓柱與球體平滑度</span>` },
+                    { num: 13, wrap: false, html: `&nbsp;` },
+                    { num: 14, wrap: false, html: `<div onclick="explainCodeHighlight('wall')" class="${hlY}"><span class="scad-comment">/* [棋子基礎與壁厚參數 (單位: mm)] — 點擊查看噴嘴倍數壁厚原理 */</span><br>base_radius = <span class="scad-number">10.5</span>; &nbsp;&nbsp;&nbsp;<span class="scad-comment">// 小號招財貓底部外半徑</span><br>base_cyl_h = <span class="scad-number">15.0</span>; &nbsp;&nbsp;&nbsp;&nbsp;<span class="scad-comment">// 小號圓柱身高度</span><br>wall_thickness = <span class="scad-number">2.4</span>; &nbsp;<span class="scad-comment">// 外殼壁厚 (0.4mm噴嘴×6圈)</span></div>` },
+                    { num: 15, wrap: false, html: `<div onclick="explainCodeHighlight('clearance')" class="${hlG}"><span class="scad-comment">/* [大吃小套疊空氣間隙參數] — 點擊查看防卡手掌間隙原理 */</span><br>radial_clearance = <span class="scad-number">4.2</span>; &nbsp;&nbsp;<span class="scad-comment">// 單邊水平間隙 (容納加大貓掌與鈴鐺)</span><br>vertical_clearance = <span class="scad-number">3.2</span>; <span class="scad-comment">// 垂直頂部間隙 (避開雙側尖貓耳)</span></div>` },
+                    { num: 16, wrap: false, html: `&nbsp;` },
+                    { num: 17, wrap: false, html: `<div onclick="explainCodeHighlight('formula')" class="${hlP}"><span class="scad-comment">// 自動推算大中小尺寸遞迴函數 (lv = 0小, 1中, 2大)</span><br><span class="scad-keyword">function</span> crest_h(lv) = base_crest_h + lv * <span class="scad-number">0.5</span>;<br><span class="scad-keyword">function</span> outer_r(lv) = base_radius + lv * (radial_clearance + wall_thickness);<br><span class="scad-keyword">function</span> inner_r(lv) = outer_r(lv) - wall_thickness;<br><span class="scad-keyword">function</span> cyl_h(lv) = (lv == <span class="scad-number">0</span>) ? base_cyl_h : cyl_h(lv-<span class="scad-number">1</span>) + crest_h(lv-<span class="scad-number">1</span>) + vertical_clearance;</div>` },
+                    { num: 18, wrap: false, html: `&nbsp;` },
+                    { num: 19, wrap: false, html: `<div onclick="explainCodeHighlight('csg')" class="${hlC}"><span class="scad-comment">// 1. 單一招財貓棋子模組 (外部聯集實體 - 內部中空杯腔與五官凹槽)</span><br><span class="scad-module">module</span> gobbler(lv = <span class="scad-number">0</span>, paw_side = <span class="scad-number">-1</span>) {<br>&nbsp;&nbsp;<span class="scad-keyword">difference</span>() {<br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="scad-keyword">union</span>() { <span class="scad-comment">// 圓柱貓身 + 半球貓頭 + 雙耳 + 外推大貓掌 + 鈴鐺</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cylinder(r = outer_r(lv), h = cyl_h(lv));<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;translate([<span class="scad-number">0</span>, <span class="scad-number">0</span>, cyl_h(lv)]) sphere(r = outer_r(lv));<br>&nbsp;&nbsp;&nbsp;&nbsp;}<br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="scad-comment">// (a) 內部中空杯腔 + (b) 底部 1.8mm 喇叭口自動置中導角</span><br>&nbsp;&nbsp;&nbsp;&nbsp;translate([<span class="scad-number">0</span>,<span class="scad-number">0</span>,<span class="scad-number">-0.01</span>]) cylinder(r = inner_r(lv), h = cyl_h(lv));<br>&nbsp;&nbsp;&nbsp;&nbsp;translate([<span class="scad-number">0</span>,<span class="scad-number">0</span>,cyl_h(lv)]) sphere(r = inner_r(lv));<br>&nbsp;&nbsp;&nbsp;&nbsp;translate([<span class="scad-number">0</span>,<span class="scad-number">0</span>,<span class="scad-number">-0.01</span>]) cylinder(r1=inner_r(lv)+<span class="scad-number">1.2</span>, r2=inner_r(lv), h=<span class="scad-number">1.8</span>);<br>&nbsp;&nbsp;}<br>}</div>` }
+                ];
+            } else {
+                // Initial Rooster Edition Code (Steps 1-3)
+                return [
+                    { num: 1, wrap: true, html: `<span class="scad-comment">// ============================================================================</span>` },
+                    { num: 2, wrap: true, html: `<span class="scad-comment">// Gobblet Gobblers (奇雞連連) 參數化 3D 列印模型 - 初版奇雞造型</span>` },
+                    { num: 3, wrap: true, html: `<span class="scad-comment">// ============================================================================</span>` },
+                    { num: 4, wrap: false, html: `part_to_render = <span class="scad-string">"all_preview"</span>; <span class="scad-comment">// [all_preview, one_player_pieces, grid_bars, nesting_section]</span>` },
+                    { num: 5, wrap: false, html: `$fn = <span class="scad-number">64</span>; <span class="scad-comment">// 圓柱與球體平滑度</span>` },
+                    { num: 6, wrap: false, html: `&nbsp;` },
+                    { num: 7, wrap: true, html: `<div onclick="explainCodeHighlight('wall')" class="${hlY}"><span class="scad-comment">/* [棋子基礎與套疊參數 (單位: mm)] — 點擊螢光筆查看說明 */</span><br>base_radius = <span class="scad-number">11.0</span>; &nbsp;&nbsp;&nbsp;<span class="scad-comment">// 小號奇雞底部外半徑 (直徑 22mm)</span><br>base_cyl_h = <span class="scad-number">16.0</span>; &nbsp;&nbsp;&nbsp;&nbsp;<span class="scad-comment">// 小號圓柱身高度</span><br>base_crest_h = <span class="scad-number">3.5</span>; &nbsp;&nbsp;&nbsp;<span class="scad-comment">// 頭頂三連雞冠高度</span><br>wall_thickness = <span class="scad-number">2.4</span>; &nbsp;<span class="scad-comment">// 外殼壁厚 (0.4mm噴嘴×6圈)</span></div>` },
+                    { num: 8, wrap: true, html: `<div onclick="explainCodeHighlight('clearance')" class="${hlG}">radial_clearance = <span class="scad-number">2.0</span>; &nbsp;&nbsp;<span class="scad-comment">// 大吃小套疊「單邊水平間隙」</span><br>vertical_clearance = <span class="scad-number">2.5</span>; <span class="scad-comment">// 大吃小套疊「垂直頂部間隙」(避開雞冠)</span></div>` },
+                    { num: 9, wrap: false, html: `cell_size = <span class="scad-number">52.0</span>; bar_width = <span class="scad-number">8.0</span>; bar_height = <span class="scad-number">10.0</span>; slot_tolerance = <span class="scad-number">0.25</span>;` },
+                    { num: 10, wrap: false, html: `&nbsp;` },
+                    { num: 11, wrap: true, html: `<div onclick="explainCodeHighlight('formula')" class="${hlP}"><span class="scad-comment">// 自動推算大中小尺寸遞迴函數 (lv = 0小, 1中, 2大)</span><br><span class="scad-keyword">function</span> crest_h(lv) = base_crest_h + lv * <span class="scad-number">0.5</span>;<br><span class="scad-keyword">function</span> outer_r(lv) = base_radius + lv * (radial_clearance + wall_thickness);<br><span class="scad-keyword">function</span> inner_r(lv) = outer_r(lv) - wall_thickness;<br><span class="scad-keyword">function</span> cyl_h(lv) = (lv == <span class="scad-number">0</span>) ? base_cyl_h : cyl_h(lv-<span class="scad-number">1</span>) + crest_h(lv-<span class="scad-number">1</span>) + vertical_clearance;</div>` },
+                    { num: 12, wrap: false, html: `&nbsp;` },
+                    { num: 13, wrap: true, html: `<div onclick="explainCodeHighlight('csg')" class="${hlC}"><span class="scad-module">module</span> gobbler(lv = <span class="scad-number">0</span>) {<br>&nbsp;&nbsp;<span class="scad-keyword">difference</span>() {<br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="scad-keyword">union</span>() { <span class="scad-comment">// 圓柱身 + 半球圓頂 + 頂部三連雞冠 + 凸出眼眶</span><br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cylinder(r = outer_r(lv), h = cyl_h(lv));<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;translate([<span class="scad-number">0</span>, <span class="scad-number">0</span>, cyl_h(lv)]) sphere(r = outer_r(lv));<br>&nbsp;&nbsp;&nbsp;&nbsp;}<br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="scad-comment">// 挖出內部中空杯狀腔體 + 底部 1.8mm 導角</span><br>&nbsp;&nbsp;&nbsp;&nbsp;translate([<span class="scad-number">0</span>,<span class="scad-number">0</span>,<span class="scad-number">-0.01</span>]) cylinder(r = inner_r(lv), h = cyl_h(lv));<br>&nbsp;&nbsp;&nbsp;&nbsp;translate([<span class="scad-number">0</span>,<span class="scad-number">0</span>,cyl_h(lv)]) sphere(r = inner_r(lv));<br>&nbsp;&nbsp;}<br>}</div>` }
+                ];
+            }
+        }
+
+        function renderScadEditorCode(edition) {
+            const lines = getScadEditorLines(edition);
+            const gutterEl = document.getElementById('scad-line-numbers');
+            const codeEl = document.getElementById('scad-code-lines');
+
+            let gutterHTML = '';
+            let codeHTML = '';
+
+            lines.forEach(item => {
+                gutterHTML += `<div class="leading-[18px]">${item.num}</div>`;
+                const wrapIcon = item.wrap ? `<span class="float-right text-[#888888] text-[10px] select-none ml-1">⇄</span>` : '';
+                codeHTML += `<div class="min-h-[18px] leading-[18px] border-b border-transparent hover:bg-[#F5F8FA] relative">${wrapIcon}${item.html}</div>`;
+            });
+
+            gutterEl.innerHTML = gutterHTML;
+            codeEl.innerHTML = codeHTML;
+        }
+
+        // ============================================================================
+        // 4. Authentic OpenSCAD 3D Viewport (Three.js)
+        //    - Cornfield Cream Background (#FFFFE5)
+        //    - Graduated Black Coordinate Axes with Scale Ticks (-140..100)
+        //    - OpenSCAD Golden-Yellow (#F2CF23) & Olive-Green (#8E9B19) CGAL Colors
+        //    - Faceted Mesh Wireframe Edges (`Show Edges` toggle)
+        // ============================================================================
+        let scadScene, scadCamera, scadRenderer;
+        let scadModelGroup, scadAxesGroup;
+        let currentModelEdition = 'maneki'; // 'rooster' or 'maneki'
+        let currentPartMode = 'screenshot_scene'; // 'screenshot_scene', 'nesting_section', 'p1_right_paw_pieces', 'grid_bars'
+        let currentColorScheme = 'cgal'; // 'cgal' (OpenSCAD Gold/Olive) or 'team' (Gold vs Blue)
+        let showMeshEdges = true;
+        let showCoordinateAxes = true;
+        let currentFn = 48;
+        let currentPawSide = -1;
+        let explodePercent = 0;
+
+        // Cross-section clipping plane for `nesting_section`
+        const scadClipPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0.1);
+
+        // Camera spherical coordinates tuned to match screenshot `image_c36a5d.png`!
+        const scadCam = {
+            theta: -0.42,
+            phi: 1.02,
+            radius: 245,
+            target: new THREE.Vector3(-4, 18, 8),
+            isDragging: false,
+            prevX: 0,
+            prevY: 0
+        };
+
+        function initOpenSCADViewport() {
+            const container = document.getElementById('scad-3d-container');
+            scadScene = new THREE.Scene();
+            scadScene.background = new THREE.Color(0xFFFFE5); // Exact OpenSCAD Cornfield pale cream background!
+
+            scadCamera = new THREE.PerspectiveCamera(26, container.clientWidth / Math.max(container.clientHeight, 1), 1, 2000);
+            scadRenderer = new THREE.WebGLRenderer({ antialias: true });
+            scadRenderer.setSize(container.clientWidth, container.clientHeight);
+            scadRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            scadRenderer.localClippingEnabled = false;
+            container.appendChild(scadRenderer.domElement);
+
+            // OpenSCAD Classic Directional Studio Lighting (gives crisp facet shading)
+            const amb = new THREE.AmbientLight(0xffffff, 0.58);
+            scadScene.add(amb);
+
+            const dir1 = new THREE.DirectionalLight(0xffffff, 0.62);
+            dir1.position.set(140, 260, 180);
+            scadScene.add(dir1);
+
+            const dir2 = new THREE.DirectionalLight(0xffffff, 0.28);
+            dir2.position.set(-160, -100, -140);
+            scadScene.add(dir2);
+
+            scadAxesGroup = new THREE.Group();
+            scadScene.add(scadAxesGroup);
+            buildOpenSCADGraduatedAxes();
+
+            scadModelGroup = new THREE.Group();
+            scadScene.add(scadModelGroup);
+
+            // Orbit interaction on 3D canvas
+            const dom = scadRenderer.domElement;
+            dom.addEventListener('pointerdown', (e) => {
+                scadCam.isDragging = true;
+                scadCam.prevX = e.clientX;
+                scadCam.prevY = e.clientY;
+            });
+            window.addEventListener('pointermove', (e) => {
+                if (!scadCam.isDragging) return;
+                const dx = e.clientX - scadCam.prevX;
+                const dy = e.clientY - scadCam.prevY;
+                scadCam.prevX = e.clientX;
+                scadCam.prevY = e.clientY;
+                scadCam.theta -= dx * 0.008;
+                scadCam.phi = Math.max(0.12, Math.min(1.52, scadCam.phi - dy * 0.007));
+                updateStatusBarReadout();
+            });
+            window.addEventListener('pointerup', () => {
+                scadCam.isDragging = false;
+            });
+            dom.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                scadCam.radius = Math.max(95, Math.min(520, scadCam.radius + e.deltaY * 0.22));
+                updateStatusBarReadout();
+            }, { passive: false });
+
+            rebuildOpenSCAD3DObjects();
+            updateStatusBarReadout();
+            animateOpenSCAD();
+        }
+
+        // Build OpenSCAD's signature black graduated coordinate axes with tick marks and numbers (-140..100)
+        function buildOpenSCADGraduatedAxes() {
+            while (scadAxesGroup.children.length > 0) {
+                scadAxesGroup.remove(scadAxesGroup.children[0]);
+            }
+
+            const lineMat = new THREE.LineBasicMaterial({ color: 0x000000 });
+            const pts = [];
+
+            // X Axis (-160 to +140)
+            pts.push(new THREE.Vector3(-160, 0, 0), new THREE.Vector3(140, 0, 0));
+            // Y Axis (mapped to Z in Three.js: -120 to +120)
+            pts.push(new THREE.Vector3(0, 0, -120), new THREE.Vector3(0, 0, 120));
+            // Z Axis (vertical Y in Three.js: 0 to +90)
+            pts.push(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 90, 0));
+
+            // Ticks every 20mm with sub-ticks every 10mm
+            for (let x = -140; x <= 120; x += 10) {
+                if (x === 0) continue;
+                const tickLen = (x % 20 === 0) ? 3.2 : 1.6;
+                pts.push(new THREE.Vector3(x, 0, -tickLen), new THREE.Vector3(x, 0, tickLen));
+            }
+            for (let z = -100; z <= 100; z += 10) {
+                if (z === 0) continue;
+                const tickLen = (z % 20 === 0) ? 3.2 : 1.6;
+                pts.push(new THREE.Vector3(-tickLen, 0, z), new THREE.Vector3(tickLen, 0, z));
+            }
+
+            const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+            scadAxesGroup.add(new THREE.LineSegments(lineGeo, lineMat));
+
+            // Add crisp canvas-textured number labels along X and Y axes (-140, -120, -100, -80, -60, -40, -20, 20, 40, 60, 80, 100)
+            function makeAxisNumberLabel(text, x, z) {
+                const c = document.createElement('canvas');
+                c.width = 64;
+                c.height = 32;
+                const ctx = c.getContext('2d');
+                ctx.fillStyle = '#000000';
+                ctx.font = 'bold 20px Consolas, monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, 32, 16);
+
+                const tex = new THREE.CanvasTexture(c);
+                const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide });
+                const plane = new THREE.Mesh(new THREE.PlaneGeometry(11, 5.5), mat);
+                plane.rotation.x = -Math.PI / 2;
+                plane.position.set(x, 0.08, z);
+                return plane;
+            }
+
+            for (let v = -140; v <= 100; v += 20) {
+                if (v === 0) continue;
+                scadAxesGroup.add(makeAxisNumberLabel(String(v), v, 6.5));
+                if (v >= -80 && v <= 80) {
+                    scadAxesGroup.add(makeAxisNumberLabel(String(-v), -7.5, v));
+                }
+            }
+
+            // Small bottom-left corner XYZ triad indicator like in the screenshot
+            const triadOrigin = new THREE.Vector3(-92, 0.5, 68);
+            const triadGeo = new THREE.BufferGeometry().setFromPoints([
+                triadOrigin, new THREE.Vector3(-76, 0.5, 68),
+                triadOrigin, new THREE.Vector3(-92, 16.5, 68),
+                triadOrigin, new THREE.Vector3(-92, 0.5, 52)
+            ]);
+            scadAxesGroup.add(new THREE.LineSegments(triadGeo, new THREE.LineBasicMaterial({ color: 0x111111 })));
+        }
+
+        // Helper: Add mesh with optional OpenSCAD faceted wireframe overlay (`Show Edges`)
+        function addScadMeshWithEdges(parentGroup, geometry, material, edgeOpacity = 0.22) {
+            const mesh = new THREE.Mesh(geometry, material);
+            parentGroup.add(mesh);
+
+            if (showMeshEdges) {
+                const wireGeo = new THREE.WireframeGeometry(geometry);
+                const wireMat = new THREE.LineBasicMaterial({
+                    color: 0x333322,
+                    transparent: true,
+                    opacity: edgeOpacity,
+                    clippingPlanes: material.clippingPlanes || []
+                });
+                const wire = new THREE.LineSegments(wireGeo, wireMat);
+                mesh.add(wire);
+            }
+            return mesh;
+        }
+
+        // Build Hollow Cup Lathe Geometry
+        function buildCupLatheGeo(r_out, r_in, h_cyl, segs) {
+            const pts = [];
+            pts.push(new THREE.Vector2(r_in + 1.2, 0));
+            pts.push(new THREE.Vector2(r_in, 1.8));
+            pts.push(new THREE.Vector2(r_in, h_cyl));
+            const domeSteps = Math.max(8, Math.floor(segs / 3));
+            for (let i = 1; i <= domeSteps; i++) {
+                const a = (i / domeSteps) * (Math.PI / 2);
+                pts.push(new THREE.Vector2(Math.cos(a) * r_in, h_cyl + Math.sin(a) * r_in));
+            }
+            for (let i = domeSteps; i >= 0; i--) {
+                const a = (i / domeSteps) * (Math.PI / 2);
+                pts.push(new THREE.Vector2(Math.cos(a) * r_out, h_cyl + Math.sin(a) * r_out));
+            }
+            pts.push(new THREE.Vector2(r_out, 0));
+            pts.push(new THREE.Vector2(r_in + 1.2, 0));
+            return new THREE.LatheGeometry(pts, segs);
+        }
+
+        // Build a single OpenSCAD Piece (Maneki-neko or Rooster) with authentic CGAL Gold & Olive-Green recessed features
+        function createOpenSCADPiece(lv, pawSide = -1, teamOwner = 1, clipActive = false) {
+            const isManeki = currentModelEdition === 'maneki';
+            const base_r = isManeki ? 10.5 : 11.0;
+            const base_h = isManeki ? 15.0 : 16.0;
+            const base_cr = isManeki ? 3.8 : 3.5;
+            const wall = 2.4;
+            const rad_clear = isManeki ? 4.2 : 2.0;
+            const vert_clear = isManeki ? 3.2 : 2.5;
+
+            function crestH(l) { return base_cr + l * 0.5; }
+            function outerR(l) { return base_r + l * (rad_clear + wall); }
+            function innerR(l) { return outerR(l) - wall; }
+            function cylH(l) { return l === 0 ? base_h : cylH(l - 1) + crestH(l - 1) + vert_clear; }
+
+            const r_out = outerR(lv);
+            const r_in  = innerR(lv);
+            const h_cyl = cylH(lv);
+            const h_cr  = crestH(lv);
+
+            const clipArr = clipActive ? [scadClipPlane] : [];
+            const segs = Math.min(36, Math.max(16, Math.floor(currentFn * 0.6)));
+
+            // Authentic OpenSCAD CGAL Gold (#F2CF23) for union() bodies & Olive-Green (#8E9B19) for difference() cutouts!
+            let mainColorHex = 0xF2CF23;
+            let subtractColorHex = 0x8E9B19;
+
+            if (currentColorScheme === 'team') {
+                mainColorHex = teamOwner === 1 ? 0xF59E0B : 0x0284C7;
+                subtractColorHex = teamOwner === 1 ? 0x9A3412 : 0x075985;
+            } else if (clipActive) {
+                // In nesting_section mode, distinguish S/M/L slightly if desired
+                const layerGold = [0xFACC15, 0xEAB308, 0xCA8A04];
+                mainColorHex = layerGold[lv];
+            }
+
+            const mainMat = new THREE.MeshStandardMaterial({
+                color: mainColorHex,
+                roughness: 0.42,
+                metalness: 0.08,
+                flatShading: true,
+                side: THREE.DoubleSide,
+                clippingPlanes: clipArr
+            });
+
+            const subtractMat = new THREE.MeshStandardMaterial({
+                color: subtractColorHex,
+                roughness: 0.5,
+                metalness: 0.05,
+                flatShading: true,
+                side: THREE.DoubleSide,
+                clippingPlanes: clipArr
+            });
+
+            const group = new THREE.Group();
+
+            // (1) Hollow Cup Cylinder + Dome
+            addScadMeshWithEdges(group, buildCupLatheGeo(r_out, r_in, h_cyl, segs), mainMat);
+
+            if (!isManeki) {
+                // Rooster 3-Bump Comb
+                [-1, 0, 1].forEach(i => {
+                    const ang = (i * 18) * (Math.PI / 180);
+                    const bGeo = new THREE.SphereGeometry(h_cr * (i === 0 ? 1.05 : 0.85), 12, 10);
+                    bGeo.scale(0.55, 1, 1);
+                    bGeo.translate(0, h_cyl + Math.cos(ang) * r_out, Math.sin(ang) * (r_out * 0.65));
+                    addScadMeshWithEdges(group, bGeo, mainMat);
+                });
+            } else {
+                // (2) Maneki-neko Pointed Ears + Olive-Green Ear Recesses (Matches screenshot!)
+                [-1, 1].forEach(side => {
+                    const earGeo = new THREE.ConeGeometry(r_out * 0.34, h_cr + r_out * 0.38, 16);
+                    earGeo.scale(1.0, 1.0, 0.62);
+                    earGeo.rotateZ(-side * 0.22);
+                    earGeo.translate(side * r_out * 0.54, h_cyl + r_out * 0.78 + h_cr * 0.32, r_out * 0.05);
+                    addScadMeshWithEdges(group, earGeo, mainMat);
+
+                    // Olive-green inner ear hollow (`difference()` surface in OpenSCAD)
+                    const recessGeo = new THREE.ConeGeometry(r_out * 0.17, h_cr * 0.72, 12);
+                    recessGeo.scale(0.95, 1.0, 0.35);
+                    recessGeo.rotateZ(-side * 0.22);
+                    recessGeo.translate(side * r_out * 0.53, h_cyl + r_out * 0.80 + h_cr * 0.24, r_out * 0.22);
+                    addScadMeshWithEdges(group, recessGeo, subtractMat, 0.1);
+                });
+
+                // (3) Raised Beckoning Front Paw (Pushed outward 55 deg so face is completely clear)
+                const paw_r = 2.45 + lv * 0.40;
+                const paw_rad = r_out + 3.15 - paw_r * 1.15;
+                const el_ang = (pawSide * 55) * (Math.PI / 180);
+
+                const armGeo = new THREE.CylinderGeometry(paw_r * 1.08, paw_r * 0.88, h_cyl * 0.74, 14);
+                armGeo.translate(Math.sin(el_ang) * paw_rad, h_cyl * 0.62, Math.cos(el_ang) * paw_rad);
+                addScadMeshWithEdges(group, armGeo, mainMat);
+
+                const pawBallGeo = new THREE.SphereGeometry(paw_r * 1.24, 14, 12);
+                pawBallGeo.scale(1.2, 1.05, 0.9);
+                const px = Math.sin(el_ang) * paw_rad;
+                const py = h_cyl + r_out * 0.22;
+                const pz = Math.cos(el_ang) * paw_rad;
+                pawBallGeo.translate(px, py, pz);
+                addScadMeshWithEdges(group, pawBallGeo, mainMat);
+
+                // Olive-green palm pad & 3 toe beans on raised paw
+                const padGeo = new THREE.SphereGeometry(paw_r * 0.45, 10, 8);
+                padGeo.scale(1.2, 1.0, 0.4);
+                padGeo.translate(px, py - 0.3, pz + paw_r * 0.95);
+                addScadMeshWithEdges(group, padGeo, subtractMat, 0.05);
+
+                // (4) Opposite Low Resting Paw
+                const other_ang = (-pawSide * 34) * (Math.PI / 180);
+                const restGeo = new THREE.CylinderGeometry(paw_r * 0.82, paw_r * 0.7, h_cyl * 0.26, 12);
+                restGeo.translate(Math.sin(other_ang) * (r_out - 0.3), h_cyl * 0.26, Math.cos(other_ang) * (r_out - 0.3));
+                addScadMeshWithEdges(group, restGeo, mainMat);
+
+                // (5) Collar & Bell with Olive-Green Slit
+                const collarGeo = new THREE.SphereGeometry(r_out + 0.6, 24, 12);
+                collarGeo.scale(1, 0.3, 1);
+                collarGeo.translate(0, h_cyl * 0.40, 0);
+                addScadMeshWithEdges(group, collarGeo, mainMat);
+
+                const bell_r = 1.8 + lv * 0.25;
+                const bellGeo = new THREE.SphereGeometry(bell_r, 12, 10);
+                bellGeo.translate(0, h_cyl * 0.34, r_out + 2.2 - bell_r);
+                addScadMeshWithEdges(group, bellGeo, mainMat);
+
+                const slitGeo = new THREE.BoxGeometry(bell_r * 1.4, 0.6, 0.8);
+                slitGeo.translate(0, h_cyl * 0.33, r_out + 2.2);
+                addScadMeshWithEdges(group, slitGeo, subtractMat, 0.05);
+
+                // (6) Nose, W-Smile & Whiskers (Olive-Green subtracted grooves matching screenshot!)
+                const noseGeo = new THREE.SphereGeometry(r_out * 0.095, 10, 8);
+                noseGeo.scale(1.25, 0.8, 0.7);
+                noseGeo.translate(0, h_cyl + r_out * 0.02, r_out + 0.25);
+                addScadMeshWithEdges(group, noseGeo, mainMat);
+
+                [-1, 1].forEach(side => {
+                    const smileGeo = new THREE.TorusGeometry(r_out * 0.105, 0.5, 8, 12, Math.PI);
+                    const sm = new THREE.Mesh(smileGeo, subtractMat);
+                    sm.position.set(side * r_out * 0.105, h_cyl - r_out * 0.01, r_out + 0.12);
+                    sm.rotation.x = Math.PI;
+                    group.add(sm);
+
+                    [-1, 1].forEach(w => {
+                        const wa = (side * 31) * (Math.PI / 180);
+                        const wGeo = new THREE.BoxGeometry(r_out * 0.24, 0.7, 0.8);
+                        const wm = new THREE.Mesh(wGeo, subtractMat);
+                        wm.position.set(Math.sin(wa) * (r_out + 0.1), h_cyl + w * (r_out * 0.065), Math.cos(wa) * (r_out + 0.1));
+                        wm.rotation.y = wa;
+                        group.add(wm);
+                    });
+                });
+            }
+
+            // Bulging Eye Sockets (Gold) + Vertical Pupil Grooves (Olive-Green)
+            [-1, 1].forEach(side => {
+                const ea = (side * 21) * (Math.PI / 180);
+                const ex = Math.sin(ea) * (r_out - 0.2);
+                const ey = h_cyl + (isManeki ? r_out * 0.18 : -h_cyl * 0.22);
+                const ez = Math.cos(ea) * (r_out - 0.2);
+
+                const sockGeo = new THREE.SphereGeometry(r_out * 0.16, 12, 10);
+                sockGeo.scale(1.05, 1.15, 0.48);
+                const sockMesh = new THREE.Mesh(sockGeo, mainMat);
+                sockMesh.position.set(ex, ey, ez);
+                sockMesh.rotation.y = ea;
+                group.add(sockMesh);
+
+                const pupilGeo = new THREE.CylinderGeometry(r_out * 0.065, r_out * 0.065, 1.2, 10);
+                pupilGeo.scale(0.65, 1.0, 1.35);
+                pupilGeo.rotateX(Math.PI / 2);
+                const pupilMesh = new THREE.Mesh(pupilGeo, subtractMat);
+                pupilMesh.position.set(Math.sin(ea) * (r_out + 0.25), ey, Math.cos(ea) * (r_out + 0.25));
+                pupilMesh.rotation.y = ea;
+                group.add(pupilMesh);
+            });
+
+            return group;
+        }
+
+        // Build Single Half-Lap Grid Bar with Olive-Green Notches (Matches screenshot!)
+        function createOpenSCADGridBar() {
+            const len = 172;
+            const bw = 8;
+            const bh = 10;
+            const mainMat = new THREE.MeshStandardMaterial({ color: 0xF2CF23, roughness: 0.42, flatShading: true });
+            const notchMat = new THREE.MeshStandardMaterial({ color: 0x8E9B19, roughness: 0.5, flatShading: true });
+
+            const barGroup = new THREE.Group();
+            const lowerGeo = new THREE.BoxGeometry(len, bh / 2, bw);
+            lowerGeo.translate(0, bh / 4, 0);
+            addScadMeshWithEdges(barGroup, lowerGeo, mainMat);
+
+            [-60, 0, 60].forEach(xc => {
+                const segGeo = new THREE.BoxGeometry(51.5, bh / 2, bw);
+                segGeo.translate(xc, bh * 0.75, 0);
+                addScadMeshWithEdges(barGroup, segGeo, mainMat);
+            });
+
+            // Olive-green inner slot floor faces at -30 and +30
+            [-30, 30].forEach(slotX => {
+                const slotFloor = new THREE.BoxGeometry(8.25, 0.3, bw + 0.1);
+                slotFloor.translate(slotX, bh * 0.5, 0);
+                barGroup.add(new THREE.Mesh(slotFloor, notchMat));
+            });
+
+            return barGroup;
+        }
+
+        function rebuildOpenSCAD3DObjects() {
+            if (!scadModelGroup) return;
+            while (scadModelGroup.children.length > 0) {
+                scadModelGroup.remove(scadModelGroup.children[0]);
+            }
+
+            const isClip = currentPartMode === 'nesting_section';
+            scadRenderer.localClippingEnabled = isClip;
+
+            if (currentPartMode === 'screenshot_scene') {
+                // Reconstruct the exact composition shown in the user's screenshot `image_c36a5d.png`!
+                // Foreground row: Small (-60), Medium (0), Large (+60) facing forward (+Z)
+                for (let lv = 0; lv <= 2; lv++) {
+                    const catFront = createOpenSCADPiece(lv, currentPawSide, 1, false);
+                    catFront.position.set((lv - 1) * 58, (explodePercent / 100) * lv * 18, 48);
+                    scadModelGroup.add(catFront);
+
+                    // Back row pieces visible behind the bars
+                    const catBack = createOpenSCADPiece(lv, -currentPawSide, 2, false);
+                    catBack.position.set((lv - 1) * 58 + 18, (explodePercent / 100) * lv * 18, -42);
+                    scadModelGroup.add(catBack);
+                }
+
+                // Notched Half-Lap Grid Bars arranged across the middle & side like in the screenshot
+                const bar1 = createOpenSCADGridBar();
+                bar1.position.set(8, 0, 12);
+                scadModelGroup.add(bar1);
+
+                const bar2 = createOpenSCADGridBar();
+                bar2.position.set(22, 0, -16);
+                scadModelGroup.add(bar2);
+
+                const bar3 = createOpenSCADGridBar();
+                bar3.rotation.y = Math.PI / 2;
+                bar3.position.set(-72, 0, 56);
+                scadModelGroup.add(bar3);
+
+            } else if (currentPartMode === 'nesting_section') {
+                // 3 Nested S/M/L pieces at origin cut open on front half
+                for (let lv = 0; lv <= 2; lv++) {
+                    const p = createOpenSCADPiece(lv, lv === 1 ? -currentPawSide : currentPawSide, lv === 1 ? 2 : 1, true);
+                    p.position.set(0, (explodePercent / 100) * lv * 34, 0);
+                    scadModelGroup.add(p);
+                }
+            } else if (currentPartMode === 'p1_right_paw_pieces') {
+                // 6 pieces (2 rows x 3 sizes) laid flat for single-color STL printing
+                for (let row = 0; row < 2; row++) {
+                    for (let lv = 0; lv <= 2; lv++) {
+                        const p = createOpenSCADPiece(lv, currentPawSide, 1, false);
+                        p.position.set((lv - 1) * 58, 0, (row - 0.5) * 58);
+                        scadModelGroup.add(p);
+                    }
+                }
+            } else if (currentPartMode === 'grid_bars') {
+                // 4 parallel Half-Lap Grid Bars laid flat for STL printing
+                for (let i = 0; i < 4; i++) {
+                    const b = createOpenSCADGridBar();
+                    b.position.set(0, 0, (i - 1.5) * 18);
+                    scadModelGroup.add(b);
+                }
+            }
+        }
+
+        function updateStatusBarReadout() {
+            const rotX = (scadCam.phi * 180 / Math.PI).toFixed(2);
+            const rotZ = (scadCam.theta * 180 / Math.PI).toFixed(2);
+            const dist = scadCam.radius.toFixed(2);
+            const wrap = document.getElementById('scad-3d-container');
+            const w = wrap ? wrap.clientWidth : 728;
+            const h = wrap ? wrap.clientHeight : 360;
+            document.getElementById('scad-status-viewport').textContent =
+                `Viewport: translate = [ -4.00 -4.80 -3.80 ], rotate = [ ${rotX} 0.00 ${rotZ} ], distance = ${dist}, fov = 22.50 (${w}x${h})`;
+        }
+
+        function animateOpenSCAD() {
+            requestAnimationFrame(animateOpenSCAD);
+            if (!scadRenderer) return;
+
+            scadCamera.position.x = scadCam.target.x + scadCam.radius * Math.sin(scadCam.phi) * Math.sin(scadCam.theta);
+            scadCamera.position.y = scadCam.target.y + scadCam.radius * Math.cos(scadCam.phi);
+            scadCamera.position.z = scadCam.target.z + scadCam.radius * Math.sin(scadCam.phi) * Math.cos(scadCam.theta);
+            scadCamera.lookAt(scadCam.target);
+
+            scadRenderer.render(scadScene, scadCamera);
+        }
+
+        // ============================================================================
+        // 5. OpenSCAD Toolbar & Customizer Controls
+        // ============================================================================
+        function triggerScadAction(actionType) {
+            playSoundEffect('render');
+            const consoleEl = document.getElementById('scad-console-output');
+            if (actionType === 'F5') {
+                consoleEl.textContent =
+`Compiling design (CSG Tree generation)...
+Compiling design (CSG Products generation)...
+Geometries in cache: 464
+Compiling design (CSG Products normalization)...
+Normalized CSG tree has 28 elements
+Compile and preview finished.
+Total rendering time: 0:00:00.142`;
+            } else if (actionType === 'F6' || actionType === 'STL') {
+                const fileName = currentModelEdition === 'maneki' ? '招財貓連連.stl' : '奇雞連連.stl';
+                consoleEl.textContent =
+`Rendering Polygon Mesh using CGAL...
+Geometries in cache: 464
+Geometry cache size in bytes: 104138176
+CGAL Polyhedrons in cache: 4
+CGAL cache size in bytes: 102677632
+Total rendering time: 0:41:11.899
+   Top level object is a 3D object:
+   Simple:        yes
+   Vertices:   141246
+   Halfedges:  734648
+   Edges:      367324
+   Halffacets: 452132
+   Facets:     226066
+   Volumes:        11
+Rendering finished.
+STL export finished: C:/Users/user/Downloads/${fileName}`;
+            }
+            rebuildOpenSCAD3DObjects();
+        }
+
+        function changeScadPartMode(mode) {
+            currentPartMode = mode;
+            document.getElementById('select-part-to-render').value = mode;
+            playSoundEffect('render');
+
+            const secBtn = document.getElementById('btn-quick-section');
+            if (mode === 'nesting_section') {
+                scadCam.theta = 0.05;
+                scadCam.phi = 1.18;
+                scadCam.radius = 155;
+                scadCam.target.set(0, 22, 0);
+                secBtn.className = 'px-1.5 py-0.5 bg-[#BCDFFA] border border-[#0078D7] text-[10.5px] font-bold';
+            } else {
+                setScadPresetAngle('screenshot');
+                secBtn.className = 'px-1.5 py-0.5 bg-[#F0F0F0] hover:bg-[#D9EBF9] border border-[#999] text-[10.5px] font-bold';
+            }
+            rebuildOpenSCAD3DObjects();
+            updateStatusBarReadout();
+        }
+
+        function toggleSectionCutaway() {
+            if (currentPartMode === 'nesting_section') {
+                changeScadPartMode('screenshot_scene');
+            } else {
+                changeScadPartMode('nesting_section');
+            }
+        }
+
+        function changeScadColorScheme(scheme) {
+            currentColorScheme = scheme;
+            document.getElementById('select-color-scheme').value = scheme;
+            playSoundEffect('click');
+            rebuildOpenSCAD3DObjects();
+        }
+
+        function toggleScadEdges() {
+            showMeshEdges = !showMeshEdges;
+            playSoundEffect('click');
+            const btn = document.getElementById('btn-scad-edges');
+            btn.className = showMeshEdges ? 'scad-toolbar-btn active-toggle' : 'scad-toolbar-btn';
+            rebuildOpenSCAD3DObjects();
+        }
+
+        function toggleScadAxes() {
+            showCoordinateAxes = !showCoordinateAxes;
+            playSoundEffect('click');
+            scadAxesGroup.visible = showCoordinateAxes;
+            document.getElementById('btn-scad-axes').className = showCoordinateAxes ? 'scad-toolbar-btn active-toggle' : 'scad-toolbar-btn';
+            document.getElementById('btn-scad-ticks').className = showCoordinateAxes ? 'scad-toolbar-btn active-toggle font-mono font-bold text-[10px]' : 'scad-toolbar-btn font-mono font-bold text-[10px]';
+        }
+
+        function setScadPresetAngle(preset) {
+            playSoundEffect('click');
+            if (preset === 'screenshot') {
+                scadCam.theta = -0.42;
+                scadCam.phi = 1.02;
+                scadCam.radius = 245;
+                scadCam.target.set(-4, 18, 8);
+            } else if (preset === 'front') {
+                scadCam.theta = 0;
+                scadCam.phi = 1.32;
+                scadCam.radius = 210;
+                scadCam.target.set(0, 20, 0);
+            } else if (preset === 'top') {
+                scadCam.theta = 0;
+                scadCam.phi = 0.15;
+                scadCam.radius = 290;
+                scadCam.target.set(0, 0, 0);
+            }
+            updateStatusBarReadout();
+        }
+
+        function resetScadViewportCamera() {
+            setScadPresetAngle('screenshot');
+        }
+
+        function zoomScadCamera(delta) {
+            scadCam.radius = Math.max(95, Math.min(520, scadCam.radius + delta));
+            updateStatusBarReadout();
+        }
+
+        function toggleCustSection(id) {
+            playSoundEffect('click');
+            const sec = document.getElementById(id);
+            const icon = document.getElementById(`icon-${id}`);
+            if (sec.classList.contains('hidden')) {
+                sec.classList.remove('hidden');
+                icon.textContent = '▼';
+            } else {
+                sec.classList.add('hidden');
+                icon.textContent = '▶';
+            }
+        }
+
+        function updateFnParam(val) {
+            currentFn = parseInt(val, 10);
+            document.getElementById('val-fn').textContent = currentFn;
+            rebuildOpenSCAD3DObjects();
+        }
+
+        function updatePawSideParam(val) {
+            currentPawSide = parseInt(val, 10);
+            playSoundEffect('click');
+            rebuildOpenSCAD3DObjects();
+        }
+
+        function resetCustomizerParams() {
+            currentFn = 48;
+            currentPawSide = -1;
+            explodePercent = 0;
+            document.getElementById('scad-explode-slider').value = 0;
+            changeScadColorScheme('cgal');
+            changeScadPartMode('screenshot_scene');
+        }
+
+        document.getElementById('scad-explode-slider').addEventListener('input', (e) => {
+            explodePercent = parseFloat(e.target.value);
+            rebuildOpenSCAD3DObjects();
+        });
+
+        // Toggle Fullscreen OpenSCAD for closer inspection on iPad
+        let isOpenSCADMaximized = false;
+        let isSplitScreenVisible = false;
+
+        function setSplitScreenLayout(showSplit) {
+            isSplitScreenVisible = showSplit;
+            const geminiPanel = document.getElementById('gemini-panel');
+            const dividerControl = document.getElementById('split-divider-control');
+            const scadPanel = document.getElementById('openscad-panel');
+            const innerContainer = document.getElementById('gemini-inner-container');
+            const inputWrapper = document.getElementById('gemini-input-wrapper');
+
+            if (showSplit) {
+                geminiPanel.className = 'w-[42%] min-w-[330px] max-w-[480px] h-full flex flex-col bg-[#FFFFFF] z-20 transition-all duration-300';
+                geminiPanel.classList.remove('hidden');
+                dividerControl.classList.remove('hidden');
+                dividerControl.classList.add('flex');
+                scadPanel.classList.remove('hidden');
+                scadPanel.classList.add('flex');
+                innerContainer.className = 'w-full h-full flex flex-col';
+                inputWrapper.className = 'w-full relative';
+            } else {
+                geminiPanel.className = 'w-full h-full flex flex-col bg-[#FFFFFF] z-20 transition-all duration-300';
+                geminiPanel.classList.remove('hidden');
+                dividerControl.classList.add('hidden');
+                dividerControl.classList.remove('flex');
+                scadPanel.classList.add('hidden');
+                scadPanel.classList.remove('flex');
+                innerContainer.className = 'max-w-3xl mx-auto w-full h-full flex flex-col';
+                inputWrapper.className = 'max-w-3xl mx-auto w-full relative';
+                isOpenSCADMaximized = false;
+                document.getElementById('split-toggle-label').textContent = '放大 OpenSCAD';
+            }
+            setTimeout(handleWindowResize, 60);
+        }
+
+        // Triggered when clicking "✂️ 檢視三層套疊剖面" (or sibling buttons) in Step 3/4 or 4/4
+        function revealSplitScreenAndInspect(targetMode, edition = 'maneki') {
+            if (!isSplitScreenVisible) {
+                setSplitScreenLayout(true);
+            }
+            currentModelEdition = edition;
+            renderScadEditorCode(edition);
+            explainCodeHighlight('clearance');
+
+            setTimeout(() => {
+                handleWindowResize();
+                if (targetMode === 'nesting_section') {
+                    changeScadPartMode('nesting_section');
+                    triggerScadAction('F6');
+                } else if (targetMode === 'team_color') {
+                    changeScadPartMode('screenshot_scene');
+                    changeScadColorScheme('team');
+                } else {
+                    changeScadColorScheme('cgal');
+                    changeScadPartMode('screenshot_scene');
+                    setScadPresetAngle('screenshot');
+                    triggerScadAction('STL');
+                }
+            }, 80);
+        }
+
+        function toggleMaximizeOpenSCAD() {
+            isOpenSCADMaximized = !isOpenSCADMaximized;
+            const geminiPanel = document.getElementById('gemini-panel');
+            const dividerControl = document.getElementById('split-divider-control');
+            const label = document.getElementById('split-toggle-label');
+            if (isOpenSCADMaximized) {
+                geminiPanel.classList.add('hidden');
+                dividerControl.classList.add('hidden');
+                dividerControl.classList.remove('flex');
+                label.textContent = '顯示 Gemini 對話';
+            } else {
+                geminiPanel.classList.remove('hidden');
+                dividerControl.classList.remove('hidden');
+                dividerControl.classList.add('flex');
+                label.textContent = '放大 OpenSCAD';
+            }
+            setTimeout(handleWindowResize, 50);
+        }
+
+        // ============================================================================
+        // 6. Step-by-Step Guided Conversation Controller
+        // ============================================================================
+        let tourStepIdx = 0; // 0..3
+        let isGeminiBusy = false;
+
+        function updateTopStepBadges(activeStep) {
+            for (let i = 1; i <= 4; i++) {
+                const btn = document.getElementById(`g-step-${i}`);
+                if (i === activeStep) {
+                    btn.className = 'px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#D3E3FD] text-[#041E49] shadow-xs';
+                } else if (i < activeStep) {
+                    btn.className = 'px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#E6F4EA] text-[#137333]';
+                } else {
+                    btn.className = 'px-2.5 py-1 rounded-full text-[11px] font-medium bg-[#F0F4F9] text-[#444746] hover:bg-[#E9EEF6]';
+                }
+            }
+        }
+
+        function refreshBottomPromptBox() {
+            const arrowEl = document.getElementById('gemini-guide-arrow');
+            const arrowText = document.getElementById('gemini-guide-text');
+            const tagEl = document.getElementById('gemini-prompt-step-tag');
+            const inputEl = document.getElementById('gemini-prefilled-input');
+
+            if (tourStepIdx < GUIDED_STEPS.length) {
+                const nextObj = GUIDED_STEPS[tourStepIdx];
+                arrowEl.classList.remove('hidden');
+                arrowText.textContent = nextObj.arrowLabel;
+                tagEl.innerHTML = `<span>${nextObj.tag}</span>`;
+                inputEl.textContent = nextObj.prompt;
+            } else {
+                arrowEl.classList.remove('hidden');
+                arrowText.textContent = '👇 點擊傳送對話結束導覽';
+                tagEl.innerHTML = `<span class="text-[#137333]">✓ 4 個階段導覽已完成！</span>`;
+                inputEl.innerHTML = `<span class="text-[#0B57D0] font-bold">全部歷程已演練完畢！</span> 請先點擊上方回覆中的「<strong>✂️ 檢視三層套疊剖面</strong>」展開右側 OpenSCAD 視窗，或點擊右下角傳送按鈕完成體驗。`;
+            }
+        }
+
+        function appendUserBubble(stepObj) {
+            document.getElementById('gemini-welcome-view').classList.add('hidden');
+            const box = document.getElementById('gemini-messages-box');
+            box.classList.remove('hidden');
+
+            const wrap = document.createElement('div');
+            wrap.className = 'flex justify-end';
+            wrap.innerHTML = `
+                <div class="gemini-user-bubble max-w-[88%] px-4 py-2.5 text-xs sm:text-[13px] leading-relaxed shadow-2xs">
+                    ${stepObj.prompt}
+                </div>
+            `;
+            box.appendChild(wrap);
+
+            const stream = document.getElementById('gemini-chat-stream');
+            stream.scrollTop = stream.scrollHeight;
+        }
+
+        function appendGeminiBubble(stepObj) {
+            const box = document.getElementById('gemini-messages-box');
+            const wrap = document.createElement('div');
+            wrap.className = 'flex items-start gap-2.5';
+            wrap.innerHTML = `
+                <div class="w-7 h-7 rounded-full gemini-sparkle-bg flex items-center justify-center text-white text-xs shrink-0 mt-0.5 shadow-xs">
+                    ✦
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-[11px] font-bold text-[#444746] mb-1">Gemini</div>
+                    ${stepObj.responseHTML}
+                </div>
+            `;
+            box.appendChild(wrap);
+
+            const stream = document.getElementById('gemini-chat-stream');
+            setTimeout(() => {
+                stream.scrollTo({ top: stream.scrollHeight, behavior: 'smooth' });
+            }, 60);
+        }
+
+        function syncOpenSCADToStep(stepNum) {
+            if (stepNum <= 3) {
+                currentModelEdition = 'rooster';
+                renderScadEditorCode('rooster');
+            } else if (stepNum === 4) {
+                currentModelEdition = 'maneki';
+                renderScadEditorCode('maneki');
+            }
+            if (isSplitScreenVisible) {
+                rebuildOpenSCAD3DObjects();
+            }
+        }
+
+        function showEndOfTourOverlay() {
+            playSoundEffect('reply');
+            const overlay = document.getElementById('tour-end-overlay');
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+        }
+
+        function handleGeminiSend() {
+            if (isGeminiBusy) return;
+            if (tourStepIdx >= GUIDED_STEPS.length) {
+                showEndOfTourOverlay();
+                return;
+            }
+
+            const stepObj = GUIDED_STEPS[tourStepIdx];
+            isGeminiBusy = true;
+            playSoundEffect('send');
+
+            document.getElementById('gemini-guide-arrow').classList.add('hidden');
+            appendUserBubble(stepObj);
+
+            // Show Gemini Spinning Sparkle Loader
+            const loaderRow = document.getElementById('gemini-loader-row');
+            const loaderTitle = document.getElementById('gemini-loader-title');
+            const loaderSub = document.getElementById('gemini-loader-sub');
+            const loaderBar = document.getElementById('gemini-loader-bar');
+
+            loaderTitle.textContent = stepObj.loaderTitle;
+            loaderSub.textContent = stepObj.loaderSub;
+            loaderBar.style.width = '20%';
+            loaderRow.classList.remove('hidden');
+
+            const stream = document.getElementById('gemini-chat-stream');
+            stream.scrollTo({ top: stream.scrollHeight, behavior: 'smooth' });
+
+            setTimeout(() => { loaderBar.style.width = '65%'; }, 600);
+            setTimeout(() => { loaderBar.style.width = '95%'; }, 1250);
+
+            setTimeout(() => {
+                loaderRow.classList.add('hidden');
+                appendGeminiBubble(stepObj);
+                playSoundEffect('reply');
+
+                syncOpenSCADToStep(stepObj.step);
+
+                tourStepIdx++;
+                isGeminiBusy = false;
+                updateTopStepBadges(Math.min(tourStepIdx + 1, 4));
+                refreshBottomPromptBox();
+            }, 1750);
+        }
+
+        function jumpToTourStep(targetStep) {
+            if (isGeminiBusy) return;
+            playSoundEffect('click');
+
+            document.getElementById('gemini-welcome-view').classList.add('hidden');
+            const box = document.getElementById('gemini-messages-box');
+            box.classList.remove('hidden');
+            box.innerHTML = '';
+
+            for (let i = 0; i < targetStep; i++) {
+                appendUserBubble(GUIDED_STEPS[i]);
+                appendGeminiBubble(GUIDED_STEPS[i]);
+            }
+
+            tourStepIdx = targetStep;
+            updateTopStepBadges(targetStep);
+            syncOpenSCADToStep(targetStep);
+            refreshBottomPromptBox();
+        }
+
+        function resetFullTour() {
+            if (isGeminiBusy) return;
+            playSoundEffect('click');
+            tourStepIdx = 0;
+            document.getElementById('gemini-messages-box').innerHTML = '';
+            document.getElementById('gemini-messages-box').classList.add('hidden');
+            document.getElementById('gemini-welcome-view').classList.remove('hidden');
+            document.getElementById('scad-annotation-bar').classList.add('hidden');
+
+            // Return to initial Fullscreen Gemini layout
+            setSplitScreenLayout(false);
+
+            currentModelEdition = 'maneki';
+            renderScadEditorCode('maneki');
+            changeScadColorScheme('cgal');
+            changeScadPartMode('screenshot_scene');
+            setScadPresetAngle('screenshot');
+            updateTopStepBadges(1);
+            refreshBottomPromptBox();
+        }
+
+        function handleWindowResize() {
+            if (!scadRenderer) return;
+            const container = document.getElementById('scad-3d-container');
+            if (!container || container.clientWidth === 0) return;
+            scadCamera.aspect = container.clientWidth / Math.max(container.clientHeight, 1);
+            scadCamera.updateProjectionMatrix();
+            scadRenderer.setSize(container.clientWidth, container.clientHeight);
+            updateStatusBarReadout();
+        }
+
+        // Event Listeners
+        document.getElementById('btn-gemini-send').addEventListener('click', handleGeminiSend);
+
+        // Clicking anywhere on the End-of-Tour overlay returns to the initial blank welcome screen
+        const tourEndOverlay = document.getElementById('tour-end-overlay');
+        tourEndOverlay.addEventListener('click', () => {
+            tourEndOverlay.classList.add('hidden');
+            tourEndOverlay.classList.remove('flex');
+            resetFullTour();
+        });
+
+        const ipadModal = document.getElementById('ipad-guide-modal');
+        document.getElementById('btn-open-ipad-guide').addEventListener('click', () => {
+            ipadModal.classList.remove('hidden');
+            ipadModal.classList.add('flex');
+        });
+        document.getElementById('btn-close-ipad-guide').addEventListener('click', () => {
+            ipadModal.classList.add('hidden');
+            ipadModal.classList.remove('flex');
+        });
+        document.getElementById('btn-got-it-ipad').addEventListener('click', () => {
+            ipadModal.classList.add('hidden');
+            ipadModal.classList.remove('flex');
+        });
+
+        window.addEventListener('resize', handleWindowResize);
+
+        window.onload = function () {
+            renderScadEditorCode('maneki');
+            refreshBottomPromptBox();
+            initOpenSCADViewport();
+        };
+    </script>
+</body>
+</html>

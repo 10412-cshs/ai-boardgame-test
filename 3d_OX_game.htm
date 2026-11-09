@@ -1,0 +1,2544 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="3D立體井字棋">
+    <title>3D Connect 立體井字棋 - 50x50mm 實體建模獨立遊戲模擬器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+        /* 彩帶特效動畫 */
+        .confetti-piece {
+            position: absolute;
+            top: -20px;
+            animation: fall linear forwards;
+        }
+        @keyframes fall {
+            to { transform: translateY(100vh) rotate(720deg); }
+        }
+        @keyframes pulse-ring {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            50% { transform: scale(1.04); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+        }
+        .confirm-btn-pulse {
+            animation: pulse-ring 1.8s infinite;
+        }
+        /* 自訂捲軸 */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col antialiased select-none">
+
+    <!-- 頂部導覽與模式切換列 -->
+    <header class="bg-slate-900/95 border-b border-slate-800 px-3 py-2 lg:px-5 lg:py-2.5 shrink-0 z-40 backdrop-blur">
+        <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-8 h-8 lg:w-10 lg:h-10 rounded-xl bg-gradient-to-br from-orange-500 to-blue-600 flex items-center justify-center shadow-md shrink-0">
+                    <svg width="20" height="20" viewBox="0 0 100 100" class="lg:w-6 lg:h-6">
+                        <rect x="12" y="12" width="76" height="76" rx="14" fill="none" stroke="#ffffff" stroke-width="10"/>
+                        <circle cx="50" cy="50" r="18" fill="none" stroke="#ffffff" stroke-width="10"/>
+                    </svg>
+                </div>
+                <div class="min-w-0">
+                    <h1 class="font-black text-sm sm:text-base lg:text-xl tracking-wide text-white flex flex-wrap items-center gap-1.5">
+                        <span class="truncate">3D Connect 立體井字棋模擬器</span>
+                        <span class="text-[10px] lg:text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 whitespace-nowrap">OpenSCAD 50×50×15mm 擬真建模</span>
+                    </h1>
+                    <p class="text-[11px] text-slate-400 truncate hidden sm:block">實測十字準心卡榫 ＋ 雙面內縮凹槽 ＋ 3D 立體圓角邊緣</p>
+                </div>
+            </div>
+
+            <!-- 視角與檢視工具快捷鍵 -->
+            <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <button onclick="simApp.toggleSound()" id="btn-sound-toggle" class="px-2.5 py-1.5 rounded-lg text-[11px] lg:text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition flex items-center gap-1 cursor-pointer whitespace-nowrap" title="切換音效開關">
+                    <span id="sound-toggle-label">🔊 音效：開</span>
+                </button>
+                <button onclick="simApp.toggleKioskGuide()" class="px-2.5 py-1.5 rounded-lg text-[11px] lg:text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 transition flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                    <span>🔒 iPad 鎖定教學</span>
+                </button>
+                <button onclick="simApp.toggleInspectMode()" id="btn-inspect-mode" class="px-2.5 py-1.5 rounded-lg text-[11px] lg:text-xs font-bold bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 transition flex items-center gap-1 cursor-pointer whitespace-nowrap">
+                    <svg class="w-3.5 h-3.5 lg:w-4 lg:h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    <span>檢視 O/X 棋子 CAD 細節</span>
+                </button>
+                <button onclick="simApp.toggleExplodeView()" id="btn-explode-view" class="px-2.5 py-1.5 rounded-lg text-[11px] lg:text-xs font-bold bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/40 transition cursor-pointer whitespace-nowrap">
+                    ↕ 樓層微展開檢視
+                </button>
+                <button onclick="simApp.resetCamera()" class="px-2.5 py-1.5 rounded-lg text-[11px] lg:text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer whitespace-nowrap">
+                    重置 3D 視角
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主內容區：強制維持左右雙欄並排 (左側控制面板 4 欄 + 右側 3D 互動畫布 8 欄) -->
+    <main class="flex-1 min-h-0 max-w-[1600px] w-full mx-auto p-2 sm:p-3 lg:p-5 grid grid-cols-12 gap-2.5 sm:gap-4 lg:gap-5 items-stretch overflow-hidden">
+        
+        <!-- 左側控制區 (固定佔左側 5 欄或 4 欄，內部支援獨立捲動，絕不擠壓下方畫布) -->
+        <aside class="col-span-5 sm:col-span-4 lg:col-span-4 flex flex-col gap-2.5 lg:gap-3.5 z-10 overflow-y-auto pr-0.5 min-h-0">
+            
+            <!-- 當前遊戲狀態橫幅 -->
+            <div id="status-banner" class="p-2.5 sm:p-3.5 lg:p-4 rounded-2xl bg-slate-800/90 border-2 border-slate-700 shadow-lg transition-all duration-300 text-center flex flex-col items-center justify-center min-h-[4rem] lg:min-h-[4.8rem] shrink-0">
+                載入 3D 模型中...
+            </div>
+
+            <!-- 棋盤尺寸與人數設定 -->
+            <div class="bg-slate-800/80 p-2.5 sm:p-3.5 lg:p-4 rounded-2xl border border-slate-700/80 space-y-2.5 lg:space-y-3 shadow shrink-0">
+                <div class="flex flex-wrap items-center justify-between gap-1">
+                    <span class="text-[11px] lg:text-xs font-bold text-slate-300 uppercase tracking-wider">1. 棋盤尺寸 (3×3 ～ 6×6)</span>
+                    <span id="rule-spec-badge" class="text-[10px] lg:text-[11px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 px-1.5 py-0.5 rounded">4連勝 / 限高4層</span>
+                </div>
+                <div class="grid grid-cols-4 gap-1.5 lg:gap-2">
+                    <button onclick="simApp.setConfig(3, null)" id="btn-size-3" class="py-1.5 lg:py-2 rounded-xl text-xs font-bold border transition cursor-pointer">3×3</button>
+                    <button onclick="simApp.setConfig(4, null)" id="btn-size-4" class="py-1.5 lg:py-2 rounded-xl text-xs font-bold border transition cursor-pointer">4×4</button>
+                    <button onclick="simApp.setConfig(5, null)" id="btn-size-5" class="py-1.5 lg:py-2 rounded-xl text-xs font-bold border transition cursor-pointer">5×5</button>
+                    <button onclick="simApp.setConfig(6, null)" id="btn-size-6" class="py-1.5 lg:py-2 rounded-xl text-xs font-bold border transition cursor-pointer">6×6</button>
+                </div>
+
+                <div class="pt-0.5 flex flex-wrap items-center justify-between gap-1">
+                    <span class="text-[11px] lg:text-xs font-bold text-slate-300 uppercase tracking-wider">2. 參戰玩家人數</span>
+                    <span class="text-[10px] lg:text-[11px] text-slate-400">藍O vs 黃X (3~4人加橘O、白X)</span>
+                </div>
+                <div class="grid grid-cols-3 gap-1.5 lg:gap-2">
+                    <button onclick="simApp.setConfig(null, 2)" id="btn-pcount-2" class="py-1.5 lg:py-2 rounded-xl text-xs font-bold border transition cursor-pointer">2 人對決</button>
+                    <button onclick="simApp.setConfig(null, 3)" id="btn-pcount-3" class="py-1.5 lg:py-2 rounded-xl text-xs font-bold border transition cursor-pointer">3 人混戰</button>
+                    <button onclick="simApp.setConfig(null, 4)" id="btn-pcount-4" class="py-1.5 lg:py-2 rounded-xl text-xs font-bold border transition cursor-pointer">4 人派對</button>
+                </div>
+
+                <!-- 3. 對戰模式與 AI 難度等級 (Minimax Lookahead) -->
+                <div class="pt-1 border-t border-slate-700/70 space-y-2">
+                    <div class="flex flex-wrap items-center justify-between gap-1">
+                        <span class="text-[11px] lg:text-xs font-bold text-emerald-400 uppercase tracking-wider">3. AI 對手與演算難度</span>
+                        <span id="ai-algo-badge" class="text-[10px] lg:text-[11px] font-mono text-slate-400">可點擊下方玩家卡片切換 AI</span>
+                    </div>
+                    <div class="grid grid-cols-4 gap-1.5">
+                        <button onclick="simApp.setAIDifficulty('off')" id="btn-ai-off" class="py-1.5 rounded-xl text-[11px] lg:text-xs font-bold border transition cursor-pointer">全真人</button>
+                        <button onclick="simApp.setAIDifficulty('weak')" id="btn-ai-weak" class="py-1.5 rounded-xl text-[11px] lg:text-xs font-bold border transition cursor-pointer">AI 弱</button>
+                        <button onclick="simApp.setAIDifficulty('medium')" id="btn-ai-medium" class="py-1.5 rounded-xl text-[11px] lg:text-xs font-bold border transition cursor-pointer">AI 中</button>
+                        <button onclick="simApp.setAIDifficulty('strong')" id="btn-ai-strong" class="py-1.5 rounded-xl text-[11px] lg:text-xs font-bold border transition cursor-pointer">AI 強</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 玩家定量手牌與階段狀態 -->
+            <div class="bg-slate-800/80 p-2.5 sm:p-3.5 lg:p-4 rounded-2xl border border-slate-700/80 shadow space-y-2 shrink-0">
+                <div class="flex flex-wrap items-center justify-between gap-1">
+                    <span class="text-[11px] lg:text-xs font-bold text-slate-300 uppercase tracking-wider">玩家剩餘棋子與階段</span>
+                    <span class="text-[10px] lg:text-[11px] text-sky-300">點擊卡片內「👤/🤖」可單獨切換</span>
+                </div>
+                <div id="players-panel" class="grid grid-cols-2 gap-2">
+                    <!-- 由 JS 動態渲染 -->
+                </div>
+            </div>
+
+            <!-- 動作按鈕列：悔棋 & 重新開始 -->
+            <div class="grid grid-cols-2 gap-2 lg:gap-3 shrink-0">
+                <button onclick="simApp.undoMove()" id="btn-undo" class="py-2.5 lg:py-3 px-3 rounded-xl font-bold text-xs lg:text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                    <span>悔棋一步</span>
+                </button>
+                <button onclick="simApp.initGame()" class="py-2.5 lg:py-3 px-3 rounded-xl font-bold text-xs lg:text-sm bg-blue-600 hover:bg-blue-500 text-white shadow-lg transition flex items-center justify-center gap-1.5 cursor-pointer">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <span>重新開始</span>
+                </button>
+            </div>
+
+            <!-- OpenSCAD 建模規格與操作說明 -->
+            <div class="bg-slate-800/60 border-l-4 border-amber-500 p-2.5 lg:p-3.5 rounded-r-xl text-[11px] lg:text-xs text-slate-300 space-y-1 leading-relaxed shrink-0">
+                <div class="font-bold text-amber-400">🛠️ OpenSCAD 實體幾何特徵還原：</div>
+                <div>• <strong>主體與凹槽</strong>：50×50×15mm，外框壁厚 4mm，雙面內縮 5mm 深凹槽（中央底板 5mm）與 2mm 立體圓角邊緣。</div>
+                <div>• <strong>十字準心卡榫</strong>：間距 32.5mm；頂部十字凹母座（含內部 14mm 包覆補強柱），底部中空十字凸公頭（長 6mm）。</div>
+                <div class="pt-0.5 text-sky-300">🖱️ <strong>操作方式</strong>：<strong>滑鼠右鍵拖曳（平板單指拖曳）</strong>旋轉視角、<strong>滾輪（雙指）</strong>縮放、<strong>左鍵點擊（輕觸）</strong>落子。</div>
+            </div>
+        </aside>
+
+        <!-- 右側 3D WebGL 畫布區 (固定佔右側 7 欄或 8 欄，高度自動填滿視窗) -->
+        <section class="col-span-7 sm:col-span-8 lg:col-span-8 flex flex-col relative min-h-0 h-full">
+            <div id="webgl-container" class="w-full h-full flex-1 rounded-2xl bg-gradient-to-br from-sky-800 via-blue-900 to-indigo-950 border-2 border-sky-500/40 shadow-2xl relative overflow-hidden">
+                
+                <!-- 畫布頂部快速視角切換鈕 -->
+                <div class="absolute top-3 left-3 z-20 flex flex-wrap gap-1.5">
+                    <button onclick="simApp.setCameraPreset('iso')" class="px-2.5 py-1 bg-slate-900/80 hover:bg-slate-800 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 backdrop-blur cursor-pointer">標準立體角</button>
+                    <button onclick="simApp.setCameraPreset('front')" class="px-2.5 py-1 bg-slate-900/80 hover:bg-slate-800 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 backdrop-blur cursor-pointer">正視高低角</button>
+                    <button onclick="simApp.setCameraPreset('top')" class="px-2.5 py-1 bg-slate-900/80 hover:bg-slate-800 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 backdrop-blur cursor-pointer">俯瞰平面角</button>
+                </div>
+
+                <!-- 格位資訊懸浮提示 -->
+                <div id="cell-hover-Readout" class="absolute top-3 right-3 z-20 px-3 py-1.5 bg-slate-900/85 text-slate-200 text-xs font-mono rounded-lg border border-slate-700 backdrop-blur pointer-events-none">
+                    點選棋盤格位可預覽半透明落子位置
+                </div>
+
+                <!-- 3D 棋子旁隨動「確定落子 / 取消」浮動按鈕面板 -->
+                <div id="pending-confirm-popup" class="hidden absolute z-30 pointer-events-auto transform -translate-y-1/2 transition-transform duration-75">
+                    <div class="flex items-center gap-1.5 bg-slate-950/95 p-1.5 rounded-2xl border-2 border-emerald-400/80 shadow-[0_10px_30px_rgba(0,0,0,0.75)] backdrop-blur-md">
+                        <button onclick="simApp.confirmPendingMove()" class="confirm-btn-pulse px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 active:scale-95 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-lg cursor-pointer whitespace-nowrap">
+                            <svg class="w-4 h-4 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                            <span>確定</span>
+                        </button>
+                        <button onclick="simApp.cancelPendingMove()" class="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 font-bold text-xs sm:text-sm border border-slate-600 cursor-pointer whitespace-nowrap" title="取消預覽">
+                            ✕
+                        </button>
+                    </div>
+                    <!-- 指向棋子的裝飾小箭頭 -->
+                    <div class="w-3 h-3 bg-slate-950 border-l-2 border-b-2 border-emerald-400/80 transform rotate-45 -ml-1.5 absolute left-0 top-1/2 -translate-y-1/2 -z-10"></div>
+                </div>
+
+                <!-- 畫布底部狀態提示 -->
+                <div class="absolute bottom-3 left-3 right-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+                    <div class="bg-slate-900/80 text-slate-300 text-[11px] lg:text-xs px-3 py-1.5 rounded-lg border border-slate-800 backdrop-blur">
+                        👆 <strong>第一步：點選格位</strong>預覽半透明棋子 ｜ <strong>第二步：點擊「確定」</strong>正式落子 ｜ <strong>單指拖曳</strong>：旋轉視角
+                    </div>
+                    <div id="inspect-banner" class="hidden bg-amber-500/90 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-lg shadow-lg">
+                        🔍 目前為「OpenSCAD O/X 棋子結構檢視模式」— 點擊上方按鈕可返回對戰棋盤
+                    </div>
+                </div>
+
+                <!-- 勝利彩帶容器 -->
+                <div id="confetti-box" class="pointer-events-none absolute inset-0 overflow-hidden z-10"></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- iPad 展場防跳出鎖定教學彈窗 -->
+    <div id="kiosk-guide-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-900 border-2 border-emerald-500/50 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 text-slate-200 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h2 class="text-base sm:text-lg font-black text-emerald-400 flex items-center gap-2">
+                    <span>🔒 iPad 展場全螢幕與防手勢跳出設定步驟</span>
+                </h2>
+                <button onclick="simApp.toggleKioskGuide()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold cursor-pointer">✕</button>
+            </div>
+            <div class="space-y-3 text-xs sm:text-sm leading-relaxed">
+                <div class="p-3 rounded-xl bg-slate-800/80 border border-slate-700">
+                    <div class="font-bold text-amber-300 mb-1">步驟 1：隱藏 Safari 網址列（變身獨立全螢幕 App）</div>
+                    <p class="text-slate-300">在 iPad 的 Safari 打開本網頁，點擊右上角「<strong>分享</strong>」圖示 ➔ 選擇「<strong>加入主畫面</strong>」。之後從桌面點擊該圖示啟動，就會呈現 100% 無邊框全螢幕畫面。</p>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-800/80 border border-slate-700">
+                    <div class="font-bold text-emerald-300 mb-1">步驟 2：開啟 iPad 內建「引導使用模式」(徹底鎖死手勢)</div>
+                    <p class="text-slate-300">前往 iPad「<strong>設定</strong>」➔「<strong>輔助使用</strong>」➔ 開啟「<strong>引導使用模式 (Guided Access)</strong>」，並設定一組解鎖密碼。</p>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-800/80 border border-slate-700">
+                    <div class="font-bold text-sky-300 mb-1">步驟 3：連按三下電源鍵立即鎖定</div>
+                    <p class="text-slate-300">打開本遊戲畫面後，<strong>連按三下 iPad 頂部電源鍵</strong>即可進入鎖定狀態。此時使用者的「四指/五指抓攏回桌面」、「底部上滑條」、「下拉控制中心」與「電源鍵」都會被系統層級徹底封鎖！</p>
+                </div>
+            </div>
+            <div class="pt-2 text-right">
+                <button onclick="simApp.toggleKioskGuide()" class="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs sm:text-sm cursor-pointer">我知道了</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // 內建合成器音效引擎 (Web Audio API 零延遲無外部音檔依賴)
+        // =========================================================================
+        class ArcadeSoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+                this.fanfareTimers = [];
+            }
+
+            // 確保 iPad / iOS Safari 在首次觸控時解鎖 AudioContext
+            ensureContext() {
+                if (!this.enabled) return null;
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) {
+                        this.ctx = new AudioCtx();
+                    }
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+                return this.ctx;
+            }
+
+            // 1. 左側控制按鈕：經典 8-bit 電動玩具清脆按鈕聲
+            playUiButton() {
+                const ctx = this.ensureContext();
+                if (!ctx) return;
+
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = 'square';
+                // 經典街機雙音階快速跳躍 (C5 -> G5 -> C6)
+                osc.frequency.setValueAtTime(523.25, now);
+                osc.frequency.setValueAtTime(783.99, now + 0.035);
+                osc.frequency.setValueAtTime(1046.50, now + 0.07);
+
+                gain.gain.setValueAtTime(0.14, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.135);
+            }
+
+            // 2. 右側棋盤點選格位預覽：另一種未來感電動游標鎖定音效
+            playSelectCell() {
+                const ctx = this.ensureContext();
+                if (!ctx) return;
+
+                const now = ctx.currentTime;
+
+                // 主音：三角波快速上揚滑音 + 高音鎖定叮聲
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = 'triangle';
+                osc1.frequency.setValueAtTime(330, now);
+                osc1.frequency.exponentialRampToValueAtTime(659.25, now + 0.06);
+                osc1.frequency.setValueAtTime(880, now + 0.065);
+
+                gain1.gain.setValueAtTime(0.22, now);
+                gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+
+                // 副諧波：方波微弱疊加增加電動玩具質感
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = 'square';
+                osc2.frequency.setValueAtTime(659.25, now);
+                osc2.frequency.setValueAtTime(1318.5, now + 0.065);
+
+                gain2.gain.setValueAtTime(0.06, now);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+                osc1.connect(gain1);
+                osc2.connect(gain2);
+                gain1.connect(ctx.destination);
+                gain2.connect(ctx.destination);
+
+                osc1.start(now);
+                osc2.start(now);
+                osc1.stop(now + 0.165);
+                osc2.stop(now + 0.145);
+            }
+
+            // 取消預覽或悔棋退回的下降電動音
+            playCancelBlip() {
+                const ctx = this.ensureContext();
+                if (!ctx) return;
+
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(587.33, now);
+                osc.frequency.setValueAtTime(392.00, now + 0.045);
+
+                gain.gain.setValueAtTime(0.11, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.115);
+            }
+
+            // 違規格位點擊（如滿層或打劫冷卻中）的電動錯誤低音
+            playErrorBuzz() {
+                const ctx = this.ensureContext();
+                if (!ctx) return;
+
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(155, now);
+                osc.frequency.setValueAtTime(115, now + 0.09);
+
+                gain.gain.setValueAtTime(0.16, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.23);
+            }
+
+            // 3. 按下「確定」落子：積木十字卡榫組裝時的「喀－拉！」雙段清脆機械聲
+            playBrickSnap() {
+                const ctx = this.ensureContext();
+                if (!ctx) return;
+
+                const now = ctx.currentTime;
+
+                // 內部輔助函式：產生單次 ABS 積木塑膠撞擊瞬態 (帶通白噪音 + 共鳴腔快速降頻)
+                const triggerPlasticClick = (startTime, filterFreq, bodyStartFreq, bodyEndFreq, volume) => {
+                    // A. 高頻塑膠摩擦/卡入瞬態噪音
+                    const bufferSize = Math.floor(ctx.sampleRate * 0.04);
+                    const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                    const output = noiseBuffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) {
+                        // 指數衰減包絡讓敲擊感極度紮實
+                        output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.22));
+                    }
+
+                    const whiteNoise = ctx.createBufferSource();
+                    whiteNoise.buffer = noiseBuffer;
+
+                    const bandpass = ctx.createBiquadFilter();
+                    bandpass.type = 'bandpass';
+                    bandpass.frequency.setValueAtTime(filterFreq, startTime);
+                    bandpass.Q.setValueAtTime(3.8, startTime);
+
+                    const noiseGain = ctx.createGain();
+                    noiseGain.gain.setValueAtTime(volume, startTime);
+                    noiseGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.038);
+
+                    whiteNoise.connect(bandpass);
+                    bandpass.connect(noiseGain);
+                    noiseGain.connect(ctx.destination);
+                    whiteNoise.start(startTime);
+
+                    // B. 積木空腔共鳴低頻彈響
+                    const bodyOsc = ctx.createOscillator();
+                    const bodyGain = ctx.createGain();
+                    bodyOsc.type = 'triangle';
+                    bodyOsc.frequency.setValueAtTime(bodyStartFreq, startTime);
+                    bodyOsc.frequency.exponentialRampToValueAtTime(bodyEndFreq, startTime + 0.032);
+
+                    bodyGain.gain.setValueAtTime(volume * 0.85, startTime);
+                    bodyGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.036);
+
+                    bodyOsc.connect(bodyGain);
+                    bodyGain.connect(ctx.destination);
+                    bodyOsc.start(startTime);
+                    bodyOsc.stop(startTime + 0.04);
+                };
+
+                // 第一聲「喀」(公頭初接觸母座導角，聲音較渾厚)
+                triggerPlasticClick(now, 1650, 420, 135, 0.45);
+                // 第二聲「拉！」(間隔 48ms 後十字準心完全卡入定位，聲音更清脆高亢)
+                triggerPlasticClick(now + 0.048, 2850, 720, 230, 0.58);
+            }
+
+            // 4. 玩家連線成功勝利：紅白機風格原創 8-bit 過關慶祝號角（神似馬利兄弟過關感但旋律獨特）
+            playVictoryFanfare() {
+                const ctx = this.ensureContext();
+                if (!ctx) return;
+
+                // 清除先前未播完的勝利音符
+                this.fanfareTimers.forEach(id => clearTimeout(id));
+                this.fanfareTimers = [];
+
+                // 原創 8-bit 慶祝號角音階序列 (f: 主旋律方波, h: 二部和聲方波, b: 三角波低音貝斯, t: 延遲 ms, d: 持續秒數)
+                // 採用「跳躍切分號角 -> 降A與降B半音階模進爬升 -> 華麗琶音收尾大調高音和弦」
+                const melody = [
+                    // 第一樂句：精神抖擻的開場跳躍號角 (C5 - G4 - C5 - E5 -> G5! -> E5 - C5)
+                    { f: 523.25, h: 329.63, b: 130.81, t: 0,    d: 0.08 },
+                    { f: 392.00, h: 261.63, b: 196.00, t: 95,   d: 0.08 },
+                    { f: 523.25, h: 329.63, b: 261.63, t: 190,  d: 0.08 },
+                    { f: 659.25, h: 392.00, b: 329.63, t: 285,  d: 0.08 },
+                    { f: 783.99, h: 523.25, b: 392.00, t: 380,  d: 0.24 },
+                    { f: 659.25, h: 392.00, b: 261.63, t: 640,  d: 0.12 },
+                    { f: 523.25, h: 329.63, b: 196.00, t: 780,  d: 0.16 },
+
+                    // 第二樂句：經典紅白機感半音階轉調爬升 (Ab大調：Eb5 - C5 - Eb5 - Ab5 -> G5 - Eb5)
+                    { f: 622.25, h: 415.30, b: 207.65, t: 980,  d: 0.08 },
+                    { f: 523.25, h: 311.13, b: 155.56, t: 1075, d: 0.08 },
+                    { f: 622.25, h: 415.30, b: 207.65, t: 1170, d: 0.08 },
+                    { f: 830.61, h: 523.25, b: 311.13, t: 1265, d: 0.24 },
+                    { f: 783.99, h: 466.16, b: 233.08, t: 1525, d: 0.12 },
+                    { f: 622.25, h: 392.00, b: 155.56, t: 1665, d: 0.16 },
+
+                    // 第三樂句：再次往上推升情緒 (Bb大調：F5 - D5 - F5 - Bb5 -> A5 - Bb5 - C6)
+                    { f: 698.46, h: 466.16, b: 233.08, t: 1865, d: 0.08 },
+                    { f: 587.33, h: 349.23, b: 174.61, t: 1960, d: 0.08 },
+                    { f: 698.46, h: 466.16, b: 233.08, t: 2055, d: 0.08 },
+                    { f: 932.33, h: 587.33, b: 349.23, t: 2150, d: 0.22 },
+                    { f: 880.00, h: 523.25, b: 293.66, t: 2400, d: 0.09 },
+                    { f: 932.33, h: 587.33, b: 349.23, t: 2510, d: 0.09 },
+                    { f: 987.77, h: 659.25, b: 392.00, t: 2620, d: 0.09 },
+
+                    // 終止式：勝利節奏頓點與高音 C6 輝煌長音 (C6 - G5 - G5 - C6!!)
+                    { f: 1046.50, h: 659.25, b: 261.63, t: 2740, d: 0.15 },
+                    { f: 783.99,  h: 523.25, b: 196.00, t: 2920, d: 0.09 },
+                    { f: 783.99,  h: 523.25, b: 246.94, t: 3040, d: 0.09 },
+                    { f: 1046.50, h: 659.25, b: 261.63, t: 3160, d: 0.70 }
+                ];
+
+                melody.forEach(note => {
+                    const tid = setTimeout(() => {
+                        if (!this.enabled || !this.ctx) return;
+                        const tNow = this.ctx.currentTime;
+
+                        // 1. 主旋律：8-bit 亮麗方波
+                        const leadOsc = this.ctx.createOscillator();
+                        const leadGain = this.ctx.createGain();
+                        leadOsc.type = 'square';
+                        leadOsc.frequency.setValueAtTime(note.f, tNow);
+
+                        leadGain.gain.setValueAtTime(0.13, tNow);
+                        leadGain.gain.exponentialRampToValueAtTime(0.001, tNow + note.d);
+
+                        leadOsc.connect(leadGain);
+                        leadGain.connect(this.ctx.destination);
+                        leadOsc.start(tNow);
+                        leadOsc.stop(tNow + note.d + 0.01);
+
+                        // 2. 二部和聲：柔和方波，營造正統紅白機雙聲道號角合奏感
+                        if (note.h) {
+                            const harmOsc = this.ctx.createOscillator();
+                            const harmGain = ctx.createGain();
+                            harmOsc.type = 'square';
+                            harmOsc.frequency.setValueAtTime(note.h, tNow);
+
+                            harmGain.gain.setValueAtTime(0.06, tNow);
+                            harmGain.gain.exponentialRampToValueAtTime(0.001, tNow + note.d);
+
+                            harmOsc.connect(harmGain);
+                            harmGain.connect(this.ctx.destination);
+                            harmOsc.start(tNow);
+                            harmOsc.stop(tNow + note.d + 0.01);
+                        }
+
+                        // 3. 伴奏低音：三角波讓過關音樂更飽滿有彈性
+                        const bassOsc = this.ctx.createOscillator();
+                        const bassGain = ctx.createGain();
+                        bassOsc.type = 'triangle';
+                        bassOsc.frequency.setValueAtTime(note.b, tNow);
+
+                        bassGain.gain.setValueAtTime(0.12, tNow);
+                        bassGain.gain.exponentialRampToValueAtTime(0.001, tNow + note.d);
+
+                        bassOsc.connect(bassGain);
+                        bassGain.connect(this.ctx.destination);
+                        bassOsc.start(tNow);
+                        bassOsc.stop(tNow + note.d + 0.01);
+                    }, note.t);
+
+                    this.fanfareTimers.push(tid);
+                });
+            }
+        }
+
+        // =========================================================================
+        // OpenSCAD 50x50x15mm 精準幾何生成器 (Three.js 實作)
+        // 完全對應使用者提供的 OpenSCAD 參數與布林結構
+        // =========================================================================
+        class OpenSCADPieceBuilder {
+            constructor() {
+                // 1. OpenSCAD 原始毫米 (mm) 參數設定
+                this.mm = {
+                    base_size: 50.0,         // 主體長寬: 50.0 mm
+                    thickness: 15.0,         // 棋子厚度: 15.0 mm
+                    wall_t: 4.0,             // 外框壁厚: 4.0 mm
+                    web_t: 5.0,              // 中央底板厚度: 5.0 mm (雙面凹槽深各 5.0 mm)
+                    corner_r: 3.75,          // 平面四角圓角半徑: 3.75 mm
+                    edge_r: 2.0,             // 上下邊緣 3D 圓角半徑: 2.0 mm
+                    peg_cyl_d: 8.50,         // 公頭圓心直徑: 8.50 mm
+                    peg_cross_span: 9.625,   // 公頭十字總寬: 9.625 mm
+                    peg_rib_w: 2.375,        // 公頭十字肋條寬: 2.375 mm
+                    peg_bore_d: 4.00,        // 公頭中心中空孔徑: 4.00 mm
+                    peg_len: 6.00,           // 公頭凸出長度: 6.00 mm
+                    socket_cyl_d: 9.00,      // 母座內圓直徑: 9.00 mm
+                    socket_cross_span: 10.0, // 母座十字最寬: 10.00 mm
+                    socket_rib_w: 2.875,     // 母座十字槽寬: 2.875 mm
+                    socket_depth: 7.00,      // 母座深度: 7.00 mm
+                    peg_spacing: 32.5,       // 兩顆卡榫中心間距: 32.5 mm
+                    boss_d: 14.0,            // 母座內側補強柱外徑: 14.0 mm
+                    o_hole_d: 21.25,         // O 棋中央圓孔內徑: 21.25 mm
+                    x_arm_w: 16.0            // X 棋斜臂寬度: 16.0 mm
+                };
+
+                // 將 50mm 映射為 Three.js 中的 2.2 單位 (1 mm = 0.044 unit)
+                this.scale = 2.2 / 50.0;
+
+                this.buildCachedGeometries();
+            }
+
+            // 建立帶圓角的矩形 Path / Shape
+            createRoundedRectShape(w, h, r, isPath = false) {
+                const shape = isPath ? new THREE.Path() : new THREE.Shape();
+                const hw = w / 2, hh = h / 2;
+                const cr = Math.min(r, hw, hh);
+                shape.moveTo(-hw + cr, -hh);
+                shape.lineTo(hw - cr, -hh);
+                shape.quadraticCurveTo(hw, -hh, hw, -hh + cr);
+                shape.lineTo(hw, hh - cr);
+                shape.quadraticCurveTo(hw, hh, hw - cr, hh);
+                shape.lineTo(-hw + cr, hh);
+                shape.quadraticCurveTo(-hw, hh, -hw, hh - cr);
+                shape.lineTo(-hw, -hh + cr);
+                shape.quadraticCurveTo(-hw, -hh, -hw + cr, -hh);
+                return shape;
+            }
+
+            // 建立 OpenSCAD 中的 crosshair_profile_2d(cyl_d, cross_span, rib_w)
+            // 結合中央圓與水平/垂直十字準心肋條
+            createCrosshairShape(cyl_d, cross_span, rib_w, bore_d = 0) {
+                const R = cyl_d / 2;
+                const halfSpan = cross_span / 2;
+                const halfRib = rib_w / 2;
+                const pts = [];
+                const segs = 12;
+
+                // 計算圓與十字肋條的交角
+                const intersectAngle = Math.asin(Math.min(0.99, halfRib / R));
+
+                // 依序繞行四個象限產生「圓心 + 十字準心肋條」精確輪廓
+                const armAngles = [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2];
+                for (let q = 0; q < 4; q++) {
+                    const baseA = armAngles[q];
+                    const cosA = Math.cos(baseA), sinA = Math.sin(baseA);
+                    const perpX = -sinA, perpY = cosA;
+
+                    // 十字肋條外伸端點 (帶微小圓角過渡)
+                    const tipCorner = halfRib * 0.3;
+                    pts.push(new THREE.Vector2(
+                        cosA * (halfSpan - tipCorner) - perpX * halfRib,
+                        sinA * (halfSpan - tipCorner) - perpY * halfRib
+                    ));
+                    pts.push(new THREE.Vector2(
+                        cosA * halfSpan - perpX * (halfRib - tipCorner),
+                        sinA * halfSpan - perpY * (halfRib - tipCorner)
+                    ));
+                    pts.push(new THREE.Vector2(
+                        cosA * halfSpan + perpX * (halfRib - tipCorner),
+                        sinA * halfSpan + perpY * (halfRib - tipCorner)
+                    ));
+                    pts.push(new THREE.Vector2(
+                        cosA * (halfSpan - tipCorner) + perpX * halfRib,
+                        sinA * (halfSpan - tipCorner) + perpY * halfRib
+                    ));
+
+                    // 圓弧段：從當前肋條左側連往下一肋條右側
+                    const startArc = baseA + intersectAngle;
+                    const endArc = baseA + Math.PI / 2 - intersectAngle;
+                    for (let i = 0; i <= segs; i++) {
+                        const a = startArc + (i / segs) * (endArc - startArc);
+                        pts.push(new THREE.Vector2(Math.cos(a) * R, Math.sin(a) * R));
+                    }
+                }
+
+                const shape = new THREE.Shape(pts);
+                if (bore_d > 0) {
+                    const hole = new THREE.Path();
+                    hole.absarc(0, 0, bore_d / 2, 0, Math.PI * 2, true);
+                    shape.holes.push(hole);
+                }
+                return shape;
+            }
+
+            // 建立 OpenSCAD 中的 X 棋 2D 輪廓 base_profile_2d("X") 與內縮 offset(-wall_t) 輪廓
+            // 兩條斜臂由 (-16.25, 25) 至 (16.25, -25) 與 (16.25, 25) 至 (-16.25, -25) 交集 50x50 方框並倒圓角
+            createXProfilePoints(inset = 0) {
+                const halfBox = this.mm.base_size / 2 - inset; // 25.0 - inset
+                const armX = this.mm.peg_spacing / 2;          // 16.25
+                const armY = this.mm.base_size / 2;            // 25.0
+                const armLen = Math.hypot(armX, armY);         // sqrt(16.25^2 + 25^2) = 29.817
+                const halfArmW = (this.mm.x_arm_w / 2) - inset; // 8.0 - inset
+
+                // 斜臂水平方向半寬: halfArmW * (armLen / armY)
+                const dxHoriz = halfArmW * (armLen / armY);
+                const xOuterAtTop = Math.min(halfBox, armX + dxHoriz * (halfBox / armY));
+                const xInnerAtTop = Math.max(2.0, armX - dxHoriz * (halfBox / armY));
+
+                // 計算左右兩側內凹 V 槽交點與上下內凹 V 槽交點
+                // 右側內凹點: y = 0, x = dxHoriz
+                const xSideWaist = dxHoriz;
+                // 上方內凹點: x = 0, y = dxHoriz * (armY / armX)
+                const yTopWaist = dxHoriz * (armY / armX);
+
+                // 利用平滑圓角曲線建立 12 個關鍵轉折點的對稱 X 輪廓
+                const cr = Math.max(0.8, (this.mm.corner_r - inset * 0.4));
+                const ir = Math.max(0.8, (this.mm.corner_r * 0.55));
+
+                const shape = new THREE.Shape();
+
+                // 頂部右臂外角 -> 右上平頂 -> 頂部內凹 V 槽 -> 左上平頂 -> 左下 -> 底部 -> 回到起點
+                // 為確保幾何完全對稱且圓滑，使用細分貝茲圓角頂點
+                const rawVertices = [
+                    { x:  xInnerAtTop, y:  halfBox, r: cr },      // 1. 右上臂內側頂角
+                    { x:  xOuterAtTop, y:  halfBox, r: cr },      // 2. 右上臂外側頂角
+                    { x:  xSideWaist,  y:  0,       r: ir },      // 3. 右側中央內凹腰部
+                    { x:  xOuterAtTop, y: -halfBox, r: cr },      // 4. 右下臂外側底角
+                    { x:  xInnerAtTop, y: -halfBox, r: cr },      // 5. 右下臂內側底角
+                    { x:  0,           y: -yTopWaist, r: ir },    // 6. 下方中央內凹腰部
+                    { x: -xInnerAtTop, y: -halfBox, r: cr },      // 7. 左下臂內側底角
+                    { x: -xOuterAtTop, y: -halfBox, r: cr },      // 8. 左下臂外側底角
+                    { x: -xSideWaist,  y:  0,       r: ir },      // 9. 左側中央內凹腰部
+                    { x: -xOuterAtTop, y:  halfBox, r: cr },      // 10. 左上臂外側頂角
+                    { x: -xInnerAtTop, y:  halfBox, r: cr },      // 11. 左上臂內側頂角
+                    { x:  0,           y:  yTopWaist, r: ir }     // 12. 上方中央內凹腰部
+                ];
+
+                return this.buildRoundedPolygon(rawVertices, inset > 0);
+            }
+
+            // 將多邊形頂點陣列自動進行圓角化 (模擬 OpenSCAD 的 offset(r) offset(-r))
+            buildRoundedPolygon(verts, isHolePath = false) {
+                const path = isHolePath ? new THREE.Path() : new THREE.Shape();
+                const n = verts.length;
+
+                for (let i = 0; i < n; i++) {
+                    const prev = verts[(i - 1 + n) % n];
+                    const curr = verts[i];
+                    const next = verts[(i + 1) % n];
+
+                    const v1 = new THREE.Vector2(prev.x - curr.x, prev.y - curr.y);
+                    const v2 = new THREE.Vector2(next.x - curr.x, next.y - curr.y);
+                    const len1 = v1.length();
+                    const len2 = v2.length();
+                    v1.normalize();
+                    v2.normalize();
+
+                    const radius = Math.min(curr.r, len1 * 0.42, len2 * 0.42);
+                    const pStart = new THREE.Vector2(curr.x + v1.x * radius, curr.y + v1.y * radius);
+                    const pEnd = new THREE.Vector2(curr.x + v2.x * radius, curr.y + v2.y * radius);
+
+                    if (i === 0) {
+                        path.moveTo(pStart.x, pStart.y);
+                    } else {
+                        path.lineTo(pStart.x, pStart.y);
+                    }
+                    path.quadraticCurveTo(curr.x, curr.y, pEnd.x, pEnd.y);
+                }
+                path.closePath();
+                return path;
+            }
+
+            buildCachedGeometries() {
+                const m = this.mm;
+                const coreDepth = m.thickness - 2 * m.edge_r; // 15 - 4 = 11 mm
+
+                // 3D 立體邊緣圓角擠出設定 (對應 rounded_extrude(h=15, r=2))
+                const wallExtrudeSettings = {
+                    depth: coreDepth,
+                    bevelEnabled: true,
+                    bevelSegments: 5,
+                    steps: 1,
+                    bevelSize: m.edge_r * 0.85,
+                    bevelThickness: m.edge_r,
+                    curveSegments: 32
+                };
+
+                // 中央底板 (web_t = 5.0 mm) 擠出設定
+                const webExtrudeSettings = {
+                    depth: m.web_t,
+                    bevelEnabled: false,
+                    curveSegments: 32
+                };
+
+                // =========================================================
+                // A. 建構「O 棋」的精確 OpenSCAD 幾何體組件
+                // =========================================================
+                // A1. O 棋中央底板 (web_t = 5mm，50x50 減去中央 o_hole_d = 21.25mm 圓孔)
+                const oWebShape = this.createRoundedRectShape(m.base_size, m.base_size, m.corner_r, false);
+                const oCenterHole1 = new THREE.Path();
+                oCenterHole1.absarc(0, 0, m.o_hole_d / 2, 0, Math.PI * 2, true);
+                oWebShape.holes.push(oCenterHole1);
+                this.oWebGeo = new THREE.ExtrudeGeometry(oWebShape, webExtrudeSettings);
+                this.oWebGeo.translate(0, 0, -m.web_t / 2);
+
+                // A2. O 棋外框立體厚壁 (50x50 外框，內縮 wall_t = 4mm 形成 42x42 雙面凹槽)
+                const oOuterRimShape = this.createRoundedRectShape(m.base_size, m.base_size, m.corner_r, false);
+                const oPocketInnerPath = this.createRoundedRectShape(
+                    m.base_size - 2 * m.wall_t,
+                    m.base_size - 2 * m.wall_t,
+                    Math.max(1.2, m.corner_r - m.wall_t * 0.5),
+                    true
+                );
+                oOuterRimShape.holes.push(oPocketInnerPath);
+                this.oOuterRimGeo = new THREE.ExtrudeGeometry(oOuterRimShape, wallExtrudeSettings);
+                this.oOuterRimGeo.translate(0, 0, -coreDepth / 2);
+
+                // A3. O 棋中央圓孔周圍的立體凸環壁 (外徑 o_hole_d + 2*wall_t = 29.25mm，內徑 21.25mm)
+                const oInnerRingShape = new THREE.Shape();
+                oInnerRingShape.absarc(0, 0, m.o_hole_d / 2 + m.wall_t, 0, Math.PI * 2, false);
+                const oCenterHole2 = new THREE.Path();
+                oCenterHole2.absarc(0, 0, m.o_hole_d / 2, 0, Math.PI * 2, true);
+                oInnerRingShape.holes.push(oCenterHole2);
+                this.oInnerRingGeo = new THREE.ExtrudeGeometry(oInnerRingShape, wallExtrudeSettings);
+                this.oInnerRingGeo.translate(0, 0, -coreDepth / 2);
+
+                // =========================================================
+                // B. 建構「X 棋」的精確 OpenSCAD 幾何體組件
+                // =========================================================
+                // B1. X 棋中央底板 (web_t = 5mm)
+                const xWebShape = this.createXProfilePoints(0);
+                this.xWebGeo = new THREE.ExtrudeGeometry(xWebShape, webExtrudeSettings);
+                this.xWebGeo.translate(0, 0, -m.web_t / 2);
+
+                // B2. X 棋外框立體厚壁 (外輪廓減去 offset(-wall_t) 內縮凹槽)
+                const xOuterRimShape = this.createXProfilePoints(0);
+                const xPocketHolePath = this.createXProfilePoints(m.wall_t);
+                xOuterRimShape.holes.push(xPocketHolePath);
+                this.xOuterRimGeo = new THREE.ExtrudeGeometry(xOuterRimShape, wallExtrudeSettings);
+                this.xOuterRimGeo.translate(0, 0, -coreDepth / 2);
+
+                // =========================================================
+                // C. 共用卡榫結構：母座內部包覆補強柱 + 底部十字準心凸卡榫 + 頂部十字母座孔
+                // =========================================================
+                // C1. 母座內部包覆補強柱 (boss_d = 14.0mm, 長度 socket_depth + wall_t*0.6 = 9.4mm)
+                const bossLen = m.socket_depth + m.wall_t * 0.6;
+                this.bossGeo = new THREE.CylinderGeometry(m.boss_d / 2, m.boss_d / 2, bossLen, 24);
+
+                // C2. 底部中空十字準心公頭 (crosshair_peg: 長度 peg_len = 6.0mm, 含前端微導角與中心 4mm 圓孔)
+                const pegShape = this.createCrosshairShape(m.peg_cyl_d, m.peg_cross_span, m.peg_rib_w, m.peg_bore_d);
+                this.pegGeo = new THREE.ExtrudeGeometry(pegShape, {
+                    depth: m.peg_len - 0.8,
+                    bevelEnabled: true,
+                    bevelSegments: 2,
+                    steps: 1,
+                    bevelSize: 0.4,
+                    bevelThickness: 0.6,
+                    curveSegments: 16
+                });
+                // 旋轉讓擠出方向朝下 (-Y)
+                this.pegGeo.rotateX(Math.PI / 2);
+
+                // C3. 頂部十字準心凹卡榫母座 (crosshair_socket: 呈現於頂面 y = +25mm 處的深色十字準心凹槽)
+                const socketShape = this.createCrosshairShape(m.socket_cyl_d, m.socket_cross_span, m.socket_rib_w, 0);
+                this.socketGeo = new THREE.ExtrudeGeometry(socketShape, {
+                    depth: 1.2,
+                    bevelEnabled: false,
+                    curveSegments: 16
+                });
+                this.socketGeo.rotateX(Math.PI / 2);
+            }
+
+            // 產生單顆完整 3D 棋子 Mesh Group
+            createPieceMesh(playerObj, isGhost = false, isSelected = false, isWinner = false) {
+                const root = new THREE.Group();
+                const m = this.mm;
+
+                // 主體材質 (半透明預覽狀態下調高不透明度與自發光，讓平板使用者一眼看清位置)
+                const mainMat = new THREE.MeshStandardMaterial({
+                    color: playerObj.hex,
+                    roughness: isGhost ? 0.20 : 0.32,
+                    metalness: 0.08,
+                    transparent: isGhost,
+                    opacity: isGhost ? 0.52 : 1.0,
+                    depthWrite: !isGhost,
+                    emissive: isWinner ? 0xfacc15 : (isSelected ? 0xf59e0b : (isGhost ? playerObj.hex : 0x000000)),
+                    emissiveIntensity: isWinner ? 0.45 : (isSelected ? 0.35 : (isGhost ? 0.35 : 0))
+                });
+
+                // 內縮凹槽底板材質 (稍微加深色澤以凸顯雙面 5mm 凹槽的立體光影層次)
+                const webColor = new THREE.Color(playerObj.hex).multiplyScalar(0.86);
+                const webMat = new THREE.MeshStandardMaterial({
+                    color: webColor,
+                    roughness: isGhost ? 0.25 : 0.45,
+                    metalness: 0.05,
+                    transparent: isGhost,
+                    opacity: isGhost ? 0.52 : 1.0,
+                    depthWrite: !isGhost,
+                    emissive: isWinner ? 0xfacc15 : (isSelected ? 0xf59e0b : (isGhost ? playerObj.hex : 0x000000)),
+                    emissiveIntensity: isWinner ? 0.35 : (isSelected ? 0.25 : (isGhost ? 0.25 : 0))
+                });
+
+                // 頂部十字準心母座深色內孔材質
+                const socketMat = new THREE.MeshStandardMaterial({
+                    color: 0x09090b,
+                    roughness: 0.9,
+                    transparent: isGhost,
+                    opacity: isGhost ? 0.35 : 0.92,
+                    depthWrite: !isGhost
+                });
+
+                const mmGroup = new THREE.Group();
+
+                if (playerObj.symbol === 'O') {
+                    // O 棋：外框立體圓角厚壁 + 中央圓孔凸環壁 + 雙面內縮中央底板
+                    const outerRim = new THREE.Mesh(this.oOuterRimGeo, mainMat);
+                    const innerRing = new THREE.Mesh(this.oInnerRingGeo, mainMat);
+                    const webPlate = new THREE.Mesh(this.oWebGeo, webMat);
+                    outerRim.castShadow = !isGhost;
+                    outerRim.receiveShadow = !isGhost;
+                    innerRing.castShadow = !isGhost;
+                    innerRing.receiveShadow = !isGhost;
+                    mmGroup.add(outerRim, innerRing, webPlate);
+                } else {
+                    // X 棋：X 外框立體圓角厚壁 + 雙面內縮 X 底板
+                    const xRim = new THREE.Mesh(this.xOuterRimGeo, mainMat);
+                    const xWeb = new THREE.Mesh(this.xWebGeo, webMat);
+                    xRim.castShadow = !isGhost;
+                    xRim.receiveShadow = !isGhost;
+                    mmGroup.add(xRim, xWeb);
+                }
+
+                // 加入左右兩處：頂部母座內部包覆補強柱 (boss) + 頂部十字準心母座凹孔 + 底部中空十字準心公頭
+                const bossLen = m.socket_depth + m.wall_t * 0.6;
+                const xPositions = [-m.peg_spacing / 2, m.peg_spacing / 2];
+
+                for (let xPos of xPositions) {
+                    // 1. 母座內部包覆補強柱 (位於凹槽內側上方)
+                    const bossMesh = new THREE.Mesh(this.bossGeo, mainMat);
+                    bossMesh.position.set(xPos, m.base_size / 2 - bossLen / 2 - 0.6, 0);
+                    mmGroup.add(bossMesh);
+
+                    // 2. 頂部十字準心凹卡榫母座 (crosshair_socket)
+                    const socketMesh = new THREE.Mesh(this.socketGeo, socketMat);
+                    socketMesh.position.set(xPos, m.base_size / 2 + 0.5, 0);
+                    mmGroup.add(socketMesh);
+
+                    // 3. 底部中空十字準心凸卡榫公頭 (crosshair_peg)
+                    const pegMesh = new THREE.Mesh(this.pegGeo, mainMat);
+                    pegMesh.position.set(xPos, -m.base_size / 2, 0);
+                    mmGroup.add(pegMesh);
+                }
+
+                // 縮放回 Three.js 世界座標尺度 (50mm -> 2.2 units)
+                mmGroup.scale.set(this.scale, this.scale, this.scale);
+                root.add(mmGroup);
+
+                return root;
+            }
+
+            // 產生單格黑色拼接底座 (含頂面雙十字準心母座孔與側邊拼接圓孔)
+            createBaseTileMesh(tileSize, baseHeight, isSelectedSource, isBlockedByCooldown) {
+                const group = new THREE.Group();
+
+                const tileGeo = new THREE.BoxGeometry(tileSize, baseHeight, tileSize);
+                const tileMat = new THREE.MeshStandardMaterial({
+                    color: isSelectedSource ? 0xd97706 : (isBlockedByCooldown ? 0x7f1d1d : 0x18181b),
+                    roughness: 0.5,
+                    metalness: 0.15
+                });
+                const tileMesh = new THREE.Mesh(tileGeo, tileMat);
+                tileMesh.receiveShadow = true;
+                group.add(tileMesh);
+
+                // 底座導角外框線
+                const edges = new THREE.EdgesGeometry(tileGeo);
+                const lineMat = new THREE.LineBasicMaterial({
+                    color: isSelectedSource ? 0xfde047 : 0x3f3f46
+                });
+                tileMesh.add(new THREE.LineSegments(edges, lineMat));
+
+                // 頂面兩處十字準心母座凹槽 (間距 32.5mm * scale)
+                const socketMat = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.95 });
+                const xOffsets = [-this.mm.peg_spacing / 2, this.mm.peg_spacing / 2];
+                for (let xMm of xOffsets) {
+                    const sMesh = new THREE.Mesh(this.socketGeo, socketMat);
+                    sMesh.scale.set(this.scale, this.scale, this.scale);
+                    sMesh.position.set(xMm * this.scale, baseHeight / 2 + 0.02, 0);
+                    group.add(sMesh);
+                }
+
+                // 側邊四面拼接圓孔 (對應實品照片底座側邊的兩個圓孔)
+                const sideHoleGeo = new THREE.CylinderGeometry(0.11, 0.11, tileSize + 0.02, 14);
+                const sideHoleMat = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.9 });
+                for (let offset of [-0.52, 0.52]) {
+                    const holeZ = new THREE.Mesh(sideHoleGeo, sideHoleMat);
+                    holeZ.rotation.x = Math.PI / 2;
+                    holeZ.position.set(offset, 0, 0);
+                    group.add(holeZ);
+
+                    const holeX = new THREE.Mesh(sideHoleGeo, sideHoleMat);
+                    holeX.rotation.z = Math.PI / 2;
+                    holeX.position.set(0, 0, offset);
+                    group.add(holeX);
+                }
+
+                return group;
+            }
+        }
+
+        // =========================================================================
+        // 3D Connect 智慧 AI 決策引擎 (窮舉模擬 + 3D 空間線段權重評分 + Minimax Alpha-Beta 剪枝)
+        // =========================================================================
+        class Connect3DAIEngine {
+            constructor(app) {
+                this.app = app;
+                this.cachedLinesKey = '';
+                this.winningLines = [];
+            }
+
+            // 預先窮舉並快取當前棋盤 (N x N x H, K連勝) 所有合法的 3D 勝利連線組合
+            ensureWinningLines() {
+                const N = this.app.gridSize;
+                const H = this.app.maxH;
+                const K = this.app.winLen;
+                const key = `${N}_${H}_${K}`;
+                if (this.cachedLinesKey === key && this.winningLines.length > 0) {
+                    return this.winningLines;
+                }
+
+                this.cachedLinesKey = key;
+                this.winningLines = [];
+
+                const directions = [
+                    [0, 1, 0], [1, 0, 0], [1, 1, 0], [1, -1, 0],
+                    [0, 0, 1],
+                    [0, 1, 1], [0, 1, -1],
+                    [1, 0, 1], [1, 0, -1],
+                    [1, 1, 1], [1, 1, -1],
+                    [1, -1, 1], [1, -1, -1]
+                ];
+
+                for (let r = 0; r < N; r++) {
+                    for (let c = 0; c < N; c++) {
+                        for (let z = 0; z < H; z++) {
+                            for (let [dr, dc, dz] of directions) {
+                                const endR = r + dr * (K - 1);
+                                const endC = c + dc * (K - 1);
+                                const endZ = z + dz * (K - 1);
+                                if (endR >= 0 && endR < N && endC >= 0 && endC < N && endZ >= 0 && endZ < H) {
+                                    const line = [];
+                                    for (let s = 0; s < K; s++) {
+                                        line.push({
+                                            cellIdx: (r + dr * s) * N + (c + dc * s),
+                                            z: z + dz * s
+                                        });
+                                    }
+                                    this.winningLines.push(line);
+                                }
+                            }
+                        }
+                    }
+                }
+                return this.winningLines;
+            }
+
+            // 檢查某玩家在指定虛擬盤面 stacks 上是否已經達成 K 子連線
+            checkStateWin(stacks, pid) {
+                const lines = this.ensureWinningLines();
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    let match = true;
+                    for (let j = 0; j < line.length; j++) {
+                        const pt = line[j];
+                        const st = stacks[pt.cellIdx];
+                        if (pt.z >= st.length || st[pt.z] !== pid) {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if (match) return true;
+                }
+                return false;
+            }
+
+            // 窮舉當前玩家在虛擬狀態下的所有合法走步 (支援「放子階段」與「移子階段」+ 打劫冷卻 + 防抽子自爆)
+            getLegalMoves(state, pid) {
+                const N = this.app.gridSize;
+                const totalCells = N * N;
+                const maxH = this.app.maxH;
+                const pCount = this.app.playerCount;
+                const inMovePhase = state.inventory[pid] === 0;
+                const moves = [];
+
+                if (!inMovePhase) {
+                    // 放子階段：窮舉所有未滿且未受打劫冷卻限制的格位
+                    for (let cIdx = 0; cIdx < totalCells; cIdx++) {
+                        if (state.stacks[cIdx].length >= maxH) continue;
+                        if (
+                            state.cooldownCell &&
+                            state.cooldownCell.cellIdx === cIdx &&
+                            state.cooldownCell.restrictedPlayer === pid
+                        ) {
+                            continue;
+                        }
+                        moves.push({ type: 'place', fromCell: null, toCell: cIdx });
+                    }
+                } else {
+                    // 移子階段：先找出所有頂層屬於 pid 的來源格位
+                    const sourceCells = [];
+                    for (let sIdx = 0; sIdx < totalCells; sIdx++) {
+                        const st = state.stacks[sIdx];
+                        if (st.length > 0 && st[st.length - 1] === pid) {
+                            sourceCells.push(sIdx);
+                        }
+                    }
+
+                    for (let sIdx of sourceCells) {
+                        // 模擬拔起頂層棋子後，是否會導致其他玩家直接暴露連線 (抽子自爆檢查)
+                        state.stacks[sIdx].pop();
+                        let causesSelfDestruct = false;
+                        for (let otherPid = 0; otherPid < pCount; otherPid++) {
+                            if (otherPid !== pid && this.checkStateWin(state.stacks, otherPid)) {
+                                causesSelfDestruct = true;
+                                break;
+                            }
+                        }
+                        state.stacks[sIdx].push(pid); // 還原
+
+                        for (let tIdx = 0; tIdx < totalCells; tIdx++) {
+                            if (tIdx === sIdx) continue;
+                            if (state.stacks[tIdx].length >= maxH) continue;
+                            if (
+                                state.cooldownCell &&
+                                state.cooldownCell.cellIdx === tIdx &&
+                                state.cooldownCell.restrictedPlayer === pid
+                            ) {
+                                continue;
+                            }
+                            moves.push({
+                                type: 'move',
+                                fromCell: sIdx,
+                                toCell: tIdx,
+                                selfDestruct: causesSelfDestruct
+                            });
+                        }
+                    }
+                }
+                return moves;
+            }
+
+            // 在虛擬盤面上執行一步棋並回傳新狀態
+            applyVirtualMove(state, move, pid) {
+                const nextStacks = state.stacks.map(st => [...st]);
+                const nextInv = [...state.inventory];
+                let nextCooldown = null;
+
+                if (move.type === 'move' && move.fromCell !== null) {
+                    nextStacks[move.fromCell].pop();
+                } else {
+                    nextInv[pid] = Math.max(0, nextInv[pid] - 1);
+                }
+
+                const targetStack = nextStacks[move.toCell];
+                const prevTop = targetStack.length > 0 ? targetStack[targetStack.length - 1] : null;
+                targetStack.push(pid);
+
+                if (prevTop !== null && prevTop !== pid) {
+                    nextCooldown = { cellIdx: move.toCell, restrictedPlayer: prevTop };
+                }
+
+                return {
+                    stacks: nextStacks,
+                    inventory: nextInv,
+                    cooldownCell: nextCooldown
+                };
+            }
+
+            // 核心權重評分函數 (Heuristic Evaluation Function)
+            // 綜合考量：1. 所有 3D 勝利線段潛力與阻斷 2. 頂層活棋控制權與壓制對手 3. 中心立體戰略位置與可達性
+            evaluateBoard(state, aiPid) {
+                const lines = this.ensureWinningLines();
+                const K = this.app.winLen;
+                const N = this.app.gridSize;
+                const pCount = this.app.playerCount;
+                const stacks = state.stacks;
+
+                let totalScore = 0;
+
+                // A. 掃描所有 3D 勝利線段 (Line Potential & Threat Analysis)
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    let aiCount = 0;
+                    let oppCounts = new Array(pCount).fill(0);
+                    let emptyElevationCost = 0; // 空位距離目前堆疊高度的差距 (越小代表越容易隨時落子達成)
+
+                    for (let j = 0; j < K; j++) {
+                        const pt = line[j];
+                        const st = stacks[pt.cellIdx];
+                        if (pt.z < st.length) {
+                            const owner = st[pt.z];
+                            if (owner === aiPid) {
+                                aiCount++;
+                            } else {
+                                oppCounts[owner]++;
+                            }
+                        } else {
+                            // 空位：計算還需要墊高幾顆棋子才能到達這個 Z 高度
+                            emptyElevationCost += (pt.z - st.length);
+                        }
+                    }
+
+                    // 檢查該線段有哪些對手佔據
+                    let distinctOpps = 0;
+                    let maxOppCount = 0;
+                    for (let p = 0; p < pCount; p++) {
+                        if (p !== aiPid && oppCounts[p] > 0) {
+                            distinctOpps++;
+                            if (oppCounts[p] > maxOppCount) maxOppCount = oppCounts[p];
+                        }
+                    }
+
+                    // 1. 純 AI 潛力線 (無任何對手棋子阻擋)
+                    if (aiCount > 0 && distinctOpps === 0) {
+                        if (aiCount === K) return 1000000;
+                        const reachabilityFactor = 1 / (1 + emptyElevationCost * 0.45);
+                        if (aiCount === K - 1) {
+                            totalScore += 4200 * reachabilityFactor; // 聽牌活三/活二
+                        } else if (aiCount === K - 2) {
+                            totalScore += 280 * reachabilityFactor;
+                        } else {
+                            totalScore += 25 * reachabilityFactor;
+                        }
+                    }
+
+                    // 2. 純單一對手威脅線 (無 AI 棋子阻擋，防守權重略高於進攻以確保穩健攔截)
+                    if (aiCount === 0 && distinctOpps === 1) {
+                        if (maxOppCount === K) return -1000000;
+                        const reachabilityFactor = 1 / (1 + emptyElevationCost * 0.40);
+                        if (maxOppCount === K - 1) {
+                            totalScore -= 5200 * reachabilityFactor; // 對手聽牌緊急警報
+                        } else if (maxOppCount === K - 2) {
+                            totalScore -= 340 * reachabilityFactor;
+                        } else {
+                            totalScore -= 28 * reachabilityFactor;
+                        }
+                    }
+                }
+
+                // B. 格位頂層控制權 (Top-of-Stack Dominance) 與中央格位戰略價值
+                const center = (N - 1) / 2;
+                for (let cIdx = 0; cIdx < N * N; cIdx++) {
+                    const st = stacks[cIdx];
+                    if (st.length === 0) continue;
+
+                    const r = Math.floor(cIdx / N);
+                    const c = cIdx % N;
+                    const distFromCenter = Math.abs(r - center) + Math.abs(c - center);
+                    const centerBonus = Math.max(1, (N - distFromCenter) * 8);
+
+                    const topOwner = st[st.length - 1];
+                    if (topOwner === aiPid) {
+                        // 掌握頂層活棋 (移子階段可自由調動，且壓住下方棋子)
+                        totalScore += 38 + centerBonus;
+                        if (st.length >= 2 && st[st.length - 2] !== aiPid) {
+                            totalScore += 45; // 獎勵「蓋火鍋」壓制對手棋子
+                        }
+                    } else {
+                        totalScore -= (32 + centerBonus * 0.8);
+                    }
+                }
+
+                return totalScore;
+            }
+
+            // 快速為單步走法進行初篩排序 (Move Ordering)，大幅提升 Alpha-Beta 剪枝效率
+            scoreMoveQuickly(state, move, pid) {
+                if (move.selfDestruct) return -999999;
+                const nextState = this.applyVirtualMove(state, move, pid);
+                if (this.checkStateWin(nextState.stacks, pid)) {
+                    return 999999;
+                }
+                return this.evaluateBoard(nextState, pid);
+            }
+
+            // Minimax 搭配 Alpha-Beta 剪枝遞迴搜尋
+            minimax(state, depth, alpha, beta, currentPid, rootAiPid) {
+                const pCount = this.app.playerCount;
+
+                // 檢查是否已有任何玩家獲勝
+                for (let p = 0; p < pCount; p++) {
+                    if (this.checkStateWin(state.stacks, p)) {
+                        return p === rootAiPid ? (1000000 + depth * 1000) : (-1000000 - depth * 1000);
+                    }
+                }
+
+                if (depth === 0) {
+                    return this.evaluateBoard(state, rootAiPid);
+                }
+
+                let legalMoves = this.getLegalMoves(state, currentPid).filter(m => !m.selfDestruct);
+                if (legalMoves.length === 0) {
+                    return this.evaluateBoard(state, rootAiPid);
+                }
+
+                // 在大棋盤 (5x5, 6x6) 進行前瞻搜尋時，先做啟發式排序並聚焦前 N 個高價值候選步以兼顧即時流暢度
+                const maxBranch = this.app.gridSize >= 5 ? 9 : 14;
+                if (legalMoves.length > maxBranch) {
+                    legalMoves.forEach(m => {
+                        m._quickScore = this.scoreMoveQuickly(state, m, currentPid);
+                    });
+                    legalMoves.sort((a, b) => b._quickScore - a._quickScore);
+                    legalMoves = legalMoves.slice(0, maxBranch);
+                }
+
+                const nextPid = (currentPid + 1) % pCount;
+                const isMaximizing = (currentPid === rootAiPid);
+
+                if (isMaximizing) {
+                    let maxEval = -Infinity;
+                    for (let move of legalMoves) {
+                        const childState = this.applyVirtualMove(state, move, currentPid);
+                        const ev = this.minimax(childState, depth - 1, alpha, beta, nextPid, rootAiPid);
+                        if (ev > maxEval) maxEval = ev;
+                        if (ev > alpha) alpha = ev;
+                        if (beta <= alpha) break; // Beta 剪枝
+                    }
+                    return maxEval;
+                } else {
+                    let minEval = Infinity;
+                    for (let move of legalMoves) {
+                        const childState = this.applyVirtualMove(state, move, currentPid);
+                        const ev = this.minimax(childState, depth - 1, alpha, beta, nextPid, rootAiPid);
+                        if (ev < minEval) minEval = ev;
+                        if (ev < beta) beta = ev;
+                        if (beta <= alpha) break; // Alpha 剪枝
+                    }
+                    return minEval;
+                }
+            }
+
+            // 根據當前難度等級 ('weak' | 'medium' | 'strong') 計算最佳走步
+            chooseBestMove(difficulty = 'medium') {
+                const aiPid = this.app.currentPlayer;
+                const pCount = this.app.playerCount;
+                const rootState = {
+                    stacks: this.app.stacks.map(st => [...st]),
+                    inventory: [...this.app.inventory],
+                    cooldownCell: this.app.cooldownCell ? { ...this.app.cooldownCell } : null
+                };
+
+                const allMoves = this.getLegalMoves(rootState, aiPid);
+                if (allMoves.length === 0) return null;
+
+                // 過濾掉會導致抽子自爆的步（除非萬不得已全部都會自爆）
+                const safeMoves = allMoves.filter(m => !m.selfDestruct);
+                const candidateMoves = safeMoves.length > 0 ? safeMoves : allMoves;
+
+                // 第 0 優先：若當下有任何一步能直接達成 K 子連勝，無論難度優先檢查
+                for (let move of candidateMoves) {
+                    const nextState = this.applyVirtualMove(rootState, move, aiPid);
+                    if (this.checkStateWin(nextState.stacks, aiPid)) {
+                        // 弱 AI 有 20% 機率漏看一步殺，中與強 AI 100% 把握致勝手
+                        if (difficulty !== 'weak' || Math.random() < 0.8) {
+                            return move;
+                        }
+                    }
+                }
+
+                // =================================================================
+                // 等級 1：【弱 AI (Weak)】- 1層窮舉評估 + 高隨機擾動 (適合新手體驗)
+                // =================================================================
+                if (difficulty === 'weak') {
+                    let bestMove = candidateMoves[0];
+                    let bestScore = -Infinity;
+                    for (let move of candidateMoves) {
+                        const nextState = this.applyVirtualMove(rootState, move, aiPid);
+                        // 僅評估自身落子後的基礎盤面並加入大幅隨機誤差，偶爾會漏防對手的雙向威脅
+                        const baseScore = this.evaluateBoard(nextState, aiPid) * 0.35;
+                        const randomNoise = (Math.random() - 0.5) * 2600;
+                        const finalScore = baseScore + randomNoise;
+                        if (finalScore > bestScore) {
+                            bestScore = finalScore;
+                            bestMove = move;
+                        }
+                    }
+                    return bestMove;
+                }
+
+                // =================================================================
+                // 等級 2：【中 AI (Medium)】- 2層 Minimax 前瞻 (窮舉我方走步 + 預判對手最強反擊)
+                // =================================================================
+                if (difficulty === 'medium') {
+                    let bestMove = candidateMoves[0];
+                    let bestScore = -Infinity;
+                    const nextPid = (aiPid + 1) % pCount;
+
+                    for (let move of candidateMoves) {
+                        const childState = this.applyVirtualMove(rootState, move, aiPid);
+                        // 往前看 1 層對手最佳反制 (相當於總深度 2-ply Minimax) + 微小隨機性打破同分僵局
+                        const score = this.minimax(childState, 1, -Infinity, Infinity, nextPid, aiPid) + (Math.random() - 0.5) * 45;
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestMove = move;
+                        }
+                    }
+                    return bestMove;
+                }
+
+                // =================================================================
+                // 等級 3：【強 AI (Strong)】- 3~4層深層 Minimax + Alpha-Beta 剪枝 + 雙活三陷阱預判
+                // =================================================================
+                const searchDepth = this.app.gridSize <= 4 ? 3 : 2; // 含根節點共 3~4 層前瞻 (Plies)
+                const nextPid = (aiPid + 1) % pCount;
+
+                // 先對根節點候選步進行啟發式排序，讓 Alpha-Beta 剪枝發揮最大效率
+                candidateMoves.forEach(m => {
+                    m._orderScore = this.scoreMoveQuickly(rootState, m, aiPid);
+                });
+                candidateMoves.sort((a, b) => b._orderScore - a._orderScore);
+
+                let bestMove = candidateMoves[0];
+                let bestScore = -Infinity;
+                let alpha = -Infinity;
+                const beta = Infinity;
+
+                for (let move of candidateMoves) {
+                    const childState = this.applyVirtualMove(rootState, move, aiPid);
+                    // 深層遞迴推演 + 極微小同分擾動
+                    const score = this.minimax(childState, searchDepth, alpha, beta, nextPid, aiPid) + (Math.random() - 0.5) * 4;
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMove = move;
+                    }
+                    if (score > alpha) alpha = score;
+                }
+
+                return bestMove;
+            }
+        }
+
+        // =========================================================================
+        // 3D Connect 獨立遊戲模擬器主系統
+        // =========================================================================
+        class Simulator3DApp {
+            constructor() {
+                this.gridSize = 4;
+                this.playerCount = 2;
+                this.isInspectMode = false;
+                this.isExplodedView = false;
+
+                // AI 對手設定：預設開啟「中」難度 AI 擔任第 2 位玩家 (亮黃方 X)，讓單人打開網頁即可馬上對戰
+                this.aiDifficulty = 'medium'; // 'off' | 'weak' | 'medium' | 'strong'
+                this.aiSlots = [false, true, true, true]; // 玩家 0 預設真人，玩家 1~3 預設 AI
+                this.isAIThinking = false;
+                this.aiTimers = [];
+
+                // 預設 2 人為：藍色 O vs 黃色 X；3~4 人依序加入：橘色 O、白色 X
+                this.allPlayers = [
+                    { id: 0, name: '寶藍方 O', symbol: 'O', color: '#3b82f6', hex: 0x2563eb },
+                    { id: 1, name: '亮黃方 X', symbol: 'X', color: '#facc15', hex: 0xeab308 },
+                    { id: 2, name: '亮橘方 O', symbol: 'O', color: '#f97316', hex: 0xf97316 },
+                    { id: 3, name: '象牙白 X', symbol: 'X', color: '#f8fafc', hex: 0xf1f5f9 }
+                ];
+
+                // 50mm 對應 2.2 單位，棋子高度也是 50mm (2.2 單位)
+                this.tileSize = 2.2;
+                this.tileGap = 0.08;
+                this.baseHeight = 0.52;
+                this.pieceHeight = 2.2;
+
+                this.hoveredCellIdx = null;
+                this.pendingTargetCell = null; // 使用者點選準備落子的預覽目標格
+                this.history = [];
+
+                this.sfx = new ArcadeSoundEngine();
+                this.cadBuilder = new OpenSCADPieceBuilder();
+                this.aiEngine = new Connect3DAIEngine(this);
+                this.initThreeScene();
+                this.initGame();
+            }
+
+            // 清除進行中的 AI 思考計時器
+            clearAITimers() {
+                if (this.aiTimers && this.aiTimers.length > 0) {
+                    this.aiTimers.forEach(tid => clearTimeout(tid));
+                    this.aiTimers = [];
+                }
+                this.isAIThinking = false;
+            }
+
+            // 判斷指定玩家目前是否由 AI 操控
+            isPlayerAI(pid) {
+                return this.aiDifficulty !== 'off' && Boolean(this.aiSlots[pid]);
+            }
+
+            // 切換 AI 難度等級 ('off' | 'weak' | 'medium' | 'strong')
+            setAIDifficulty(level) {
+                if (this.sfx) this.sfx.playUiButton();
+                this.clearAITimers();
+                this.aiDifficulty = level;
+
+                // 若從「全真人」切換到任一 AI 難度，且所有玩家都是真人，自動將 P2~P4 設為 AI
+                if (level !== 'off' && !this.aiSlots.slice(0, this.playerCount).some(Boolean)) {
+                    for (let i = 1; i < 4; i++) this.aiSlots[i] = true;
+                }
+
+                this.pendingTargetCell = null;
+                this.updateConfigButtons();
+                this.renderAll();
+                this.updateStatusBanner();
+                this.checkAndTriggerAITurn();
+            }
+
+            // 單獨切換某位玩家是「👤真人」還是「🤖AI」
+            togglePlayerAI(pid) {
+                if (this.sfx) this.sfx.playUiButton();
+                this.clearAITimers();
+
+                if (this.aiDifficulty === 'off') {
+                    this.aiDifficulty = 'medium';
+                    this.aiSlots = [false, false, false, false];
+                    this.aiSlots[pid] = true;
+                } else {
+                    this.aiSlots[pid] = !this.aiSlots[pid];
+                    // 若全部玩家都被切成真人，自動將狀態列切回 'off'
+                    if (!this.aiSlots.slice(0, this.playerCount).some(Boolean)) {
+                        this.aiDifficulty = 'off';
+                    }
+                }
+
+                this.pendingTargetCell = null;
+                this.updateConfigButtons();
+                this.renderAll();
+                this.updateStatusBanner();
+                this.checkAndTriggerAITurn();
+            }
+
+            toggleSound() {
+                this.sfx.enabled = !this.sfx.enabled;
+                const label = document.getElementById('sound-toggle-label');
+                const btn = document.getElementById('btn-sound-toggle');
+                if (this.sfx.enabled) {
+                    label.textContent = '🔊 音效：開';
+                    btn.className = 'px-2.5 py-1.5 rounded-lg text-[11px] lg:text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition flex items-center gap-1 cursor-pointer whitespace-nowrap';
+                    this.sfx.playUiButton();
+                } else {
+                    label.textContent = '🔇 音效：關';
+                    btn.className = 'px-2.5 py-1.5 rounded-lg text-[11px] lg:text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700 transition flex items-center gap-1 cursor-pointer whitespace-nowrap';
+                }
+            }
+
+            toggleKioskGuide() {
+                this.sfx.playUiButton();
+                const modal = document.getElementById('kiosk-guide-modal');
+                if (modal) modal.classList.toggle('hidden');
+            }
+
+            initThreeScene() {
+                this.container = document.getElementById('webgl-container');
+                this.scene = new THREE.Scene();
+                // 將 Three.js 渲染器設為透明背景，直接透出容器的漸層藍背景，讓消光黑底座邊界清晰分明
+                this.scene.background = null;
+
+                const w = this.container.clientWidth || 800;
+                const h = this.container.clientHeight || 600;
+
+                this.camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 250);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                this.renderer.setClearColor(0x000000, 0);
+                this.renderer.setSize(w, h);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                this.container.appendChild(this.renderer.domElement);
+
+                // 燈光配置 (強化雙面凹槽與 3D 圓角的高光立體感)
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.62);
+                this.scene.add(ambientLight);
+
+                const mainLight = new THREE.DirectionalLight(0xffffff, 0.92);
+                mainLight.position.set(14, 26, 20);
+                mainLight.castShadow = true;
+                mainLight.shadow.mapSize.width = 2048;
+                mainLight.shadow.mapSize.height = 2048;
+                this.scene.add(mainLight);
+
+                const fillLight = new THREE.DirectionalLight(0x93c5fd, 0.42);
+                fillLight.position.set(-16, 14, -18);
+                this.scene.add(fillLight);
+
+                const rimLight = new THREE.DirectionalLight(0xfde047, 0.22);
+                rimLight.position.set(0, -12, 10);
+                this.scene.add(rimLight);
+
+                this.boardGroup = new THREE.Group();
+                this.piecesGroup = new THREE.Group();
+                this.ghostGroup = new THREE.Group();
+                this.inspectGroup = new THREE.Group();
+                this.scene.add(this.boardGroup, this.piecesGroup, this.ghostGroup, this.inspectGroup);
+
+                this.camSpherical = {
+                    radius: 19,
+                    theta: Math.PI / 5.5,
+                    phi: Math.PI / 3.0
+                };
+                this.camTarget = new THREE.Vector3(0, 2.0, 0);
+                this.isRightDragging = false;
+                this.prevMouse = { x: 0, y: 0 };
+
+                this.raycaster = new THREE.Raycaster();
+                this.mouseNDC = new THREE.Vector2();
+                this.interactableMeshes = [];
+
+                this.bindEvents();
+                this.updateCameraPosition();
+                this.animate();
+            }
+
+            setCameraPreset(preset) {
+                if (this.sfx) this.sfx.playUiButton();
+                const baseR = this.isInspectMode ? 9.5 : (13.5 + this.gridSize * 1.6);
+                if (preset === 'iso') {
+                    this.camSpherical = { radius: baseR, theta: Math.PI / 5.5, phi: Math.PI / 3.0 };
+                } else if (preset === 'front') {
+                    this.camSpherical = { radius: baseR, theta: 0, phi: Math.PI / 2.35 };
+                } else if (preset === 'top') {
+                    this.camSpherical = { radius: baseR * 1.05, theta: 0, phi: 0.22 };
+                }
+                this.updateCameraPosition();
+            }
+
+            resetCamera(playSound = true) {
+                if (playSound && this.sfx) this.sfx.playUiButton();
+                this.camTarget.set(0, this.isInspectMode ? 0.3 : 2.0, 0);
+                const baseR = this.isInspectMode ? 9.5 : (13.5 + this.gridSize * 1.6);
+                this.camSpherical = { radius: baseR, theta: Math.PI / 5.5, phi: Math.PI / 3.0 };
+                this.updateCameraPosition();
+            }
+
+            updateCameraPosition() {
+                const { radius, theta, phi } = this.camSpherical;
+                this.camera.position.x = this.camTarget.x + radius * Math.sin(phi) * Math.sin(theta);
+                this.camera.position.y = this.camTarget.y + radius * Math.cos(phi);
+                this.camera.position.z = this.camTarget.z + radius * Math.sin(phi) * Math.cos(theta);
+                this.camera.lookAt(this.camTarget);
+            }
+
+            bindEvents() {
+                const dom = this.renderer.domElement;
+                // 防止 iPad Safari 觸控後又補發合成滑鼠事件 (Ghost Click) 造成點一下連下兩子
+                this.lastTouchTime = 0;
+
+                // 停用預設右鍵選單，讓滑鼠右鍵拖曳可自由旋轉 3D 視角
+                dom.addEventListener('contextmenu', e => e.preventDefault());
+
+                dom.addEventListener('mousedown', e => {
+                    // 若剛發生過觸控事件 (800ms 內)，忽略 iOS Safari 自動合成的 mousedown
+                    if (Date.now() - this.lastTouchTime < 800) return;
+
+                    if (e.button === 2 || (this.isInspectMode && e.button === 0)) {
+                        this.isRightDragging = true;
+                        this.prevMouse = { x: e.clientX, y: e.clientY };
+                    } else if (e.button === 0 && !this.isInspectMode) {
+                        this.onLeftClick(e);
+                    }
+                });
+
+                window.addEventListener('mousemove', e => {
+                    if (Date.now() - this.lastTouchTime < 800) return;
+                    if (this.isRightDragging) {
+                        const dx = e.clientX - this.prevMouse.x;
+                        const dy = e.clientY - this.prevMouse.y;
+                        this.prevMouse = { x: e.clientX, y: e.clientY };
+
+                        this.camSpherical.theta -= dx * 0.0085;
+                        this.camSpherical.phi = Math.max(0.18, Math.min(Math.PI / 2 + 0.25, this.camSpherical.phi - dy * 0.0085));
+                        this.updateCameraPosition();
+                    }
+                });
+
+                dom.addEventListener('mousemove', e => {
+                    if (Date.now() - this.lastTouchTime < 800) return;
+                    if (!this.isRightDragging && !this.isInspectMode) {
+                        this.onPointerMove(e);
+                    }
+                });
+
+                dom.addEventListener('mouseleave', () => {
+                    this.hoveredCellIdx = null;
+                    this.updateGhostPreview();
+                });
+
+                window.addEventListener('mouseup', () => {
+                    this.isRightDragging = false;
+                });
+
+                // 平板與觸控螢幕支援：單指拖曳旋轉視角、單指輕點落子、雙指縮放
+                let touchStartPos = { x: 0, y: 0 };
+                let isTouchMoved = false;
+                let prevPinchDist = 0;
+
+                dom.addEventListener('touchstart', e => {
+                    this.lastTouchTime = Date.now();
+                    if (e.touches.length === 1) {
+                        const t = e.touches[0];
+                        touchStartPos = { x: t.clientX, y: t.clientY };
+                        this.prevMouse = { x: t.clientX, y: t.clientY };
+                        isTouchMoved = false;
+                    } else if (e.touches.length === 2) {
+                        isTouchMoved = true;
+                        prevPinchDist = Math.hypot(
+                            e.touches[0].clientX - e.touches[1].clientX,
+                            e.touches[0].clientY - e.touches[1].clientY
+                        );
+                    }
+                }, { passive: true });
+
+                dom.addEventListener('touchmove', e => {
+                    this.lastTouchTime = Date.now();
+                    if (e.touches.length === 1) {
+                        const t = e.touches[0];
+                        const totalDist = Math.hypot(t.clientX - touchStartPos.x, t.clientY - touchStartPos.y);
+                        if (totalDist > 8) {
+                            isTouchMoved = true;
+                            const dx = t.clientX - this.prevMouse.x;
+                            const dy = t.clientY - this.prevMouse.y;
+                            this.prevMouse = { x: t.clientX, y: t.clientY };
+
+                            this.camSpherical.theta -= dx * 0.0085;
+                            this.camSpherical.phi = Math.max(0.18, Math.min(Math.PI / 2 + 0.25, this.camSpherical.phi - dy * 0.0085));
+                            this.updateCameraPosition();
+                        }
+                    } else if (e.touches.length === 2) {
+                        const dist = Math.hypot(
+                            e.touches[0].clientX - e.touches[1].clientX,
+                            e.touches[0].clientY - e.touches[1].clientY
+                        );
+                        if (prevPinchDist > 0) {
+                            const delta = prevPinchDist - dist;
+                            this.camSpherical.radius = Math.max(5.5, Math.min(36, this.camSpherical.radius + delta * 0.03));
+                            this.updateCameraPosition();
+                        }
+                        prevPinchDist = dist;
+                    }
+                }, { passive: true });
+
+                dom.addEventListener('touchend', e => {
+                    this.lastTouchTime = Date.now();
+                    if (!isTouchMoved && !this.isInspectMode && e.changedTouches.length === 1) {
+                        // 阻止 iOS Safari 在 touchend 後自動產生相容的 mousedown/click 事件
+                        if (e.cancelable) e.preventDefault();
+                        const t = e.changedTouches[0];
+                        const cellIdx = this.getIntersectedCell({ clientX: t.clientX, clientY: t.clientY });
+                        if (cellIdx !== null) {
+                            this.handleCellClick(cellIdx);
+                        }
+                    }
+                }, { passive: false });
+
+                dom.addEventListener('wheel', e => {
+                    e.preventDefault();
+                    this.camSpherical.radius = Math.max(5.5, Math.min(36, this.camSpherical.radius + e.deltaY * 0.012));
+                    this.updateCameraPosition();
+                }, { passive: false });
+
+                // 為左側控制欄與導覽列的所有按鈕綁定電動玩具按鈕聲 (排除「確定」與「取消預覽」特殊音效鈕)
+                document.querySelectorAll('aside button').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        if (!btn.disabled && this.sfx) {
+                            this.sfx.playUiButton();
+                        }
+                    });
+                });
+
+                window.addEventListener('resize', () => this.onResize());
+                if (typeof ResizeObserver !== 'undefined') {
+                    this.resizeObserver = new ResizeObserver(() => this.onResize());
+                    this.resizeObserver.observe(this.container);
+                }
+            }
+
+            onResize() {
+                if (!this.container || !this.renderer) return;
+                const w = this.container.clientWidth;
+                const h = this.container.clientHeight;
+                if (w === 0 || h === 0) return;
+                this.camera.aspect = w / h;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(w, h);
+            }
+
+            // 切換「檢視單顆 O/X 棋子 OpenSCAD 結構」與「對戰棋盤」
+            toggleInspectMode() {
+                if (this.sfx) this.sfx.playUiButton();
+                this.isInspectMode = !this.isInspectMode;
+                const btn = document.getElementById('btn-inspect-mode');
+                const banner = document.getElementById('inspect-banner');
+
+                if (this.isInspectMode) {
+                    this.pendingTargetCell = null;
+                    this.updateGhostPreview();
+                    btn.className = "px-2.5 py-1.5 rounded-lg text-[11px] lg:text-xs font-bold bg-amber-500 text-slate-950 border border-amber-400 transition flex items-center gap-1 cursor-pointer shadow whitespace-nowrap";
+                    btn.querySelector('span').textContent = "返回 3D 對戰棋盤";
+                    banner.classList.remove('hidden');
+
+                    this.boardGroup.visible = false;
+                    this.piecesGroup.visible = false;
+                    this.ghostGroup.visible = false;
+                    this.inspectGroup.visible = true;
+                    this.buildInspectShowcase();
+                    this.resetCamera(false);
+                } else {
+                    btn.className = "px-2.5 py-1.5 rounded-lg text-[11px] lg:text-xs font-bold bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 transition flex items-center gap-1 cursor-pointer whitespace-nowrap";
+                    btn.querySelector('span').textContent = "檢視 O/X 棋子 CAD 細節";
+                    banner.classList.add('hidden');
+
+                    this.boardGroup.visible = true;
+                    this.piecesGroup.visible = true;
+                    this.ghostGroup.visible = true;
+                    this.inspectGroup.visible = false;
+                    this.resetCamera(false);
+                }
+            }
+
+            // 建立 OpenSCAD O 與 X 棋子的放大檢視場景 (如同 OpenSCAD 預設輸出排列)
+            buildInspectShowcase() {
+                while (this.inspectGroup.children.length > 0) {
+                    this.inspectGroup.remove(this.inspectGroup.children[0]);
+                }
+
+                // 左側展示寶藍方 O 棋，右側展示亮黃方 X 棋，中間後方展示亮橘方 O 與象牙白 X 上下插接狀態
+                const oMesh = this.cadBuilder.createPieceMesh(this.allPlayers[0], false, false, false);
+                oMesh.position.set(-2.2, 0.5, 0);
+
+                const xMesh = this.cadBuilder.createPieceMesh(this.allPlayers[1], false, false, false);
+                xMesh.position.set(2.2, 0.5, 0);
+
+                // 後方展示底座與卡榫插接示範
+                const sampleTile = this.cadBuilder.createBaseTileMesh(this.tileSize, this.baseHeight, false, false);
+                sampleTile.position.set(0, -1.8, -2.5);
+
+                const stackedBottom = this.cadBuilder.createPieceMesh(this.allPlayers[2], false, false, false);
+                stackedBottom.position.set(0, -1.8 + this.baseHeight / 2 + this.pieceHeight / 2, -2.5);
+
+                const stackedTop = this.cadBuilder.createPieceMesh(this.allPlayers[3], false, false, false);
+                stackedTop.position.set(0, -1.8 + this.baseHeight / 2 + this.pieceHeight * 1.5 + 0.35, -2.5);
+
+                this.inspectGroup.add(oMesh, xMesh, sampleTile, stackedBottom, stackedTop);
+            }
+
+            toggleExplodeView() {
+                if (this.sfx) this.sfx.playUiButton();
+                this.isExplodedView = !this.isExplodedView;
+                const btn = document.getElementById('btn-explode-view');
+                if (this.isExplodedView) {
+                    btn.className = "px-3 py-1.5 rounded-lg text-xs font-bold bg-sky-500 text-slate-950 border border-sky-400 transition cursor-pointer";
+                } else {
+                    btn.className = "px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-sky-300 border border-sky-500/40 transition cursor-pointer";
+                }
+                this.renderBoard();
+            }
+
+            getSpecs(size, pCount) {
+                if (size === 3) return { maxH: 3, winLen: 3, piecesPerPlayer: 8 };
+                if (size === 4) return { maxH: 4, winLen: 4, piecesPerPlayer: 16 };
+                if (size === 5) return { maxH: 4, winLen: 4, piecesPerPlayer: pCount === 2 ? 20 : 15 };
+                return { maxH: 4, winLen: 4, piecesPerPlayer: pCount === 2 ? 24 : (pCount === 3 ? 18 : 15) };
+            }
+
+            setConfig(newSize, newPCount) {
+                if (newSize !== null) this.gridSize = newSize;
+                if (newPCount !== null) this.playerCount = newPCount;
+                if (this.isInspectMode) this.toggleInspectMode();
+                this.initGame();
+            }
+
+            updateConfigButtons() {
+                [3, 4, 5, 6].forEach(sz => {
+                    const btn = document.getElementById(`btn-size-${sz}`);
+                    if (!btn) return;
+                    btn.className = sz === this.gridSize
+                        ? "py-1.5 lg:py-2 rounded-xl text-xs font-bold border border-blue-500 bg-blue-600 text-white shadow cursor-pointer"
+                        : "py-1.5 lg:py-2 rounded-xl text-xs font-bold border border-slate-700 bg-slate-900/70 text-slate-300 hover:bg-slate-700 cursor-pointer";
+                });
+                [2, 3, 4].forEach(pc => {
+                    const btn = document.getElementById(`btn-pcount-${pc}`);
+                    if (!btn) return;
+                    btn.className = pc === this.playerCount
+                        ? "py-1.5 lg:py-2 rounded-xl text-xs font-bold border border-blue-500 bg-blue-600 text-white shadow cursor-pointer"
+                        : "py-1.5 lg:py-2 rounded-xl text-xs font-bold border border-slate-700 bg-slate-900/70 text-slate-300 hover:bg-slate-700 cursor-pointer";
+                });
+
+                const aiModes = [
+                    { id: 'off', activeClass: 'border-slate-400 bg-slate-600 text-white shadow' },
+                    { id: 'weak', activeClass: 'border-emerald-400 bg-emerald-600 text-white shadow' },
+                    { id: 'medium', activeClass: 'border-amber-400 bg-amber-500 text-slate-950 shadow' },
+                    { id: 'strong', activeClass: 'border-rose-400 bg-rose-600 text-white shadow' }
+                ];
+                aiModes.forEach(m => {
+                    const btn = document.getElementById(`btn-ai-${m.id}`);
+                    if (!btn) return;
+                    btn.className = this.aiDifficulty === m.id
+                        ? `py-1.5 rounded-xl text-[11px] lg:text-xs font-black border ${m.activeClass} cursor-pointer`
+                        : "py-1.5 rounded-xl text-[11px] lg:text-xs font-bold border border-slate-700 bg-slate-900/70 text-slate-300 hover:bg-slate-700 cursor-pointer";
+                });
+
+                const algoBadge = document.getElementById('ai-algo-badge');
+                if (algoBadge) {
+                    const descMap = {
+                        off: '雙人/多人同機對戰',
+                        weak: '1層窮舉 + 隨機權重擾動',
+                        medium: '2層 Minimax 攻防預判',
+                        strong: '深層 Minimax + α-β剪枝'
+                    };
+                    algoBadge.textContent = descMap[this.aiDifficulty] || '';
+                }
+            }
+
+            initGame() {
+                this.clearAITimers();
+                const specs = this.getSpecs(this.gridSize, this.playerCount);
+                this.maxH = specs.maxH;
+                this.winLen = specs.winLen;
+                this.piecesPerPlayer = specs.piecesPerPlayer;
+
+                document.getElementById('rule-spec-badge').textContent =
+                    `${this.winLen}連勝 / 限高${this.maxH}層 / 每人${this.piecesPerPlayer}顆`;
+
+                const totalCells = this.gridSize * this.gridSize;
+                this.stacks = Array.from({ length: totalCells }, () => []);
+                this.inventory = Array.from({ length: this.playerCount }, () => this.piecesPerPlayer);
+                this.history = [];
+
+                this.currentPlayer = 0;
+                this.selectedSourceCell = null;
+                this.pendingTargetCell = null;
+                this.cooldownCell = null;
+                this.gameOver = false;
+                this.winnerId = null;
+                this.winningCoords = [];
+
+                document.getElementById('confetti-box').innerHTML = '';
+                this.updateConfigButtons();
+                this.resetCamera(false);
+                this.renderAll();
+                this.updateStatusBanner();
+                this.checkAndTriggerAITurn();
+            }
+
+            isMovementPhase(pid) {
+                return this.inventory[pid] === 0;
+            }
+
+            getCellWorldPos(cellIdx, layerZ = 0) {
+                const r = Math.floor(cellIdx / this.gridSize);
+                const c = cellIdx % this.gridSize;
+                const step = this.tileSize + this.tileGap;
+                const offset = (this.gridSize - 1) * step * 0.5;
+                const x = c * step - offset;
+                const z = r * step - offset;
+                const explodeGap = this.isExplodedView ? layerZ * 0.45 : 0;
+                const y = this.baseHeight + layerZ * this.pieceHeight + this.pieceHeight * 0.5 + explodeGap;
+                return new THREE.Vector3(x, y, z);
+            }
+
+            getIntersectedCell(event) {
+                const rect = this.renderer.domElement.getBoundingClientRect();
+                this.mouseNDC.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                this.mouseNDC.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+                this.raycaster.setFromCamera(this.mouseNDC, this.camera);
+                const hits = this.raycaster.intersectObjects(this.interactableMeshes, true);
+                for (let hit of hits) {
+                    let obj = hit.object;
+                    while (obj) {
+                        if (obj.userData && typeof obj.userData.cellIdx === 'number') {
+                            return obj.userData.cellIdx;
+                        }
+                        obj = obj.parent;
+                    }
+                }
+                return null;
+            }
+
+            onPointerMove(event) {
+                if (this.gameOver || this.isAIThinking || this.isPlayerAI(this.currentPlayer)) {
+                    this.hoveredCellIdx = null;
+                    this.updateGhostPreview();
+                    return;
+                }
+                // 若已有點選待確認的預覽格，保持固定顯示該預覽格，不被滑鼠移動干擾
+                if (this.pendingTargetCell !== null) return;
+
+                const cellIdx = this.getIntersectedCell(event);
+                if (cellIdx !== this.hoveredCellIdx) {
+                    this.hoveredCellIdx = cellIdx;
+                    this.updateGhostPreview();
+                }
+            }
+
+            onLeftClick(event) {
+                if (this.isAIThinking || this.isPlayerAI(this.currentPlayer)) return;
+                const cellIdx = this.getIntersectedCell(event);
+                if (cellIdx !== null) {
+                    this.handleCellClick(cellIdx);
+                }
+            }
+
+            // 計算 3D 預覽棋子投影在 2D 畫布上的螢幕座標，讓「確定」按鈕緊貼在半透明棋子右側
+            updatePendingPopupPosition() {
+                const popup = document.getElementById('pending-confirm-popup');
+                if (!popup) return;
+
+                // AI 思考預覽時不顯示給真人按的「確定」浮動面板
+                if (this.gameOver || this.isInspectMode || this.pendingTargetCell === null || this.isAIThinking || this.isPlayerAI(this.currentPlayer)) {
+                    popup.classList.add('hidden');
+                    return;
+                }
+
+                const cellIdx = this.pendingTargetCell;
+                const stackLen = this.stacks[cellIdx].length;
+                const worldPos = this.getCellWorldPos(cellIdx, stackLen);
+
+                const projected = worldPos.clone().project(this.camera);
+                const w = this.container.clientWidth;
+                const h = this.container.clientHeight;
+
+                const screenX = (projected.x * 0.5 + 0.5) * w;
+                const screenY = (-projected.y * 0.5 + 0.5) * h;
+
+                // 將按鈕固定在半透明棋子的右方偏上，並確保不會超出畫布邊界
+                const offsetX = Math.min(Math.max(screenX + 36, 20), Math.max(20, w - 155));
+                const offsetY = Math.min(Math.max(screenY - 10, 48), Math.max(48, h - 55));
+
+                popup.style.left = `${offsetX}px`;
+                popup.style.top = `${offsetY}px`;
+                popup.classList.remove('hidden');
+            }
+
+            // 更新半透明預覽棋子與右上角座標讀數
+            updateGhostPreview() {
+                while (this.ghostGroup.children.length > 0) {
+                    this.ghostGroup.remove(this.ghostGroup.children[0]);
+                }
+
+                const readout = document.getElementById('cell-hover-Readout');
+                const previewCellIdx = this.pendingTargetCell !== null ? this.pendingTargetCell : this.hoveredCellIdx;
+
+                if (this.gameOver || previewCellIdx === null) {
+                    this.renderer.domElement.style.cursor = 'default';
+                    readout.textContent = '點選棋盤格位可預覽半透明落子位置';
+                    this.updatePendingPopupPosition();
+                    return;
+                }
+
+                const cellIdx = previewCellIdx;
+                const r = Math.floor(cellIdx / this.gridSize) + 1;
+                const c = (cellIdx % this.gridSize) + 1;
+                const stack = this.stacks[cellIdx];
+                const inMovePhase = this.isMovementPhase(this.currentPlayer);
+
+                if (this.pendingTargetCell !== null) {
+                    readout.textContent = `已預覽格位 (${c}, ${r}) 第 ${stack.length + 1} 層 ｜ 請按「確定」落子`;
+                } else {
+                    readout.textContent = `格位 (${c}, ${r}) ｜ 目前堆疊: ${stack.length}/${this.maxH} 層`;
+                }
+
+                if (inMovePhase && this.selectedSourceCell === null) {
+                    const canPick = stack.length > 0 && stack[stack.length - 1] === this.currentPlayer;
+                    this.renderer.domElement.style.cursor = canPick ? 'pointer' : 'not-allowed';
+                    this.updatePendingPopupPosition();
+                    return;
+                }
+
+                if (inMovePhase && this.selectedSourceCell === cellIdx) {
+                    this.renderer.domElement.style.cursor = 'pointer';
+                    this.updatePendingPopupPosition();
+                    return;
+                }
+
+                const isBlockedByCooldown = (
+                    this.cooldownCell &&
+                    this.cooldownCell.cellIdx === cellIdx &&
+                    this.cooldownCell.restrictedPlayer === this.currentPlayer
+                );
+
+                if (stack.length >= this.maxH || isBlockedByCooldown) {
+                    this.renderer.domElement.style.cursor = 'not-allowed';
+                    this.updatePendingPopupPosition();
+                    return;
+                }
+
+                this.renderer.domElement.style.cursor = 'pointer';
+
+                // 建立當前玩家的半透明 OpenSCAD 3D 預覽棋子
+                const currentPlayerObj = this.allPlayers[this.currentPlayer];
+                const ghostMesh = this.cadBuilder.createPieceMesh(currentPlayerObj, true, false, false);
+                const targetPos = this.getCellWorldPos(cellIdx, stack.length);
+                ghostMesh.position.copy(targetPos);
+                this.ghostGroup.add(ghostMesh);
+
+                this.updatePendingPopupPosition();
+            }
+
+            renderPlayersPanel() {
+                const panel = document.getElementById('players-panel');
+                const diffLabelMap = { weak: 'AI-弱', medium: 'AI-中', strong: 'AI-強' };
+                let html = '';
+                for (let i = 0; i < this.playerCount; i++) {
+                    const p = this.allPlayers[i];
+                    const isTurn = !this.gameOver && this.currentPlayer === i;
+                    const inMove = this.inventory[i] === 0;
+                    const isAI = this.isPlayerAI(i);
+                    const roleBadge = isAI
+                        ? `🤖 ${diffLabelMap[this.aiDifficulty] || 'AI'}`
+                        : `👤 真人`;
+                    const roleStyle = isAI
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                        : 'bg-slate-800 text-slate-300 border-slate-600 hover:bg-slate-700';
+
+                    html += `
+                        <div class="p-2.5 rounded-xl border-2 transition ${isTurn ? 'bg-slate-900 shadow-lg scale-[1.02]' : 'bg-slate-900/40 opacity-70'}"
+                             style="border-color: ${isTurn ? p.color : '#334155'}">
+                            <div class="flex items-center justify-between gap-1 mb-1.5">
+                                <span class="font-bold text-xs sm:text-sm flex items-center gap-1.5 truncate" style="color:${p.color}">
+                                    <span class="w-2.5 h-2.5 rounded-full inline-block shrink-0" style="background:${p.color}"></span>
+                                    <span class="truncate">${p.name}</span>
+                                </span>
+                                <button onclick="simApp.togglePlayerAI(${i})" class="text-[10px] font-bold px-1.5 py-0.5 rounded border transition cursor-pointer shrink-0 ${roleStyle}" title="點擊切換真人或 AI 操控">
+                                    ${roleBadge}
+                                </button>
+                            </div>
+                            <div class="flex items-center justify-between text-[11px]">
+                                <span class="text-slate-400">${isTurn ? (isAI ? '⚡ 思考中...' : '👉 你的回合') : '等待中'}</span>
+                                <span class="font-mono font-bold px-1.5 py-0.5 rounded ${inMove ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-slate-800 text-slate-300'}">
+                                    ${inMove ? '移子階段' : '剩 ' + this.inventory[i] + ' 顆'}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                }
+                panel.innerHTML = html;
+
+                const undoBtn = document.getElementById('btn-undo');
+                if (undoBtn) undoBtn.disabled = this.history.length === 0;
+            }
+
+            updateStatusBanner(customMsg = null, borderColor = '#334155') {
+                const banner = document.getElementById('status-banner');
+                banner.style.borderColor = borderColor;
+                if (customMsg) {
+                    banner.innerHTML = customMsg;
+                    return;
+                }
+                const p = this.allPlayers[this.currentPlayer];
+                banner.style.borderColor = p.color;
+                const inMove = this.isMovementPhase(this.currentPlayer);
+                const isAI = this.isPlayerAI(this.currentPlayer);
+                const diffNameMap = { weak: '弱 AI', medium: '中 AI', strong: '強 AI' };
+
+                if (isAI) {
+                    const aiTag = `<span class="text-xs bg-emerald-500 text-slate-950 font-black px-2.5 py-0.5 rounded-full ml-1.5">🤖 ${diffNameMap[this.aiDifficulty]} 演算思考中...</span>`;
+                    banner.innerHTML = `
+                        <div class="text-base sm:text-lg font-bold flex items-center justify-center flex-wrap gap-1">
+                            <span>當前輪替：<span style="color:${p.color}">${p.name}</span></span>
+                            ${aiTag}
+                        </div>
+                        <div class="text-xs text-emerald-300 mt-1">正在窮舉模擬 3D 空間連線權重與 Minimax 攻防推演...</div>
+                    `;
+                    return;
+                }
+
+                const badge = inMove
+                    ? `<span class="text-xs bg-amber-500 text-slate-950 font-bold px-2.5 py-0.5 rounded-full ml-1.5">移子階段：請點選頂層活棋</span>`
+                    : `<span class="text-xs bg-blue-600 text-white font-bold px-2.5 py-0.5 rounded-full ml-1.5">放子階段 (手牌 ${this.inventory[this.currentPlayer]} 顆)</span>`;
+
+                let subHint = '';
+                if (this.pendingTargetCell !== null) {
+                    const r = Math.floor(this.pendingTargetCell / this.gridSize) + 1;
+                    const c = (this.pendingTargetCell % this.gridSize) + 1;
+                    subHint = `<div class="text-xs text-emerald-300 font-bold mt-1">✨ 已預覽落於 (${c}, ${r})，請點擊棋子旁的「確定」按鈕完成落子！</div>`;
+                } else if (inMove && this.selectedSourceCell !== null) {
+                    subHint = `<div class="text-xs text-amber-300 mt-1">已拔起第 ${this.selectedSourceCell + 1} 格頂層棋子，請點選目標格預覽位置（點原格取消）</div>`;
+                }
+
+                banner.innerHTML = `
+                    <div class="text-base sm:text-lg font-bold">
+                        當前輪替：<span style="color:${p.color}">${p.name}</span> ${badge}
+                    </div>
+                    ${subHint}
+                `;
+            }
+
+            renderBoard() {
+                while (this.boardGroup.children.length > 0) {
+                    this.boardGroup.remove(this.boardGroup.children[0]);
+                }
+                while (this.piecesGroup.children.length > 0) {
+                    this.piecesGroup.remove(this.piecesGroup.children[0]);
+                }
+                this.interactableMeshes = [];
+
+                const step = this.tileSize + this.tileGap;
+                const offset = (this.gridSize - 1) * step * 0.5;
+
+                for (let r = 0; r < this.gridSize; r++) {
+                    for (let c = 0; c < this.gridSize; c++) {
+                        const cellIdx = r * this.gridSize + c;
+                        const x = c * step - offset;
+                        const z = r * step - offset;
+
+                        const isSelectedSource = (this.selectedSourceCell === cellIdx);
+                        const isBlockedByCooldown = (
+                            this.cooldownCell &&
+                            this.cooldownCell.cellIdx === cellIdx &&
+                            this.cooldownCell.restrictedPlayer === this.currentPlayer
+                        );
+
+                        const tileGroup = this.cadBuilder.createBaseTileMesh(
+                            this.tileSize,
+                            this.baseHeight,
+                            isSelectedSource,
+                            isBlockedByCooldown
+                        );
+                        tileGroup.position.set(x, this.baseHeight * 0.5, z);
+                        tileGroup.userData = { cellIdx };
+                        tileGroup.traverse(child => { child.userData = { cellIdx }; });
+
+                        this.boardGroup.add(tileGroup);
+                        this.interactableMeshes.push(tileGroup);
+
+                        // 繪製該格堆疊的立體 O / X 棋子
+                        const stack = this.stacks[cellIdx];
+                        const winLayers = this.winningCoords.filter(w => w.cellIdx === cellIdx).map(w => w.z);
+
+                        for (let layerZ = 0; layerZ < stack.length; layerZ++) {
+                            const pid = stack[layerZ];
+                            const pObj = this.allPlayers[pid];
+                            const isTopSelected = (isSelectedSource && layerZ === stack.length - 1);
+                            const isWinPiece = winLayers.includes(layerZ);
+
+                            const pieceMesh = this.cadBuilder.createPieceMesh(pObj, false, isTopSelected, isWinPiece);
+                            const worldPos = this.getCellWorldPos(cellIdx, layerZ);
+                            if (isTopSelected) {
+                                worldPos.y += 0.45; // 被選取準備移子時浮起，露出底部十字公頭卡榫
+                            }
+                            pieceMesh.position.copy(worldPos);
+                            pieceMesh.userData = { cellIdx };
+                            pieceMesh.traverse(child => { child.userData = { cellIdx }; });
+
+                            this.piecesGroup.add(pieceMesh);
+                            this.interactableMeshes.push(pieceMesh);
+                        }
+                    }
+                }
+
+                // 若已獲勝，繪製發光連線光束
+                if (this.gameOver && this.winningCoords.length >= 2) {
+                    const first = this.winningCoords[0];
+                    const last = this.winningCoords[this.winningCoords.length - 1];
+                    const pStart = this.getCellWorldPos(first.cellIdx, first.z);
+                    const pEnd = this.getCellWorldPos(last.cellIdx, last.z);
+
+                    const curve = new THREE.LineCurve3(pStart, pEnd);
+                    const tubeGeo = new THREE.TubeGeometry(curve, 16, 0.14, 12, false);
+                    const tubeMat = new THREE.MeshBasicMaterial({ color: 0xfde047 });
+                    this.piecesGroup.add(new THREE.Mesh(tubeGeo, tubeMat));
+                }
+
+                this.updateGhostPreview();
+            }
+
+            renderAll() {
+                this.renderPlayersPanel();
+                this.renderBoard();
+            }
+
+            saveSnapshot() {
+                this.history.push({
+                    stacks: this.stacks.map(st => [...st]),
+                    inventory: [...this.inventory],
+                    currentPlayer: this.currentPlayer,
+                    cooldownCell: this.cooldownCell ? { ...this.cooldownCell } : null,
+                    gameOver: this.gameOver,
+                    winnerId: this.winnerId,
+                    winningCoords: [...this.winningCoords]
+                });
+            }
+
+            undoMove() {
+                if (this.history.length === 0) return;
+                this.clearAITimers();
+
+                // 若對戰中有 AI，且上一步是 AI 下的，自動連退到「真人玩家」的決策點，避免一按悔棋 AI 馬上又下回去
+                let prev = this.history.pop();
+                while (this.history.length > 0 && this.isPlayerAI(prev.currentPlayer)) {
+                    prev = this.history.pop();
+                }
+
+                this.stacks = prev.stacks;
+                this.inventory = prev.inventory;
+                this.currentPlayer = prev.currentPlayer;
+                this.cooldownCell = prev.cooldownCell;
+                this.gameOver = prev.gameOver;
+                this.winnerId = prev.winnerId;
+                this.winningCoords = prev.winningCoords;
+                this.selectedSourceCell = null;
+                this.pendingTargetCell = null;
+                document.getElementById('confetti-box').innerHTML = '';
+                this.renderAll();
+                this.updateStatusBanner();
+                this.checkAndTriggerAITurn();
+            }
+
+            cancelPendingMove() {
+                if (this.isAIThinking) return;
+                if (this.sfx) this.sfx.playCancelBlip();
+                this.pendingTargetCell = null;
+                this.hoveredCellIdx = null;
+                this.updateGhostPreview();
+                this.updateStatusBanner();
+            }
+
+            handleCellClick(cellIdx) {
+                if (this.gameOver || this.isAIThinking || this.isPlayerAI(this.currentPlayer)) return;
+
+                const p = this.allPlayers[this.currentPlayer];
+                const stack = this.stacks[cellIdx];
+                const inMovePhase = this.isMovementPhase(this.currentPlayer);
+
+                // 移子階段步驟 1：選取要拔起的己方頂層活棋
+                if (inMovePhase && this.selectedSourceCell === null) {
+                    if (stack.length === 0 || stack[stack.length - 1] !== this.currentPlayer) {
+                        if (this.sfx) this.sfx.playErrorBuzz();
+                        this.updateStatusBanner(
+                            `<div class="text-amber-300 font-bold text-sm">⚠️ 移子階段：請先點選場上「最頂層為 ${p.name}」的棋子將其拔起！</div>`,
+                            '#f59e0b'
+                        );
+                        return;
+                    }
+                    if (this.sfx) this.sfx.playSelectCell();
+                    this.selectedSourceCell = cellIdx;
+                    this.pendingTargetCell = null;
+                    this.renderAll();
+                    this.updateStatusBanner();
+                    return;
+                }
+
+                // 移子階段若點選原本拔起的那一格：取消拔起
+                if (inMovePhase && this.selectedSourceCell === cellIdx) {
+                    if (this.sfx) this.sfx.playCancelBlip();
+                    this.selectedSourceCell = null;
+                    this.pendingTargetCell = null;
+                    this.renderAll();
+                    this.updateStatusBanner();
+                    return;
+                }
+
+                // 檢查單格堆疊限高
+                if (stack.length >= this.maxH) {
+                    if (this.sfx) this.sfx.playErrorBuzz();
+                    this.updateStatusBanner(
+                        `<div class="text-rose-400 font-bold text-sm">🔒 該格已達單格最高 ${this.maxH} 層封頂，無法再往上堆疊！</div>`,
+                        '#ef4444'
+                    );
+                    return;
+                }
+
+                // 檢查打劫冷卻限制
+                if (
+                    this.cooldownCell &&
+                    this.cooldownCell.cellIdx === cellIdx &&
+                    this.cooldownCell.restrictedPlayer === this.currentPlayer
+                ) {
+                    if (this.sfx) this.sfx.playErrorBuzz();
+                    this.updateStatusBanner(
+                        `<div class="text-rose-400 font-bold text-sm">⏳ 打劫冷卻保護：對手上一手剛覆蓋此格，你本回合不可立即反蓋同一格！</div>`,
+                        '#ef4444'
+                    );
+                    return;
+                }
+
+                // 第一步：點選有效目標格時，播放右側棋盤專屬電動音效並展示半透明預覽棋子與「確定」按鈕
+                if (this.sfx) this.sfx.playSelectCell();
+                this.pendingTargetCell = cellIdx;
+                this.updateGhostPreview();
+                this.updateStatusBanner();
+            }
+
+            // 第二步：當使用者按下半透明棋子旁邊的「確定」按鈕後，發出積木組裝「喀拉」聲並正式落子
+            confirmPendingMove() {
+                if (this.gameOver || this.pendingTargetCell === null) return;
+
+                // 播放積木卡榫組裝時的「喀－拉！」機械聲
+                if (this.sfx) this.sfx.playBrickSnap();
+
+                const cellIdx = this.pendingTargetCell;
+                const stack = this.stacks[cellIdx];
+                const inMovePhase = this.isMovementPhase(this.currentPlayer);
+
+                // 儲存歷史狀態以供悔棋
+                this.saveSnapshot();
+
+                const prevTopOwner = stack.length > 0 ? stack[stack.length - 1] : null;
+                this.pendingTargetCell = null;
+                this.hoveredCellIdx = null;
+
+                if (inMovePhase) {
+                    this.stacks[this.selectedSourceCell].pop();
+                    this.selectedSourceCell = null;
+
+                    // 檢查抽子自爆判負
+                    for (let otherPid = 0; otherPid < this.playerCount; otherPid++) {
+                        if (otherPid !== this.currentPlayer && this.checkWin(otherPid)) {
+                            this.gameOver = true;
+                            this.winnerId = otherPid;
+                            const winner = this.allPlayers[otherPid];
+                            this.renderAll();
+                            this.updateStatusBanner(
+                                `<div class="text-lg font-black text-amber-300">💥 抽子自爆！${winner.name} 暴露並達成連線獲勝！</div>`,
+                                winner.color
+                            );
+                            this.fireConfetti();
+                            return;
+                        }
+                    }
+                } else {
+                    this.inventory[this.currentPlayer]--;
+                }
+
+                stack.push(this.currentPlayer);
+
+                if (prevTopOwner !== null && prevTopOwner !== this.currentPlayer) {
+                    this.cooldownCell = { cellIdx, restrictedPlayer: prevTopOwner };
+                } else {
+                    this.cooldownCell = null;
+                }
+
+                if (this.checkWin(this.currentPlayer)) {
+                    this.gameOver = true;
+                    this.winnerId = this.currentPlayer;
+                    const winner = this.allPlayers[this.winnerId];
+                    this.renderAll();
+                    this.updateStatusBanner(
+                        `<div class="text-lg sm:text-xl font-black" style="color:${winner.color}">🎉 3D CONNECT！${winner.name} 達成 ${this.winLen} 子立體連線獲勝！</div>`,
+                        winner.color
+                    );
+                    this.fireConfetti();
+                    return;
+                }
+
+                this.currentPlayer = (this.currentPlayer + 1) % this.playerCount;
+                this.renderAll();
+                this.updateStatusBanner();
+                this.checkAndTriggerAITurn();
+            }
+
+            // 檢查並觸發 AI 回合自動推演與落子動畫 (先顯示半透明預覽 -> 再自動喀拉組裝落子)
+            checkAndTriggerAITurn() {
+                this.clearAITimers();
+                if (this.gameOver || !this.isPlayerAI(this.currentPlayer)) return;
+
+                this.isAIThinking = true;
+                this.renderPlayersPanel();
+                this.updateStatusBanner();
+
+                // 第一階段：給予短暫思考時間後計算最佳步並顯示半透明預覽
+                const thinkDelay = this.aiDifficulty === 'strong' ? 480 : 380;
+                const t1 = setTimeout(() => {
+                    if (this.gameOver || !this.isPlayerAI(this.currentPlayer)) return;
+
+                    const bestMove = this.aiEngine.chooseBestMove(this.aiDifficulty);
+                    if (!bestMove) {
+                        this.isAIThinking = false;
+                        return;
+                    }
+
+                    // 若為移子階段，先高亮顯示 AI 拔起的來源格位，再展示目標半透明預覽棋子
+                    if (bestMove.type === 'move' && bestMove.fromCell !== null) {
+                        this.selectedSourceCell = bestMove.fromCell;
+                        this.renderBoard();
+                    }
+
+                    if (this.sfx) this.sfx.playSelectCell();
+                    this.pendingTargetCell = bestMove.toCell;
+                    this.updateGhostPreview();
+
+                    // 第二階段：展示半透明預覽 450ms 後，自動觸發「喀－拉！」積木組裝聲完成落子
+                    const t2 = setTimeout(() => {
+                        if (this.gameOver || !this.isPlayerAI(this.currentPlayer)) return;
+                        this.isAIThinking = false;
+                        this.confirmPendingMove();
+                    }, 450);
+
+                    this.aiTimers.push(t2);
+                }, thinkDelay);
+
+                this.aiTimers.push(t1);
+            }
+
+            checkWin(pid) {
+                const N = this.gridSize;
+                const H = this.maxH;
+                const K = this.winLen;
+
+                const getOwner = (r, c, z) => {
+                    if (r < 0 || r >= N || c < 0 || c >= N || z < 0 || z >= H) return -1;
+                    const st = this.stacks[r * N + c];
+                    return z < st.length ? st[z] : -1;
+                };
+
+                const directions = [
+                    [0, 1, 0], [1, 0, 0], [1, 1, 0], [1, -1, 0],
+                    [0, 0, 1],
+                    [0, 1, 1], [0, 1, -1],
+                    [1, 0, 1], [1, 0, -1],
+                    [1, 1, 1], [1, 1, -1],
+                    [1, -1, 1], [1, -1, -1]
+                ];
+
+                for (let r = 0; r < N; r++) {
+                    for (let c = 0; c < N; c++) {
+                        for (let z = 0; z < H; z++) {
+                            if (getOwner(r, c, z) !== pid) continue;
+
+                            for (let [dr, dc, dz] of directions) {
+                                const coords = [{ cellIdx: r * N + c, z }];
+                                for (let s = 1; s < K; s++) {
+                                    const nr = r + dr * s, nc = c + dc * s, nz = z + dz * s;
+                                    if (getOwner(nr, nc, nz) === pid) {
+                                        coords.push({ cellIdx: nr * N + nc, z: nz });
+                                    } else {
+                                        break;
+                                    }
+                                }
+                                if (coords.length === K) {
+                                    this.winningCoords = coords;
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+                return false;
+            }
+
+            fireConfetti() {
+                // 彩帶飄落的同時播放馬利兄弟過關風格慶祝音樂
+                if (this.sfx) this.sfx.playVictoryFanfare();
+
+                const box = document.getElementById('confetti-box');
+                const colors = ['#f97316', '#2563eb', '#facc15', '#10b981', '#f8fafc'];
+                for (let i = 0; i < 65; i++) {
+                    const el = document.createElement('div');
+                    el.className = 'confetti-piece';
+                    el.style.left = Math.random() * 100 + '%';
+                    el.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    el.style.width = (Math.random() * 8 + 6) + 'px';
+                    el.style.height = (Math.random() * 16 + 8) + 'px';
+                    el.style.animationDuration = (Math.random() * 2 + 2) + 's';
+                    el.style.animationDelay = (Math.random() * 0.4) + 's';
+                    box.appendChild(el);
+                }
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                if (this.isInspectMode && this.inspectGroup) {
+                    // 在檢視模式中讓展示棋子微微自轉方便觀察雙面凹槽與十字準心卡榫
+                    if (!this.isRightDragging && this.inspectGroup.children.length >= 2) {
+                        this.inspectGroup.children[0].rotation.y += 0.005;
+                        this.inspectGroup.children[1].rotation.y -= 0.005;
+                    }
+                }
+                if (this.pendingTargetCell !== null && !this.isInspectMode && !this.gameOver) {
+                    this.updatePendingPopupPosition();
+                }
+                if (this.renderer && this.scene && this.camera) {
+                    this.renderer.render(this.scene, this.camera);
+                }
+            }
+        }
+
+        window.onload = function () {
+            window.simApp = new Simulator3DApp();
+        };
+    </script>
+</body>
+</html>

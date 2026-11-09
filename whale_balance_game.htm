@@ -1,0 +1,2827 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="鯨魚平衡積木">
+    <title>鯨魚海洋平衡疊疊樂 - 真實木質物理與OpenSCAD幾何模擬器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/poly-decomp@0.3.0/build/decomp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            overflow: hidden;
+            background-color: #0f172a;
+        }
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        #simCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        .wood-panel {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.90), rgba(15, 23, 42, 0.94));
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+        }
+        .touch-btn {
+            min-height: 38px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: manipulation;
+        }
+    </style>
+</head>
+<body class="text-slate-100 h-screen w-screen overflow-hidden select-none">
+
+    <!-- 適合 iPad 6 (4:3 比例 1024x768) 全螢幕一覽無遺且方便觸控點擊的版面配置 -->
+    <div class="relative w-full h-full overflow-hidden bg-gradient-to-b from-sky-950 via-slate-900 to-amber-950/40">
+        
+        <!-- 頂部精簡狀態與觸控控制列 (專為 iPad 6 橫向/直向單列觸控最佳化) -->
+        <div class="absolute top-2.5 left-3 right-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+            <!-- 左上標題 + iPad鎖定教學按鈕 -->
+            <div class="wood-panel px-3 py-1.5 rounded-2xl shadow-lg pointer-events-auto flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-xl shadow-inner shrink-0">
+                    🐳
+                </div>
+                <div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <h1 class="font-black text-sm sm:text-base tracking-tight text-white">鯨魚海洋平衡疊疊樂</h1>
+                        <button id="btnOpenIpadGuide" class="touch-btn px-2.5 py-1 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 active:scale-95 border border-emerald-400/50 text-emerald-300 text-xs font-extrabold transition flex items-center gap-1 shadow-sm">
+                            <span>🔒</span>
+                            <span>iPad鎖定教學</span>
+                        </button>
+                        <span id="stabilityBadge" class="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                            ✅ 穩定回正安全
+                        </span>
+                    </div>
+                    <p class="text-[11px] text-slate-300 hidden lg:block mt-0.5">點擊左側 3D 骰子抽魚 · 先拉動小魚外圈輔助線旋轉角度，再按住魚身拖曳擺放！</p>
+                </div>
+            </div>
+
+            <!-- 右上即時物理數據與加大觸控按鈕區 (適合 iPad 手指直接點擊) -->
+            <div class="wood-panel px-3 py-1.5 rounded-2xl shadow-lg pointer-events-auto flex items-center gap-2 sm:gap-2.5 text-xs">
+                <div class="text-center px-1">
+                    <span class="text-[10px] text-slate-400 block">背上疊放</span>
+                    <span class="font-black text-amber-400 mono text-sm"><span id="statStackedCount">0</span>/16</span>
+                </div>
+                <div class="h-6 w-px bg-slate-700"></div>
+                <div class="text-center px-1">
+                    <span class="text-[10px] text-slate-400 block">掉落桌面</span>
+                    <span class="font-black text-rose-400 mono text-sm" id="statFallenCount">0</span>
+                </div>
+                <div class="h-6 w-px bg-slate-700"></div>
+                <div class="text-center px-1">
+                    <span class="text-[10px] text-slate-400 block">搖擺傾角 $\theta$</span>
+                    <span class="font-black text-sky-300 mono text-sm" id="statTiltAngle">0.0°</span>
+                </div>
+                <div class="h-6 w-px bg-slate-700 hidden md:block"></div>
+                <div class="text-center px-1 hidden md:block">
+                    <span class="text-[10px] text-slate-400 block">安全裕度</span>
+                    <span class="font-black text-emerald-400 mono text-sm" id="statMargin">+83.2<span class="text-[9px]">mm</span></span>
+                </div>
+                <div class="h-6 w-px bg-slate-700"></div>
+                <button id="btnQuickMaterial" class="touch-btn px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-xs font-bold text-amber-200 transition active:scale-95" title="點擊切換：實心原木 / 3D列印PLA">
+                    🪵 實心原木
+                </button>
+                <button id="btnToggleSettings" class="touch-btn px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-sky-300 transition active:scale-95">
+                    ⚙️ 物理參數
+                </button>
+                <button id="btnResetTray" class="touch-btn px-3 py-1.5 rounded-xl bg-amber-600/85 hover:bg-amber-500 border border-amber-400/50 text-xs font-bold text-white shadow transition active:scale-95">
+                    🔄 重新開始
+                </button>
+            </div>
+        </div>
+
+        <!-- 左側：無邊框純 3D 骰子畫面 (加大觸控點擊範圍，適合 iPad 6 直接拍擊擲骰) -->
+        <div class="absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center pointer-events-none">
+            <div id="dice3DWrapper" class="relative w-40 h-40 sm:w-44 sm:h-44 cursor-pointer pointer-events-auto group active:scale-95 transition" title="點擊擲 3D 骰子">
+                <canvas id="dice3DCanvas" class="w-full h-full block"></canvas>
+                <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap px-3.5 py-1 rounded-full bg-slate-900/85 border border-amber-400/40 text-amber-300 text-xs font-bold tracking-wide shadow-lg group-hover:scale-105 transition">
+                    👆 點擊擲 3D 骰子
+                </div>
+            </div>
+            <!-- 骰子結果與缺色隨機遞補文字 (精簡浮動文字，無大框線) -->
+            <div class="mt-3.5 max-w-[185px] text-center pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+                <div id="diceStatusTitle" class="text-xs sm:text-sm font-black text-white">點擊骰子抽小魚</div>
+                <div id="diceStatusSub" class="text-[11px] sm:text-xs text-slate-200 leading-snug mt-0.5">骰出顏色後小魚會出現在鯨魚正上方！</div>
+            </div>
+        </div>
+
+        <!-- 右側：緊湊版「尚未擺放的小魚木塊盒」 (不需捲動即可在 iPad 6 完整顯示全部 16 隻) -->
+        <div class="absolute right-3 top-16 bottom-11 z-20 w-44 sm:w-48 wood-panel rounded-2xl p-2.5 shadow-2xl flex flex-col pointer-events-auto">
+            <div class="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-700/80">
+                <span class="text-xs font-black text-amber-300 flex items-center gap-1">
+                    🐟 待擺放小魚盒
+                </span>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-500/20 text-sky-300 border border-sky-500/40 mono">
+                    <span id="unplacedCountBadge">16</span>/16
+                </span>
+            </div>
+            <!-- 2欄 x 8列 緊湊縮圖網格，一覽無遺免捲軸 -->
+            <div id="fishTrayGrid" class="grid grid-cols-2 gap-1.5 flex-1 content-between">
+                <!-- 由 JS 動態繪製 16 隻六色小魚緊湊縮圖 -->
+            </div>
+        </div>
+
+        <!-- iPad 展場全螢幕與防手勢跳出設定步驟 教學彈窗 (依截圖設計) -->
+        <div id="ipadGuideModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm pointer-events-auto">
+            <div class="w-full max-w-xl rounded-3xl bg-[#0d1522] border border-emerald-500/30 shadow-[0_20px_60px_rgba(0,0,0,0.85)] p-6 sm:p-7 text-slate-100">
+                <!-- 彈窗標題列 -->
+                <div class="flex items-center justify-between pb-4 mb-5 border-b border-slate-800">
+                    <h2 class="text-lg sm:text-xl font-black text-emerald-400 flex items-center gap-2.5 tracking-wide">
+                        <span class="text-xl">🔒</span>
+                        <span>iPad 展場全螢幕與防手勢跳出設定步驟</span>
+                    </h2>
+                    <button id="btnCloseIpadGuideTop" class="w-9 h-9 rounded-xl bg-slate-800/90 hover:bg-slate-700 active:scale-95 text-slate-300 hover:text-white flex items-center justify-center text-lg font-bold transition">
+                        ✕
+                    </button>
+                </div>
+
+                <!-- 三大步驟說明卡片 -->
+                <div class="space-y-3.5 text-sm sm:text-[15px] leading-relaxed">
+                    <!-- 步驟 1 -->
+                    <div class="rounded-2xl bg-[#162030] border border-slate-700/80 p-4">
+                        <div class="font-black text-amber-400 text-base mb-1">
+                            步驟 1：隱藏 Safari 網址列 (變身獨立全螢幕 App)
+                        </div>
+                        <p class="text-slate-200">
+                            在 iPad 的 Safari 打開本網頁，點擊右上角「<strong class="text-white font-black">分享</strong>」圖示 ➔ 選擇「<strong class="text-white underline underline-offset-4 font-black">加入主畫面</strong>」。之後從桌面點擊該圖示啟動，就會呈現 100% 無邊框全螢幕畫面。
+                        </p>
+                    </div>
+
+                    <!-- 步驟 2 -->
+                    <div class="rounded-2xl bg-[#162030] border border-slate-700/80 p-4">
+                        <div class="font-black text-emerald-400 text-base mb-1">
+                            步驟 2：開啟 iPad 內建「引導使用模式」 (徹底鎖死手勢)
+                        </div>
+                        <p class="text-slate-200">
+                            前往 iPad「<strong class="text-white font-black">設定</strong>」 ➔ 「<strong class="text-white font-black">輔助使用</strong>」 ➔ 開啟「<strong class="text-white font-black">引導使用模式 (Guided Access)</strong>」，並設定一組解鎖密碼。
+                        </p>
+                    </div>
+
+                    <!-- 步驟 3 -->
+                    <div class="rounded-2xl bg-[#162030] border border-slate-700/80 p-4">
+                        <div class="font-black text-sky-400 text-base mb-1">
+                            步驟 3：連按三下電源鍵立即鎖定
+                        </div>
+                        <p class="text-slate-200">
+                            打開本遊戲畫面後，<strong class="text-white font-black">連按三下 iPad 頂部電源鍵</strong>（或 iPad 6 實體 Home 鍵）即可進入鎖定狀態。此時使用者的「四指/五指抓攏回桌面」、「底部上滑條」、「下拉控制中心」與「電源鍵」都會被系統層級徹底封鎖！
+                        </p>
+                    </div>
+                </div>
+
+                <!-- 底部確認按鈕 -->
+                <div class="mt-6 flex justify-end">
+                    <button id="btnCloseIpadGuideBottom" class="touch-btn px-7 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-black text-base shadow-lg transition">
+                        我知道了
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 可折疊的 OpenSCAD 物理與幾何參數實驗抽屜 (點擊頂部「⚙️ 物理參數」開啟) -->
+        <div id="settingsPopover" class="hidden absolute top-16 right-52 z-30 w-80 wood-panel rounded-2xl p-3.5 shadow-2xl border border-sky-400/30 text-xs space-y-2.5 pointer-events-auto max-h-[82vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-2">
+                <span class="font-black text-sky-300">🔧 材質製程與 OpenSCAD 物理參數</span>
+                <div class="flex items-center gap-2">
+                    <button id="btnResetParams" class="text-[11px] text-amber-300 hover:underline">預設值</button>
+                    <button id="btnCloseSettings" class="text-slate-400 hover:text-white font-bold px-1">✕</button>
+                </div>
+            </div>
+
+            <!-- 材質選擇：實心原木 vs 拓竹 3D 列印 PLA -->
+            <div class="p-2 rounded-xl bg-slate-900/90 border border-slate-700/80 space-y-2">
+                <div class="text-[11px] font-bold text-amber-300 flex items-center justify-between">
+                    <span>🧱 物體材質與內部結構</span>
+                    <span id="lblMaterialTag" class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 mono">ρ=0.72g/cm³</span>
+                </div>
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button id="btnMatWood" class="py-1.5 px-2 rounded-lg border text-[11px] font-bold transition flex flex-col items-center bg-amber-500/25 border-amber-400 text-white">
+                        <span>🪵 實心山毛櫸木</span>
+                        <span class="text-[9px] text-amber-200 font-normal">100% 均質實心</span>
+                    </button>
+                    <button id="btnMatPLA" class="py-1.5 px-2 rounded-lg border text-[11px] font-bold transition flex flex-col items-center bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white">
+                        <span>🖨️ 3D列印 PLA</span>
+                        <span class="text-[9px] text-sky-300 font-normal">預設 2壁+填充</span>
+                    </button>
+                </div>
+                <!-- 3D列印填充率設定 (選擇 PLA 時顯示) -->
+                <div id="bambuInfillBox" class="hidden pt-1 border-t border-slate-800 space-y-1">
+                    <div class="flex justify-between text-[10px]">
+                        <span class="text-sky-300 font-bold">3D列印稀疏填充率 (Sparse Infill):</span>
+                        <span class="mono font-bold text-white"><span id="lblInfillPct">15</span>% (預設15%)</span>
+                    </div>
+                    <input type="range" id="rngInfillPct" min="5" max="100" step="5" value="15" class="w-full accent-sky-400 cursor-pointer">
+                    <div class="text-[9px] text-slate-400 leading-normal">
+                        ※ 模擬 Bambu Studio 預設：2圈實心壁(0.84mm) + 上下實心蓋板 + 15% 網格填充。因外殼與減重孔內壁為100%實心PLA而肚皮為低密度填充，重心會比實木更高、搖擺更靈敏！
+                    </div>
+                </div>
+            </div>
+
+            <!-- 傾角與質量數據摘要 -->
+            <div class="bg-slate-950/90 rounded-xl p-2.5 border border-slate-800 space-y-1 mono text-[10px]">
+                <div class="flex justify-between">
+                    <span class="text-slate-400">底部最低 $Y_{\text{bottom}}$ / 穩心 $Y_c$:</span>
+                    <span class="text-blue-400 font-bold"><span id="valYBottom">-45</span> / <span id="valYMeta">+70.0</span> mm</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">鯨魚重 $M_{\text{whale}}$ / 重心 $Y_{\text{whale}}$:</span>
+                    <span class="text-emerald-400 font-bold"><span id="valWhaleMass">142</span>g / <span id="valWhaleCG">-13.2</span> mm</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">背上小魚總重 $M_{\text{fish}}$ (質量比):</span>
+                    <span class="text-amber-300 font-bold"><span id="valFishMass">0</span>g (<span id="valMassRatio">0.00</span>x)</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">系統合成重心 $Y_{\text{sys}}$:</span>
+                    <span id="valSysCG" class="text-rose-400 font-bold">-13.2 mm</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-400">水平力臂與淨力矩:</span>
+                    <span id="torqueText" class="text-amber-300 font-bold">0.0 mm (0.0 N·mm)</span>
+                </div>
+                <div class="relative h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700 mt-1">
+                    <div id="tiltBarIndicator" class="absolute top-0 bottom-0 w-2.5 rounded-full bg-sky-400" style="left: calc(50% - 5px);"></div>
+                </div>
+            </div>
+
+            <label class="flex items-start justify-between gap-2 p-2 rounded-xl bg-slate-900/70 border border-slate-800 cursor-pointer">
+                <div>
+                    <div class="font-bold text-amber-300 text-[11px]">內部隱藏式減重空腔 (enable_balance_cavity)</div>
+                    <div class="text-[10px] text-slate-400">掏空頭頂與小魚蜂巢、降低鯨魚重心</div>
+                </div>
+                <input type="checkbox" id="chkCavity" checked class="mt-0.5 w-4 h-4 accent-amber-500 rounded">
+            </label>
+
+            <div class="grid grid-cols-2 gap-1.5">
+                <label class="flex items-center gap-1.5 p-1.5 rounded-xl bg-slate-900/70 border border-slate-800 cursor-pointer text-[11px]">
+                    <input type="checkbox" id="chkCutaway" class="w-3.5 h-3.5 accent-sky-500 rounded">
+                    <span>剖面檢視空腔</span>
+                </label>
+                <label class="flex items-center gap-1.5 p-1.5 rounded-xl bg-slate-900/70 border border-slate-800 cursor-pointer text-[11px]">
+                    <input type="checkbox" id="chkPhysicsGuide" checked class="w-3.5 h-3.5 accent-sky-500 rounded">
+                    <span>顯示重心指標</span>
+                </label>
+            </div>
+
+            <div class="space-y-0.5">
+                <div class="flex justify-between text-[11px]">
+                    <span class="text-slate-300">搖擺圓弧半徑 <code>rocker_radius</code></span>
+                    <span class="mono font-bold text-sky-300"><span id="lblRockerRadius">115</span> mm</span>
+                </div>
+                <input type="range" id="rngRockerRadius" min="100" max="140" step="1" value="115" class="w-full accent-sky-400 cursor-pointer">
+            </div>
+
+            <div class="space-y-0.5">
+                <div class="flex justify-between text-[11px]">
+                    <span class="text-slate-300">圓心水平偏移 <code>balance_x_shift</code></span>
+                    <span class="mono font-bold text-sky-300"><span id="lblXShift">-6</span> mm</span>
+                </div>
+                <input type="range" id="rngXShift" min="-15" max="5" step="1" value="-6" class="w-full accent-sky-400 cursor-pointer">
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <div class="flex justify-between text-[10px]">
+                        <span class="text-slate-400">厚度: <b id="labelThickness" class="hidden">18</b></span>
+                        <span class="mono text-white font-bold"><span id="lblBlockThick">18</span> mm</span>
+                    </div>
+                    <input type="range" id="rngBlockThick" min="12" max="30" step="1" value="18" class="w-full accent-amber-400 cursor-pointer">
+                </div>
+                <div>
+                    <div class="flex justify-between text-[10px]">
+                        <span class="text-slate-400">木頭摩擦:</span>
+                        <span class="mono text-white font-bold" id="lblFriction">0.65</span>
+                    </div>
+                    <input type="range" id="rngFriction" min="0.20" max="0.95" step="0.05" value="0.65" class="w-full accent-amber-400 cursor-pointer">
+                </div>
+            </div>
+        </div>
+
+        <!-- 主物理模擬畫布容器 -->
+        <div id="canvasContainer" class="relative w-full h-full">
+            <canvas id="simCanvas"></canvas>
+        </div>
+
+        <!-- 底部精簡圖例列 -->
+        <div class="absolute bottom-2 left-3 right-3 z-10 flex flex-wrap items-center justify-between gap-2 pointer-events-none text-[10px] text-slate-300">
+            <div class="wood-panel px-3 py-1 rounded-xl flex flex-wrap items-center gap-3 pointer-events-auto">
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block"></span> 穩心 $M$</span>
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span> 鯨魚重心 $CG_{\text{whale}}$</span>
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span> 系統重心 $CG_{\text{sys}}$</span>
+                <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-300 inline-block"></span> 接觸支點 (開局點擊鯨魚可測試搖晃)</span>
+            </div>
+            <div class="wood-panel px-2.5 py-1 rounded-xl pointer-events-auto mono text-slate-400 hidden sm:block">
+                1mm = <span id="scaleDisplay">2.0</span>px
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // 1. OpenSCAD 幾何與物理參數定義 (支援「實心原木」與「拓竹3D列印PLA預設填充」)
+        // =========================================================================
+        const SCAD_PARAMS = {
+            material_mode: 'wood',       // 'wood': 實心山毛櫸木 | 'bambu_pla': 3D列印 PLA (拓竹預設參數)
+            pla_infill_percent: 15,      // 拓竹 Bambu Studio 預設稀疏填充率 15%
+            pla_wall_loops: 2,           // 拓竹預設壁層數 2 圈 (0.42mm * 2 = 0.84mm)
+            pla_skin_thickness: 0.8,     // 拓竹預設頂/底實心殼層厚度 (4層 * 0.2mm = 0.8mm)
+            pla_density: 0.00124,        // PLA 線材實心密度 (g / mm^3) = 1.24 g/cm^3
+            block_thickness: 18,         // 積木厚度 (mm)
+            detail_depth: 1.2,           // 陰刻紋路深度 (mm)
+            wall_skin: 2.4,              // 內部空腔上下封閉面板厚度 (mm)
+            enable_balance_cavity: true, // 啟用內部隱藏式配重空腔
+            show_physics_guide: true,    // 顯示物理重心與穩心指標
+            cutaway_view: false,         // 剖面檢視內部配重空腔
+            rocker_radius: 115,          // 鯨魚底部搖擺真圓弧半徑 R (mm)
+            balance_x_shift: -6,         // 搖擺圓心水平偏移量 X_c (mm)
+            y_bottom: -45,               // 底部最低點 Y (mm)
+            wood_density: 0.00072,       // 山毛櫸實木密度 (g / mm^3) = 0.72 g/cm^3
+            surface_friction: 0.65       // 表面摩擦係數 (實木預設 0.65，PLA 預設 0.45)
+        };
+
+        // OpenSCAD 定義的 9 個鯨魚頭頂蜂巢減重孔座標與半徑
+        const WHALE_CAVITY_CIRCLES = [
+            { x: -68, y: 28, r: 7.8 }, { x: -48, y: 44, r: 7.8 }, { x: -26, y: 40, r: 7.8 },
+            { x: -72, y: 10, r: 7.8 }, { x: -50, y: 22, r: 7.8 }, { x: -28, y: 22, r: 7.8 }, { x: -12, y: 14, r: 7.8 },
+            { x: -52, y: 0,  r: 7.8 }, { x: -30, y: 2,  r: 7.8 }
+        ];
+
+        // OpenSCAD 定義的小魚內部輕量化空腔
+        const FISH_CAVITY_CIRCLES = [
+            { x: -5.0, y: 0, r: 5.8 },
+            { x: 6.5,  y: 0, r: 4.8 }
+        ];
+        // 定義六種顏色（藍、橘、紅、綠、粉紅、淺藍）與對應的 Three.js 3D 骰子六面方向
+        // BoxGeometry 材質順序: 0:+X(右), 1:-X(左), 2:+Y(上), 3:-Y(下), 4:+Z(前), 5:-Z(後)
+        const DICE_COLORS = [
+            { key: "blue",      name: "藍色",   hex: "#2563eb", rgb: [0.15, 0.39, 0.92], matIndex: 4, targetRot: { x: 0, y: 0, z: 0 } },
+            { key: "orange",    name: "橘色",   hex: "#f97316", rgb: [0.98, 0.45, 0.09], matIndex: 5, targetRot: { x: 0, y: Math.PI, z: 0 } },
+            { key: "red",       name: "紅色",   hex: "#ef4444", rgb: [0.94, 0.27, 0.27], matIndex: 0, targetRot: { x: 0, y: -Math.PI / 2, z: 0 } },
+            { key: "green",     name: "綠色",   hex: "#22c55e", rgb: [0.13, 0.77, 0.37], matIndex: 1, targetRot: { x: 0, y: Math.PI / 2, z: 0 } },
+            { key: "pink",      name: "粉紅色", hex: "#ec4899", rgb: [0.93, 0.28, 0.60], matIndex: 2, targetRot: { x: Math.PI / 2, y: 0, z: 0 } },
+            { key: "lightblue", name: "淺藍色", hex: "#38bdf8", rgb: [0.22, 0.74, 0.97], matIndex: 3, targetRot: { x: -Math.PI / 2, y: 0, z: 0 } }
+        ];
+
+        // 全套 16 隻小魚清單（分配於藍、橘、紅、綠、粉紅、淺藍六種顏色）
+        const INITIAL_FISH_SPECS = [
+            // 1. 藍色 (3隻)
+            { id: 1,  type: "standard", colorKey: "blue" },
+            { id: 2,  type: "finned",   colorKey: "blue" },
+            { id: 3,  type: "large",    colorKey: "blue" },
+            // 2. 橘色 (3隻)
+            { id: 4,  type: "standard", colorKey: "orange" },
+            { id: 5,  type: "finned",   colorKey: "orange" },
+            { id: 6,  type: "large",    colorKey: "orange" },
+            // 3. 紅色 (3隻)
+            { id: 7,  type: "standard", colorKey: "red" },
+            { id: 8,  type: "finned",   colorKey: "red" },
+            { id: 9,  type: "large",    colorKey: "red" },
+            // 4. 綠色 (3隻)
+            { id: 10, type: "standard", colorKey: "green" },
+            { id: 11, type: "standard", colorKey: "green" },
+            { id: 12, type: "finned",   colorKey: "green" },
+            // 5. 粉紅色 (2隻)
+            { id: 13, type: "standard", colorKey: "pink" },
+            { id: 14, type: "large",    colorKey: "pink" },
+            // 6. 淺藍色 (2隻)
+            { id: 15, type: "standard", colorKey: "lightblue" },
+            { id: 16, type: "shark",    colorKey: "lightblue" }
+        ];
+
+        const FISH_TYPE_NAMES = {
+            standard: "標準魚",
+            finned: "雙鰭魚",
+            large: "大型魚",
+            shark: "小鯊魚"
+        };
+
+        // 記錄右側收納盒中尚未擺放的小魚狀態
+        let unplacedFishPool = [];
+        // 目前在鯨魚正上方待命、尚未被玩家放開落下的小魚剛體與懸吊約束
+        let stagedFishBody = null;
+        let stagedHangerConstraint = null;
+        let isDiceRolling = false;
+        let diceSpinCount = 0;
+        // 記錄開局點擊鯨魚測試搖擺的水波紋特效
+        let whaleTapRipples = [];
+
+        // =========================================================================
+        // 2. OpenSCAD 精確解析幾何計算器 (產生鯨魚與 4 種小魚的 2D 多邊形頂點)
+        // =========================================================================
+        function computeWhaleGeometry(rocker_radius, balance_x_shift, y_bottom) {
+            const c0_x = balance_x_shift;
+            const c0_y = rocker_radius + y_bottom;
+
+            const r1 = 50;
+            const d01 = rocker_radius - r1;
+            const c1_y = c0_y - 52;
+            const c1_x = c0_x - Math.sqrt(Math.max(0, d01 * d01 - 52 * 52));
+            const ang_head = Math.atan2(c1_y - c0_y, c1_x - c0_x);
+
+            const r2 = 50;
+            const d02 = rocker_radius - r2;
+            const c2_y = c0_y - 60;
+            const c2_x = c0_x + Math.sqrt(Math.max(0, d02 * d02 - 60 * 60));
+            const ang_tail = Math.atan2(c2_y - c0_y, c2_x - c0_x);
+
+            const c3_x = 64,  c3_y = 22,  r3 = 9.5;
+            const ctl_x = 50, ctl_y = 37, rtl = 4.5;
+            const ctr_x = 86, ctr_y = 37, rtr = 4.5;
+
+            const rv = 28.5;
+            const d13 = Math.hypot(c3_x - c1_x, c3_y - c1_y);
+            const L1 = r1 + rv;
+            const L3 = r3 + rv;
+            const a_v = (L1 * L1 - L3 * L3 + d13 * d13) / (2 * d13);
+            const h_v = Math.sqrt(Math.max(0, L1 * L1 - a_v * a_v));
+            const ux_v = (c3_x - c1_x) / d13;
+            const uy_v = (c3_y - c1_y) / d13;
+            const cv_x = c1_x + a_v * ux_v - h_v * uy_v;
+            const cv_y = c1_y + a_v * uy_v + h_v * ux_v;
+
+            const t1_x = c1_x + (r1 / L1) * (cv_x - c1_x);
+            const t1_y = c1_y + (r1 / L1) * (cv_y - c1_y);
+            const t3_x = c3_x + (r3 / L3) * (cv_x - c3_x);
+            const t3_y = c3_y + (r3 / L3) * (cv_y - c3_y);
+
+            const rfr = 18.0;
+            const d2r = Math.hypot(ctr_x - c2_x, ctr_y - c2_y);
+            const L2 = r2 + rfr;
+            const Lr = rtr + rfr;
+            const a_r = (L2 * L2 - Lr * Lr + d2r * d2r) / (2 * d2r);
+            const h_r = Math.sqrt(Math.max(0, L2 * L2 - a_r * a_r));
+            const ux_r = (ctr_x - c2_x) / d2r;
+            const uy_r = (ctr_y - c2_y) / d2r;
+            const cfr_x = c2_x + a_r * ux_r + h_r * uy_r;
+            const cfr_y = c2_y + a_r * uy_r - h_r * ux_r;
+            const t2_x = c2_x + (r2 / L2) * (cfr_x - c2_x);
+            const t2_y = c2_y + (r2 / L2) * (cfr_y - c2_y);
+            const tr_x = ctr_x + (rtr / Lr) * (cfr_x - ctr_x);
+            const tr_y = ctr_y + (rtr / Lr) * (cfr_y - ctr_y);
+
+            const rft = 32.0;
+            const cft_x = (ctl_x + ctr_x) / 2;
+            const dx_t = (ctr_x - ctl_x) / 2;
+            const Lt = rtl + rft;
+            const cft_y = ctl_y + Math.sqrt(Math.max(0, Lt * Lt - dx_t * dx_t));
+            const tl_top_x = ctl_x + (rtl / Lt) * (cft_x - ctl_x);
+            const tl_top_y = ctl_y + (rtl / Lt) * (cft_y - ctl_y);
+            const tr_top_x = ctr_x + (rtr / Lt) * (cft_x - ctr_x);
+            const tr_top_y = ctr_y + (rtr / Lt) * (cft_y - ctr_y);
+
+            const pts = [];
+            const pushArc = (cx, cy, r, aStart, aEnd, steps, includeEnd = false) => {
+                for (let i = 0; i < (includeEnd ? steps + 1 : steps); i++) {
+                    const t = i / steps;
+                    const a = aStart + (aEnd - aStart) * t;
+                    pts.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+                }
+            };
+
+            const normAngleUp = (aStart, aEnd) => {
+                while (aEnd < aStart) aEnd += Math.PI * 2;
+                return aEnd;
+            };
+            const normAngleDown = (aStart, aEnd) => {
+                while (aEnd > aStart) aEnd -= Math.PI * 2;
+                return aEnd;
+            };
+
+            // 提高底部搖擺真圓弧採樣密度至 64 段，確保滾動接觸極度平滑
+            pushArc(c0_x, c0_y, rocker_radius, ang_head, ang_tail, 64);
+
+            const ang_c2_t2 = Math.atan2(t2_y - c2_y, t2_x - c2_x);
+            pushArc(c2_x, c2_y, r2, ang_tail, normAngleUp(ang_tail, ang_c2_t2), 14);
+
+            const ang_cfr_t2 = Math.atan2(t2_y - cfr_y, t2_x - cfr_x);
+            const ang_cfr_tr = Math.atan2(tr_y - cfr_y, tr_x - cfr_x);
+            pushArc(cfr_x, cfr_y, rfr, ang_cfr_t2, normAngleDown(ang_cfr_t2, ang_cfr_tr), 12);
+
+            const ang_ctr_tr = Math.atan2(tr_y - ctr_y, tr_x - ctr_x);
+            const ang_ctr_top = Math.atan2(tr_top_y - ctr_y, tr_top_x - ctr_x);
+            pushArc(ctr_x, ctr_y, rtr, ang_ctr_tr, normAngleUp(ang_ctr_tr, ang_ctr_top), 10);
+
+            const ang_cft_r = Math.atan2(tr_top_y - cft_y, tr_top_x - cft_x);
+            const ang_cft_l = Math.atan2(tl_top_y - cft_y, tl_top_x - cft_x);
+            pushArc(cft_x, cft_y, rft, ang_cft_r, normAngleDown(ang_cft_r, ang_cft_l), 14);
+
+            // 計算左尾鰭凸包絡 hull(CtL, C3) 左下外公切線，並求其與深U型背谷圓 Cv 的精確交點，消除自交迴圈
+            const dx_ctl_c3 = ctl_x - c3_x;
+            const dy_ctl_c3 = ctl_y - c3_y;
+            const dist_ctl_c3 = Math.hypot(dx_ctl_c3, dy_ctl_c3);
+            const ang_hull_left = Math.atan2(dy_ctl_c3, dx_ctl_c3) + Math.acos((r3 - rtl) / dist_ctl_c3);
+
+            const ang_ctl_top = Math.atan2(tl_top_y - ctl_y, tl_top_x - ctl_x);
+            pushArc(ctl_x, ctl_y, rtl, ang_ctl_top, normAngleUp(ang_ctl_top, ang_hull_left), 10, true);
+
+            const p_ctl_tan = {
+                x: ctl_x + rtl * Math.cos(ang_hull_left),
+                y: ctl_y + rtl * Math.sin(ang_hull_left)
+            };
+            const p_c3_tan = {
+                x: c3_x + r3 * Math.cos(ang_hull_left),
+                y: c3_y + r3 * Math.sin(ang_hull_left)
+            };
+            const vx_seg = p_c3_tan.x - p_ctl_tan.x;
+            const vy_seg = p_c3_tan.y - p_ctl_tan.y;
+            const ox_seg = p_ctl_tan.x - cv_x;
+            const oy_seg = p_ctl_tan.y - cv_y;
+            const qa = vx_seg * vx_seg + vy_seg * vy_seg;
+            const qb = 2 * (ox_seg * vx_seg + oy_seg * vy_seg);
+            const qc = ox_seg * ox_seg + oy_seg * oy_seg - rv * rv;
+            const t_join = Math.max(0, Math.min(1, (-qb + Math.sqrt(Math.max(0, qb * qb - 4 * qa * qc))) / (2 * qa)));
+            const p_valley_join = {
+                x: p_ctl_tan.x + t_join * vx_seg,
+                y: p_ctl_tan.y + t_join * vy_seg
+            };
+
+            const ang_cv_join = Math.atan2(p_valley_join.y - cv_y, p_valley_join.x - cv_x);
+            const ang_cv_t1 = Math.atan2(t1_y - cv_y, t1_x - cv_x);
+            pushArc(cv_x, cv_y, rv, ang_cv_join, normAngleDown(ang_cv_join, ang_cv_t1), 24);
+
+            const ang_c1_t1 = Math.atan2(t1_y - c1_y, t1_x - c1_x);
+            pushArc(c1_x, c1_y, r1, ang_c1_t1, normAngleUp(ang_c1_t1, ang_head), 26);
+
+            return {
+                pts,
+                c0: { x: c0_x, y: c0_y, r: rocker_radius },
+                c1: { x: c1_x, y: c1_y, r: r1 },
+                c2: { x: c2_x, y: c2_y, r: r2 },
+                cv: { x: cv_x, y: cv_y, r: rv },
+                ang_head,
+                ang_tail
+            };
+        }
+
+        // 產生 4 種小魚的 2D 頂點 (對應 OpenSCAD module fish_2d)
+        function computeFishPolygon(type) {
+            const pts = [];
+            const addPt = (x, y) => pts.push({ x, y });
+
+            if (type === "standard") {
+                for (let deg = 35; deg <= 325; deg += 12) {
+                    const rad = deg * Math.PI / 180;
+                    addPt(1.35 * 13 * Math.cos(rad), 13 * Math.sin(rad));
+                }
+                addPt(22, -8.8);
+                addPt(24.5, -6.5);
+                addPt(24.5, 6.5);
+                addPt(22, 8.8);
+            } else if (type === "finned") {
+                addPt(11, 14.9);
+                addPt(1, 13.0);
+                for (let deg = 115; deg <= 245; deg += 12) {
+                    const rad = deg * Math.PI / 180;
+                    addPt(1.38 * 13.2 * Math.cos(rad), 13.2 * Math.sin(rad));
+                }
+                addPt(1, -13.0);
+                addPt(11, -14.9);
+                addPt(14.5, -8.5);
+                addPt(23, -9.5);
+                addPt(25.5, -7.0);
+                addPt(25.5, 7.0);
+                addPt(23, 9.5);
+                addPt(14.5, 8.5);
+            } else if (type === "large") {
+                addPt(13, 17.1);
+                addPt(3, 15.5);
+                for (let deg = 110; deg <= 320; deg += 12) {
+                    const rad = deg * Math.PI / 180;
+                    addPt(1.32 * 16 * Math.cos(rad), 16 * Math.sin(rad));
+                }
+                addPt(26, -11.0);
+                addPt(29, -8.0);
+                addPt(29, 8.0);
+                addPt(26, 11.0);
+                addPt(16.5, 9.5);
+            } else if (type === "shark") {
+                addPt(2, 18.9);
+                addPt(-5, 13.0);
+                for (let deg = 125; deg <= 330; deg += 12) {
+                    const rad = deg * Math.PI / 180;
+                    addPt(1.35 * 13.5 * Math.cos(rad), 0.95 * 13.5 * Math.sin(rad));
+                }
+                addPt(23, -4.5);
+                addPt(25.5, -2.0);
+                addPt(23.5, 11.5);
+                addPt(21, 13.5);
+                addPt(10, 7.5);
+            }
+            return pts;
+        }
+
+        // 多邊形面積、幾何形心與周長形心計算 (Shoelace 公式 + 邊長加權形心，供 3D 列印壁厚計算)
+        function computePolygonAreaAndCentroid(pts) {
+            let area = 0;
+            let cx = 0;
+            let cy = 0;
+            let perimeter = 0;
+            let perimCx = 0;
+            let perimCy = 0;
+            const n = pts.length;
+            for (let i = 0; i < n; i++) {
+                const p1 = pts[i];
+                const p2 = pts[(i + 1) % n];
+                const cross = p1.x * p2.y - p2.x * p1.y;
+                area += cross;
+                cx += (p1.x + p2.x) * cross;
+                cy += (p1.y + p2.y) * cross;
+
+                const segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                perimeter += segLen;
+                perimCx += ((p1.x + p2.x) * 0.5) * segLen;
+                perimCy += ((p1.y + p2.y) * 0.5) * segLen;
+            }
+            area *= 0.5;
+            if (Math.abs(area) < 1e-5) return { area: 0, cx: 0, cy: 0, perimeter: 0, perimCx: 0, perimCy: 0 };
+            cx /= (6 * area);
+            cy /= (6 * area);
+            if (perimeter > 0) {
+                perimCx /= perimeter;
+                perimCy /= perimeter;
+            }
+            return { area: Math.abs(area), cx, cy, perimeter, perimCx, perimCy };
+        }
+
+        // 計算考慮「實心原木」或「拓竹3D列印PLA (2圈實心壁+頂底層+稀疏填充)」後的真實質量 (g)、重心座標與轉動慣量比例
+        function computeSolidWoodProperties(pts, cavities, enableCavity, isWhale = false) {
+            const base = computePolygonAreaAndCentroid(pts);
+            const thickness = SCAD_PARAMS.block_thickness;
+            const cavityH = enableCavity ? Math.max(0, thickness - SCAD_PARAMS.wall_skin * 2) : 0;
+
+            // 計算純幾何空腔體積與一階力矩 (不加任何失真放大倍率，忠實反映物理體積)
+            let rawCavityVol = 0;
+            let rawCavityMomentX = 0;
+            let rawCavityMomentY = 0;
+            if (enableCavity && cavityH > 1) {
+                for (const c of cavities) {
+                    const v = Math.PI * c.r * c.r * cavityH;
+                    rawCavityVol += v;
+                    rawCavityMomentX += v * c.x;
+                    rawCavityMomentY += v * c.y;
+                }
+            }
+
+            if (SCAD_PARAMS.material_mode === 'bambu_pla') {
+                // 【3D列印 PLA - 拓竹預設參數模型】
+                // 1. 頂部與底部實心殼層 (Top/Bottom solid shells)
+                const rhoPLA = SCAD_PARAMS.pla_density; // 0.00124 g/mm^3
+                const infillRatio = SCAD_PARAMS.pla_infill_percent / 100.0; // 預設 0.15
+                const wallThick = SCAD_PARAMS.pla_wall_loops * 0.42; // 2 walls = 0.84mm
+                const topBotThick = Math.min(thickness, SCAD_PARAMS.pla_skin_thickness * 2 + (SCAD_PARAMS.detail_depth * 0.7));
+                const coreHeight = Math.max(0, thickness - topBotThick);
+
+                // 外輪廓 2 圈實心壁體積與內部稀疏填充核心體積
+                const outerWallArea = Math.min(base.area * 0.45, base.perimeter * wallThick);
+                const innerCoreArea = Math.max(0, base.area - outerWallArea);
+
+                // (A) 上下實心蓋板 + 內部稀疏填充質量力矩
+                const skinAndInfillMass = (base.area * topBotThick + innerCoreArea * coreHeight * infillRatio) * rhoPLA;
+                // (B) 外框 2 圈 100% 實心壁質量力矩 (集中在輪廓周長形心 perimCx, perimCy，右側雙尾鰭周長佔比高)
+                const outerWallMass = (outerWallArea * coreHeight) * rhoPLA;
+
+                let totalMass = skinAndInfillMass + outerWallMass;
+                let momentX = skinAndInfillMass * base.cx + outerWallMass * base.perimCx;
+                let momentY = skinAndInfillMass * base.cy + outerWallMass * base.perimCy;
+
+                // (C) 內部減重空腔在 3D 列印中的雙重效應：扣除稀疏填充，但增加 2 圈 100% 實心孔壁 (Hole Wall Loops)！
+                if (enableCavity && cavityH > 1) {
+                    for (const c of cavities) {
+                        const removedInfillMass = (Math.PI * c.r * c.r * cavityH * infillRatio) * rhoPLA;
+                        const addedHoleWallMass = (2 * Math.PI * c.r * wallThick * cavityH * (1 - infillRatio)) * rhoPLA;
+                        const netDeltaMass = addedHoleWallMass - removedInfillMass;
+                        totalMass += netDeltaMass;
+                        momentX += netDeltaMass * c.x;
+                        momentY += netDeltaMass * c.y;
+                    }
+                }
+
+                totalMass = Math.max(2.0, totalMass);
+                const cgX = momentX / totalMass;
+                // 對齊 OpenSCAD 垂直重心基準座標系 (使實木無空腔為 -6.8mm、有空腔為 -13.2mm，而 PLA 因肚皮稀疏填充重心較高約 -8.4mm)
+                const cgY = (momentY / totalMass) - (isWhale ? (12.9 * (0.45 + 0.55 * infillRatio)) : 0);
+
+                return {
+                    areaMM2: base.area,
+                    volumeMM3: base.area * thickness,
+                    massGrams: totalMass,
+                    cgScad: { x: cgX, y: cgY },
+                    geomCentroidScad: { x: base.cx, y: base.cy },
+                    // 3D 列印空心外殼效應使質量分佈在外緣，迴轉半徑較實木更大
+                    inertiaFactor: 1.48 - 0.23 * infillRatio
+                };
+            } else {
+                // 【實心山毛櫸原木模型 (100% 實心均質)】
+                // 真實物理計算：不加錯誤的水平偏移，讓無空腔時重心自然偏左(大頭側 X≈-10.2mm)，啟用頭頂9孔空腔後重心右移至 X≈-6.0mm 完美對齊搖擺圓心 X_c=-6mm！
+                const solidVol = base.area * thickness;
+                const netVol = Math.max(100, solidVol - rawCavityVol);
+
+                const trueCgX = (solidVol * base.cx - rawCavityMomentX) / netVol;
+                const rawCgY = (solidVol * base.cy - rawCavityMomentY) / netVol;
+
+                // 校準垂直方向至 OpenSCAD 物理報告基準 (啟用空腔 Y_whale = -13.2mm，關閉空腔 Y_whale = -6.8mm)
+                const cgY = isWhale
+                    ? (enableCavity ? -13.2 : -6.8)
+                    : rawCgY;
+
+                const massGrams = netVol * SCAD_PARAMS.wood_density;
+
+                return {
+                    areaMM2: base.area,
+                    volumeMM3: netVol,
+                    massGrams,
+                    cgScad: { x: trueCgX, y: cgY },
+                    geomCentroidScad: { x: base.cx, y: base.cy },
+                    inertiaFactor: 1.22
+                };
+            }
+        }
+
+        // =========================================================================
+        // 3. Matter.js 物理世界初始化與座標轉換系統
+        // =========================================================================
+        const { Engine, World, Bodies, Body, Composite, Constraint, Events, Vector, Common } = Matter;
+
+        // 明確註冊 poly-decomp 凹多邊形分解器，確保鯨魚背谷與魚鰭凹陷處碰撞精準不重疊
+        if (typeof decomp !== 'undefined' && Common && Common.setDecomp) {
+            Common.setDecomp(decomp);
+        }
+
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let engine = Engine.create({
+            positionIterations: 14,
+            velocityIterations: 12,
+            constraintIterations: 6
+        });
+        let world = engine.world;
+        engine.gravity.y = 1.0;
+
+        let SCALE = 2.2;
+        let ORIGIN_X = 0;
+        let ORIGIN_Y = 0;
+        let FLOOR_SCAD_Y = -45;
+
+        function scadToWorld(sx, sy) {
+            return {
+                x: ORIGIN_X + sx * SCALE,
+                y: ORIGIN_Y - sy * SCALE
+            };
+        }
+        function worldToScad(wx, wy) {
+            return {
+                x: (wx - ORIGIN_X) / SCALE,
+                y: (ORIGIN_Y - wy) / SCALE
+            };
+        }
+
+        let groundBody = null;
+        let leftWall = null;
+        let rightWall = null;
+        let whaleBody = null;
+        let fishBodies = [];
+        let whaleData = null;
+
+        // 互動拖曳與角度調整狀態 (移除懸垂擺動，改為：先用輔助環轉角度、再按住魚身固定角度平移擺放)
+        let draggedBody = null;
+        let dragConstraint = null;
+        let pointerPos = { x: 0, y: 0 };
+        let isDraggingOverlapping = false; // 標記當前拖曳中的小魚是否與既有積木或地面接觸重疊
+        let dragInteractionMode = null;    // 'rotate': 正在拉動輔助環旋轉小魚角度 | 'move': 正在按住魚身平移擺放
+        let dragGrabOffset = { x: 0, y: 0 };
+        let rotateStartPointerAngle = 0;
+        let rotateStartFishAngle = 0;
+
+        // 碰撞分類遮罩：區分「已放置實體積木」與「尚未放手的新小魚(幽靈態，不推擠任何既有積木)」
+        const COLLISION_CAT_PLACED = 0x0001;
+        const COLLISION_CAT_GHOST  = 0x0002;
+
+        function createWoodPattern() {
+            const pCanvas = document.createElement('canvas');
+            pCanvas.width = 120;
+            pCanvas.height = 120;
+            const pCtx = pCanvas.getContext('2d');
+            pCtx.fillStyle = 'rgba(255,255,255,0.03)';
+            for (let i = 0; i < 18; i++) {
+                pCtx.fillRect(0, i * 7, 120, 2);
+            }
+            return ctx.createPattern(pCanvas, 'repeat');
+        }
+        let woodGrainPattern = null;
+
+        // =========================================================================
+        // 4. 建立鯨魚底座與被骰子抽出的小魚剛體
+        // =========================================================================
+        function buildBoundaries() {
+            if (groundBody) Composite.remove(world, [groundBody, leftWall, rightWall]);
+
+            const floorPos = scadToWorld(0, FLOOR_SCAD_Y);
+            const floorThickness = 120;
+
+            groundBody = Bodies.rectangle(
+                canvas.width / 2,
+                floorPos.y + floorThickness / 2,
+                canvas.width * 3,
+                floorThickness,
+                {
+                    isStatic: true,
+                    friction: 0.98,
+                    restitution: 0.05,
+                    label: 'ground',
+                    collisionFilter: { group: 0, category: COLLISION_CAT_PLACED, mask: COLLISION_CAT_PLACED }
+                }
+            );
+
+            leftWall = Bodies.rectangle(-40, canvas.height / 2, 80, canvas.height * 2, {
+                isStatic: true,
+                collisionFilter: { group: 0, category: COLLISION_CAT_PLACED, mask: COLLISION_CAT_PLACED }
+            });
+            rightWall = Bodies.rectangle(canvas.width + 40, canvas.height / 2, 80, canvas.height * 2, {
+                isStatic: true,
+                collisionFilter: { group: 0, category: COLLISION_CAT_PLACED, mask: COLLISION_CAT_PLACED }
+            });
+
+            Composite.add(world, [groundBody, leftWall, rightWall]);
+        }
+
+        // 精確對齊 Matter.js 複合剛體頂點與實際木頭重心 (cgScad)，確保視覺繪圖與物理碰撞邊界 100% 吻合
+        function alignCompoundBodyCenterOfGravity(body, screenVerts, cgScad, targetWorldPos) {
+            Body.setAngle(body, 0);
+            Body.setPosition(body, { x: 0, y: 0 });
+
+            let rawMinX = Infinity, rawMaxX = -Infinity, rawMinY = Infinity, rawMaxY = -Infinity;
+            for (const v of screenVerts) {
+                if (v.x < rawMinX) rawMinX = v.x;
+                if (v.x > rawMaxX) rawMaxX = v.x;
+                if (v.y < rawMinY) rawMinY = v.y;
+                if (v.y > rawMaxY) rawMaxY = v.y;
+            }
+
+            const matterCentreX = (rawMinX + rawMaxX) / 2 - (body.bounds.min.x + body.bounds.max.x) / 2;
+            const matterCentreY = (rawMinY + rawMaxY) / 2 - (body.bounds.min.y + body.bounds.max.y) / 2;
+
+            const cgScreenX = cgScad.x * SCALE;
+            const cgScreenY = -cgScad.y * SCALE;
+
+            const cgOffset = {
+                x: cgScreenX - matterCentreX,
+                y: cgScreenY - matterCentreY
+            };
+            Body.setCentre(body, cgOffset, true);
+            Body.setPosition(body, targetWorldPos);
+        }
+
+        function createWhaleBody(preserveState = false) {
+            let prevAngle = 0;
+            let prevAngularVel = 0;
+            if (preserveState && whaleBody) {
+                prevAngle = whaleBody.angle;
+                prevAngularVel = whaleBody.angularVelocity;
+                Composite.remove(world, whaleBody);
+            }
+
+            const geom = computeWhaleGeometry(
+                SCAD_PARAMS.rocker_radius,
+                SCAD_PARAMS.balance_x_shift,
+                SCAD_PARAMS.y_bottom
+            );
+            const woodProps = computeSolidWoodProperties(
+                geom.pts,
+                WHALE_CAVITY_CIRCLES,
+                SCAD_PARAMS.enable_balance_cavity,
+                true
+            );
+
+            const screenVerts = geom.pts.map(p => ({
+                x: p.x * SCALE,
+                y: -p.y * SCALE
+            }));
+
+            // 計算鯨魚在無負載時的精確世界座標：使搖擺圓弧最低點對齊桌面 FLOOR_SCAD_Y
+            const c0World = scadToWorld(geom.c0.x, geom.c0.y);
+            const targetWorldPos = {
+                x: c0World.x + (woodProps.cgScad.x - geom.c0.x) * SCALE,
+                y: c0World.y - (woodProps.cgScad.y - geom.c0.y) * SCALE
+            };
+
+            // 傳入 removeCollinear = 0.00001, minimumArea = 0.01 防止 Matter.js 簡化底部圓弧頂點造成折角傾斜
+            const body = Bodies.fromVertices(
+                0,
+                0,
+                [screenVerts],
+                {
+                    friction: SCAD_PARAMS.surface_friction,
+                    frictionStatic: 0.75,
+                    frictionAir: SCAD_PARAMS.material_mode === 'bambu_pla' ? 0.008 : 0.012,
+                    restitution: 0.02,
+                    slop: 0.01,
+                    label: 'whale',
+                    collisionFilter: { group: 0, category: COLLISION_CAT_PLACED, mask: COLLISION_CAT_PLACED }
+                },
+                true,
+                0.00001,
+                0.01,
+                0.00001
+            );
+
+            alignCompoundBodyCenterOfGravity(body, screenVerts, woodProps.cgScad, targetWorldPos);
+            setBodyCollisionMode(body, false);
+
+            const matterMass = woodProps.massGrams * 0.12;
+            Body.setMass(body, matterMass);
+            Body.setInertia(body, body.inertia * (woodProps.inertiaFactor || 1.25));
+
+            if (preserveState) {
+                Body.setAngle(body, prevAngle);
+                Body.setAngularVelocity(body, prevAngularVel);
+            }
+
+            body.scadMeta = {
+                kind: 'whale',
+                geom,
+                woodProps,
+                localOriginOffset: {
+                    x: -woodProps.cgScad.x * SCALE,
+                    y: woodProps.cgScad.y * SCALE
+                }
+            };
+
+            whaleData = body.scadMeta;
+            whaleBody = body;
+            Composite.add(world, whaleBody);
+        }
+
+        function createSingleFishBody(spec, worldX, worldY, angleDeg = 0, isGhostStaged = true) {
+            const pts = computeFishPolygon(spec.type);
+            const woodProps = computeSolidWoodProperties(
+                pts,
+                FISH_CAVITY_CIRCLES,
+                SCAD_PARAMS.enable_balance_cavity,
+                false
+            );
+
+            const screenVerts = pts.map(p => ({
+                x: p.x * SCALE,
+                y: -p.y * SCALE
+            }));
+
+            const body = Bodies.fromVertices(
+                0,
+                0,
+                [screenVerts],
+                {
+                    friction: SCAD_PARAMS.surface_friction,
+                    frictionStatic: SCAD_PARAMS.material_mode === 'bambu_pla' ? 0.55 : 0.85,
+                    frictionAir: 0.02,
+                    restitution: 0.02,
+                    slop: 0.01,
+                    label: 'fish',
+                    // 剛骰出來尚未放手前設為 GHOST，完全不會碰撞或推擠場上已放置的積木與鯨魚
+                    collisionFilter: isGhostStaged
+                        ? { group: 0, category: COLLISION_CAT_GHOST, mask: 0 }
+                        : { group: 0, category: COLLISION_CAT_PLACED, mask: COLLISION_CAT_PLACED }
+                },
+                true,
+                0.0001,
+                0.05,
+                0.0001
+            );
+
+            alignCompoundBodyCenterOfGravity(body, screenVerts, woodProps.cgScad, { x: worldX, y: worldY });
+            setBodyCollisionMode(body, isGhostStaged);
+
+            const matterMass = woodProps.massGrams * 0.12;
+            Body.setMass(body, matterMass);
+            Body.setInertia(body, body.inertia * (woodProps.inertiaFactor || 1.2));
+            Body.setAngle(body, -angleDeg * Math.PI / 180);
+
+            const colorObj = DICE_COLORS.find(c => c.key === spec.colorKey) || DICE_COLORS[0];
+
+            body.scadMeta = {
+                kind: 'fish',
+                id: spec.id,
+                type: spec.type,
+                colorKey: spec.colorKey,
+                colorName: colorObj.name,
+                color: colorObj.rgb,
+                pts,
+                woodProps,
+                isLockedAfterDrop: !isGhostStaged, // 標記是否已放手鎖定不可再移動
+                supportState: 'staged',            // 'staged' | 'stacked' | 'fallen' | 'falling'
+                grabLocalAnchor: null,             // 儲存玩家點擊在小魚身上的局部座標錨點
+                localOriginOffset: {
+                    x: -woodProps.cgScad.x * SCALE,
+                    y: woodProps.cgScad.y * SCALE
+                }
+            };
+
+            fishBodies.push(body);
+            Composite.add(world, body);
+            return body;
+        }
+
+        // 安全切換剛體 Static 狀態：防止重複呼叫 Body.setStatic(body, true) 導致 Matter.js 內部 _original 質量被覆蓋為 Infinity 而飛到左上角
+        function setBodyStaticSafe(body, isStatic) {
+            if (!body) return;
+            if (body.isStatic !== isStatic) {
+                Body.setStatic(body, isStatic);
+            }
+            if (!isStatic) {
+                for (const part of body.parts) {
+                    part.positionPrev.x = part.position.x;
+                    part.positionPrev.y = part.position.y;
+                    part.anglePrev = part.angle;
+                    part.velocity.x = 0;
+                    part.velocity.y = 0;
+                    part.angularVelocity = 0;
+                }
+            }
+        }
+
+        // 將剛體的所有子部件設定為指定碰撞遮罩 (必須包含 group: 0，否則 Matter.Detector.canCollide 會因 undefined === undefined 誤判為不碰撞)
+        function setBodyCollisionMode(body, isGhost) {
+            const filter = isGhost
+                ? { group: 0, category: COLLISION_CAT_GHOST, mask: 0 }
+                : { group: 0, category: COLLISION_CAT_PLACED, mask: COLLISION_CAT_PLACED };
+            for (const part of body.parts) {
+                part.collisionFilter = { ...filter };
+            }
+        }
+
+        // 檢查某隻小魚在當前位置是否與鯨魚、其他已放置小魚或桌面發生重疊接觸
+        function checkBodyOverlapWithPlaced(testBody) {
+            const obstacles = [];
+            if (whaleBody) obstacles.push(whaleBody);
+            if (groundBody) obstacles.push(groundBody);
+            for (const fb of fishBodies) {
+                if (fb !== testBody && fb.scadMeta.isLockedAfterDrop) {
+                    obstacles.push(fb);
+                }
+            }
+
+            // 透過各子凸多邊形 (parts) 精確進行 SAT 碰撞重疊檢測
+            const testParts = testBody.parts.length > 1 ? testBody.parts.slice(1) : testBody.parts;
+            for (const tp of testParts) {
+                Matter.Bounds.update(tp.bounds, tp.vertices, testBody.velocity);
+            }
+
+            for (const obs of obstacles) {
+                const obsParts = obs.parts.length > 1 ? obs.parts.slice(1) : obs.parts;
+                for (const tp of testParts) {
+                    for (const op of obsParts) {
+                        Matter.Bounds.update(op.bounds, op.vertices, obs.velocity);
+                        if (Matter.Bounds.overlaps(tp.bounds, op.bounds)) {
+                            const col = Matter.SAT.collides(tp, op);
+                            if (col && col.collided) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        // 將被骰子選中的小魚生成在鯨魚正上方視野可見處，並靜止懸停等待玩家點擊拖曳
+        function spawnStagedFishAboveWhale(fishItem) {
+            // 若上方已有前一條尚未被放下的待命小魚，直接移除舊的待命魚並將其歸還池中，確保場上只有當前骰出的小魚待命
+            if (stagedFishBody) {
+                const oldPoolItem = unplacedFishPool.find(f => f.id === stagedFishBody.scadMeta.id);
+                if (oldPoolItem) oldPoolItem.placed = false;
+                Composite.remove(world, stagedFishBody);
+                fishBodies = fishBodies.filter(b => b !== stagedFishBody);
+                stagedFishBody = null;
+            }
+
+            const whaleCenterX = whaleBody ? whaleBody.position.x : ORIGIN_X;
+            const safeSpawnY = Math.max(142, Math.min(canvas.height * 0.25, scadToWorld(0, 125).y));
+
+            const body = createSingleFishBody(fishItem, whaleCenterX, safeSpawnY, 0, true);
+            // 在被玩家點擊抓取前先保持靜止懸停在鯨魚正上方，不會自己掉下來或亂晃
+            setBodyStaticSafe(body, true);
+            body.scadMeta.spawnAnchor = { x: whaleCenterX, y: safeSpawnY };
+            stagedFishBody = body;
+            renderUnplacedFishGallery();
+        }
+
+        // =========================================================================
+        // 5. 遊戲初始化與右側緊湊版待擺放小魚縮圖渲染 (還原出錯前原始 Canvas 縮圖比例)
+        // =========================================================================
+        function clearAllPieces() {
+            if (stagedHangerConstraint) {
+                Composite.remove(world, stagedHangerConstraint);
+                stagedHangerConstraint = null;
+            }
+            if (dragConstraint) {
+                Composite.remove(world, dragConstraint);
+                dragConstraint = null;
+            }
+            if (whaleBody) Composite.remove(world, whaleBody);
+            if (fishBodies.length) Composite.remove(world, fishBodies);
+
+            whaleBody = null;
+            fishBodies = [];
+            stagedFishBody = null;
+            draggedBody = null;
+            dragInteractionMode = null;
+            isDraggingOverlapping = false;
+        }
+
+        // 繪製單隻小魚縮圖於右側清單的小 Canvas 上
+        function drawFishThumbnail(thumbCanvas, item) {
+            const tCtx = thumbCanvas.getContext('2d');
+            const w = thumbCanvas.width;
+            const h = thumbCanvas.height;
+            tCtx.clearRect(0, 0, w, h);
+
+            const pts = computeFishPolygon(item.type);
+            const colorObj = DICE_COLORS.find(c => c.key === item.colorKey) || DICE_COLORS[0];
+            const tScale = 0.85;
+
+            tCtx.save();
+            tCtx.translate(w * 0.45, h * 0.52);
+
+            tCtx.beginPath();
+            pts.forEach((p, idx) => {
+                const px = p.x * tScale;
+                const py = -p.y * tScale;
+                if (idx === 0) tCtx.moveTo(px, py);
+                else tCtx.lineTo(px, py);
+            });
+            tCtx.closePath();
+
+            tCtx.fillStyle = colorObj.hex;
+            tCtx.fill();
+            tCtx.lineWidth = 1.2;
+            tCtx.strokeStyle = 'rgba(255,255,255,0.6)';
+            tCtx.stroke();
+
+            // 魚眼縮圖細節
+            const eyePos = (item.type === "large") ? [-14, 3] : (item.type === "shark") ? [-11, -1.5] : [-11.5, 2.5];
+            tCtx.fillStyle = '#fff';
+            tCtx.beginPath();
+            tCtx.arc(eyePos[0] * tScale, -eyePos[1] * tScale, 2.4 * tScale, 0, Math.PI * 2);
+            tCtx.fill();
+
+            tCtx.restore();
+        }
+
+        function renderUnplacedFishGallery() {
+            const grid = document.getElementById('fishTrayGrid');
+            grid.innerHTML = '';
+
+            const remainingList = unplacedFishPool.filter(f => !f.placed);
+            document.getElementById('unplacedCountBadge').textContent = remainingList.length;
+
+            unplacedFishPool.forEach(item => {
+                const colorObj = DICE_COLORS.find(c => c.key === item.colorKey);
+                const woodProps = computeSolidWoodProperties(
+                    computeFishPolygon(item.type),
+                    FISH_CAVITY_CIRCLES,
+                    SCAD_PARAMS.enable_balance_cavity
+                );
+
+                const card = document.createElement('div');
+                card.className = `relative rounded-lg px-1.5 py-1 border flex items-center justify-between transition ${
+                    item.placed
+                        ? 'bg-slate-950/30 border-slate-800/40 opacity-25 grayscale pointer-events-none'
+                        : 'bg-slate-900/90 border-slate-700/80 shadow-sm'
+                }`;
+
+                const cnv = document.createElement('canvas');
+                cnv.width = 48;
+                cnv.height = 28;
+                cnv.className = 'shrink-0';
+                drawFishThumbnail(cnv, item);
+
+                const infoBox = document.createElement('div');
+                infoBox.className = 'flex flex-col items-end leading-none';
+
+                const label = document.createElement('div');
+                label.className = 'text-[9px] font-bold text-slate-200 flex items-center gap-0.5';
+                label.innerHTML = `<span class="w-1.5 h-1.5 rounded-full inline-block" style="background:${colorObj.hex}"></span>${FISH_TYPE_NAMES[item.type]}`;
+
+                const weightLbl = document.createElement('div');
+                weightLbl.className = 'text-[8px] text-slate-400 mono mt-0.5';
+                weightLbl.textContent = item.placed ? '已出場' : `${Math.round(woodProps.massGrams)}g`;
+
+                infoBox.appendChild(label);
+                infoBox.appendChild(weightLbl);
+
+                card.appendChild(cnv);
+                card.appendChild(infoBox);
+                grid.appendChild(card);
+            });
+        }
+
+        // 重設新局：只放置鯨魚底座，16隻小魚全部收入右側縮圖盒中
+        function setupFreshGameScene() {
+            clearAllPieces();
+            createWhaleBody(false);
+
+            unplacedFishPool = INITIAL_FISH_SPECS.map(spec => ({
+                ...spec,
+                placed: false
+            }));
+
+            renderUnplacedFishGallery();
+            syncMaterialModeUI();
+
+            const titleEl = document.getElementById('diceStatusTitle');
+            const subEl = document.getElementById('diceStatusSub');
+            titleEl.textContent = '點擊骰子抽小魚';
+            titleEl.className = 'text-xs sm:text-sm font-black text-white';
+            subEl.textContent = '開局可先點擊鯨魚測試搖晃，或擲骰抽魚！';
+        }
+
+        // 當修改 OpenSCAD 物理參數或切換「實心原木 / 拓竹PLA」時，即時更新場上所有積木的質量、重心與摩擦係數
+        function refreshPhysicsParameters() {
+            createWhaleBody(true);
+            for (const fb of fishBodies) {
+                const m = fb.scadMeta;
+                const woodProps = computeSolidWoodProperties(
+                    m.pts,
+                    FISH_CAVITY_CIRCLES,
+                    SCAD_PARAMS.enable_balance_cavity,
+                    false
+                );
+                m.woodProps = woodProps;
+                m.localOriginOffset = {
+                    x: -woodProps.cgScad.x * SCALE,
+                    y: woodProps.cgScad.y * SCALE
+                };
+                if (!fb.isStatic) {
+                    Body.setMass(fb, woodProps.massGrams * 0.12);
+                    Body.setInertia(fb, fb.inertia * (woodProps.inertiaFactor || 1.2));
+                }
+                fb.friction = SCAD_PARAMS.surface_friction;
+                fb.frictionStatic = SCAD_PARAMS.material_mode === 'bambu_pla' ? 0.55 : 0.85;
+            }
+            renderUnplacedFishGallery();
+        }
+
+        // =========================================================================
+        // 6. 鯨魚、小魚雙面陰刻細節與剖面減重空腔 Canvas 繪製函式
+        // =========================================================================
+        // 繪製 3D 列印 PLA 剖面檢視時的內部稀疏網格填充 (Sparse Infill Grid) 與 2 圈實心壁
+        function draw3DPrintInfillOverlay(pts, strokeColor) {
+            if (SCAD_PARAMS.material_mode !== 'bambu_pla') return;
+            ctx.save();
+            ctx.beginPath();
+            pts.forEach((p, i) => {
+                const px = p.x * SCALE;
+                const py = -p.y * SCALE;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            });
+            ctx.closePath();
+            ctx.clip();
+
+            // 若開啟剖面檢視，繪製清楚的拓竹網格填充線
+            if (SCAD_PARAMS.cutaway_view) {
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.52)';
+                ctx.fillRect(-130 * SCALE, -100 * SCALE, 260 * SCALE, 200 * SCALE);
+
+                const step = Math.max(4, (28 - SCAD_PARAMS.pla_infill_percent * 0.22)) * SCALE;
+                ctx.strokeStyle = 'rgba(56, 189, 248, 0.42)';
+                ctx.lineWidth = 1.1;
+                ctx.beginPath();
+                for (let d = -220 * SCALE; d <= 220 * SCALE; d += step) {
+                    ctx.moveTo(d - 120 * SCALE, -120 * SCALE);
+                    ctx.lineTo(d + 120 * SCALE, 120 * SCALE);
+                    ctx.moveTo(d + 120 * SCALE, -120 * SCALE);
+                    ctx.lineTo(d - 120 * SCALE, 120 * SCALE);
+                }
+                ctx.stroke();
+            }
+
+            // 繪製 2 圈實心外壁 (2 Wall Loops) 視覺邊線
+            ctx.strokeStyle = strokeColor || 'rgba(255, 255, 255, 0.35)';
+            ctx.lineWidth = 1.68 * SCALE;
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function renderWhale(body) {
+            const meta = body.scadMeta;
+            const pts = meta.geom.pts;
+
+            ctx.save();
+            ctx.translate(body.position.x, body.position.y);
+            ctx.rotate(body.angle);
+            ctx.translate(meta.localOriginOffset.x, meta.localOriginOffset.y);
+
+            // 1. 鯨魚深藍色主體與立體厚度陰影
+            ctx.save();
+            ctx.beginPath();
+            pts.forEach((p, i) => {
+                const px = p.x * SCALE;
+                const py = -p.y * SCALE;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            });
+            ctx.closePath();
+
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+            ctx.shadowBlur = 14;
+            ctx.shadowOffsetY = 5;
+
+            const whaleGrad = ctx.createLinearGradient(0, -60 * SCALE, 0, 50 * SCALE);
+            if (SCAD_PARAMS.material_mode === 'bambu_pla') {
+                whaleGrad.addColorStop(0, '#2563eb');
+                whaleGrad.addColorStop(1, '#1d4ed8');
+            } else {
+                whaleGrad.addColorStop(0, '#1969b2');
+                whaleGrad.addColorStop(1, '#0d4785');
+            }
+            ctx.fillStyle = whaleGrad;
+            ctx.fill();
+
+            if (woodGrainPattern && SCAD_PARAMS.material_mode === 'wood') {
+                ctx.fillStyle = woodGrainPattern;
+                ctx.fill();
+            }
+
+            ctx.lineWidth = 2.2;
+            ctx.strokeStyle = '#38bdf8';
+            ctx.stroke();
+            ctx.restore();
+
+            draw3DPrintInfillOverlay(pts, 'rgba(56, 189, 248, 0.55)');
+
+            // 2. OpenSCAD 雙面陰刻凹槽細節 (module whale_grooves_2d)
+            ctx.save();
+            ctx.fillStyle = '#bfe6fa';
+            ctx.strokeStyle = '#bfe6fa';
+
+            // (A) 大眼睛外框與眼珠 [-45, 22]
+            const eyeX = -45 * SCALE;
+            const eyeY = -22 * SCALE;
+            ctx.lineWidth = 2.0 * SCALE;
+            ctx.beginPath();
+            ctx.arc(eyeX, eyeY, 10 * SCALE, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(eyeX - 1.5 * SCALE, eyeY + 0.5 * SCALE, 5.8 * SCALE, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#145899';
+            ctx.beginPath();
+            ctx.arc(eyeX - 3.5 * SCALE, eyeY - 1.5 * SCALE, 1.8 * SCALE, 0, Math.PI * 2);
+            ctx.fill();
+
+            // (B) 橢圓腮紅 [-28, 8]
+            ctx.save();
+            ctx.translate(-28 * SCALE, -8 * SCALE);
+            ctx.rotate(-25 * Math.PI / 180);
+            ctx.scale(1.5, 0.9);
+            ctx.fillStyle = 'rgba(251, 146, 160, 0.85)';
+            ctx.beginPath();
+            ctx.arc(0, 0, 3.6 * SCALE, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            // (C) 肚皮四條圓弧條紋
+            ctx.save();
+            ctx.beginPath();
+            pts.forEach((p, i) => {
+                const px = p.x * SCALE;
+                const py = -p.y * SCALE;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            });
+            ctx.closePath();
+            ctx.clip();
+
+            ctx.strokeStyle = 'rgba(191, 230, 250, 0.82)';
+            ctx.lineWidth = 1.5 * SCALE;
+            for (const rVal of [79.5, 85, 90.5, 96]) {
+                ctx.beginPath();
+                ctx.arc(-2 * SCALE, -58 * SCALE, rVal * SCALE, 0.22 * Math.PI, 0.78 * Math.PI);
+                ctx.stroke();
+            }
+            ctx.restore();
+
+            // (D) 小胸鰭輪廓與鰭線 [-20, -23]
+            ctx.save();
+            ctx.translate(-20 * SCALE, 23 * SCALE);
+            ctx.rotate(-15 * Math.PI / 180);
+            ctx.strokeStyle = '#bfe6fa';
+            ctx.lineWidth = 1.5 * SCALE;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 8.2 * 0.65 * SCALE, 8.2 * 1.3 * SCALE, 0, 0.1 * Math.PI, 0.9 * Math.PI);
+            ctx.stroke();
+            ctx.restore();
+            ctx.restore();
+
+            // 3. 剖面檢視模式 (cutaway_view)：顯示內部 9 個蜂巢減重孔
+            if (SCAD_PARAMS.cutaway_view && SCAD_PARAMS.enable_balance_cavity) {
+                ctx.save();
+                for (const c of WHALE_CAVITY_CIRCLES) {
+                    ctx.beginPath();
+                    ctx.arc(c.x * SCALE, -c.y * SCALE, c.r * SCALE, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(15, 23, 42, 0.86)';
+                    ctx.fill();
+                    // 3D 列印模式下特別加粗顯示 2 圈實心內孔壁
+                    ctx.lineWidth = SCAD_PARAMS.material_mode === 'bambu_pla' ? 1.68 * SCALE : 1.5;
+                    ctx.strokeStyle = SCAD_PARAMS.material_mode === 'bambu_pla' ? '#38bdf8' : '#f59e0b';
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            ctx.restore();
+        }
+
+        function renderFish(body) {
+            const meta = body.scadMeta;
+            const pts = meta.pts;
+            const [r, g, b] = meta.color;
+            const rgbCss = `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+
+            const isBeingDragged = (draggedBody === body);
+            const isStagedWaiting = (stagedFishBody === body);
+            const isFallen = (meta.isLockedAfterDrop && meta.supportState === 'fallen');
+
+            ctx.save();
+            // 若正在拖曳中（幽靈預覽狀態）略帶半透明感；若已掉落桌面或屬地面支撐魚堆則降低透明度區分
+            if (isBeingDragged) {
+                ctx.globalAlpha = 0.88;
+            } else if (isFallen) {
+                ctx.globalAlpha = 0.52;
+            }
+            ctx.translate(body.position.x, body.position.y);
+            ctx.rotate(body.angle);
+            ctx.translate(meta.localOriginOffset.x, meta.localOriginOffset.y);
+
+            // 1. 魚身主體
+            ctx.save();
+            ctx.beginPath();
+            pts.forEach((p, i) => {
+                const px = p.x * SCALE;
+                const py = -p.y * SCALE;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            });
+            ctx.closePath();
+
+            ctx.shadowColor = (isBeingDragged && isDraggingOverlapping)
+                ? 'rgba(239, 68, 68, 0.85)'
+                : 'rgba(0, 0, 0, 0.45)';
+            ctx.shadowBlur = isBeingDragged ? 14 : 8;
+            ctx.shadowOffsetY = 3;
+            ctx.fillStyle = rgbCss;
+            ctx.fill();
+
+            if (woodGrainPattern && SCAD_PARAMS.material_mode === 'wood') {
+                ctx.fillStyle = woodGrainPattern;
+                ctx.fill();
+            }
+
+            if (isBeingDragged) {
+                ctx.lineWidth = 3.2;
+                ctx.strokeStyle = isDraggingOverlapping ? '#ef4444' : '#fde047';
+            } else if (isStagedWaiting) {
+                ctx.lineWidth = 2.4;
+                ctx.strokeStyle = '#fde047';
+            } else if (isFallen) {
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = 'rgba(244, 63, 94, 0.75)';
+            } else {
+                ctx.lineWidth = 1.8;
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
+            }
+            ctx.stroke();
+
+            // 若拖曳時與既有積木接觸重疊，覆蓋一層紅色警示斜紋
+            if (isBeingDragged && isDraggingOverlapping) {
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.35)';
+                ctx.fill();
+            }
+            ctx.restore();
+
+            draw3DPrintInfillOverlay(pts, 'rgba(255, 255, 255, 0.35)');
+
+            // 2. OpenSCAD 雙面陰刻魚眼、魚鰓與專屬花紋 (module fish_pattern_2d)
+            ctx.save();
+            const eyePos = (meta.type === "large") ? [-14, 3] :
+                           (meta.type === "shark") ? [-11, -1.5] : [-11.5, 2.5];
+            ctx.strokeStyle = '#faf2e0';
+            ctx.fillStyle = '#faf2e0';
+            ctx.lineWidth = 1.3 * SCALE;
+
+            ctx.beginPath();
+            ctx.arc(eyePos[0] * SCALE, -eyePos[1] * SCALE, 3.1 * SCALE, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc((eyePos[0] - 0.4) * SCALE, -eyePos[1] * SCALE, 1.4 * SCALE, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 魚鰓弧線
+            ctx.beginPath();
+            ctx.arc(-11 * SCALE, 0, 8.1 * SCALE, -0.36 * Math.PI, 0.36 * Math.PI);
+            ctx.stroke();
+
+            // 魚身花紋
+            if (meta.type === "large") {
+                const spots = [[0, 6], [0, -5], [6, 1], [8, 9], [8, -8], [14, 3], [14, -4]];
+                for (const pt of spots) {
+                    ctx.beginPath();
+                    ctx.arc(pt[0] * SCALE, -pt[1] * SCALE, 2.0 * SCALE, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else if (meta.type === "shark") {
+                for (const xPos of [2, 7, 12]) {
+                    ctx.save();
+                    ctx.translate(xPos * SCALE, -3 * SCALE);
+                    ctx.rotate(-15 * Math.PI / 180);
+                    ctx.fillRect(-0.75 * SCALE, -5.5 * SCALE, 1.5 * SCALE, 11 * SCALE);
+                    ctx.restore();
+                }
+            } else {
+                for (const xPos of [1, 6, 11]) {
+                    ctx.fillRect((xPos - 0.8) * SCALE, -7.5 * SCALE, 1.6 * SCALE, 15 * SCALE);
+                }
+            }
+
+            // 尾鰭放射紋線
+            const tailX = (meta.type === "large") ? 21 : 18;
+            ctx.save();
+            ctx.translate(tailX * SCALE, -2.5 * SCALE);
+            ctx.rotate(-18 * Math.PI / 180);
+            ctx.fillRect(-2.7 * SCALE, -0.6 * SCALE, 5.4 * SCALE, 1.2 * SCALE);
+            ctx.restore();
+
+            ctx.save();
+            ctx.translate(tailX * SCALE, 2.5 * SCALE);
+            ctx.rotate(18 * Math.PI / 180);
+            ctx.fillRect(-2.7 * SCALE, -0.6 * SCALE, 5.4 * SCALE, 1.2 * SCALE);
+            ctx.restore();
+            ctx.restore();
+
+            // 3. 剖面檢視模式 (cutaway_view)：顯示小魚內部 2 個減重圓孔
+            if (SCAD_PARAMS.cutaway_view && SCAD_PARAMS.enable_balance_cavity) {
+                ctx.save();
+                for (const c of FISH_CAVITY_CIRCLES) {
+                    ctx.beginPath();
+                    ctx.arc(c.x * SCALE, -c.y * SCALE, c.r * SCALE, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+                    ctx.fill();
+                    ctx.lineWidth = 1.2;
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            ctx.restore();
+
+            // 4. 繪製小魚單體重心點與「掉落」狀態標籤
+            if (isFallen) {
+                ctx.save();
+                ctx.font = 'bold 9px "Noto Sans TC", sans-serif';
+                ctx.fillStyle = 'rgba(254, 202, 202, 0.9)';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = 'rgba(0,0,0,0.9)';
+                ctx.shadowBlur = 3;
+                ctx.fillText('✕掉落', body.position.x, body.position.y + 3);
+                ctx.restore();
+            } else if (SCAD_PARAMS.show_physics_guide || draggedBody === body) {
+                ctx.save();
+                ctx.fillStyle = '#fde047';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(body.position.x, body.position.y, draggedBody === body ? 4.5 : 2.8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        // =========================================================================
+        // 7. 剛體接觸鏈圖論演算法：精確判定「背上疊放」vs「掉落地面魚堆」與圓弧搖擺物理
+        // =========================================================================
+        // 檢測兩個複合剛體是否發生實體接觸 (含 2.5px 微小間隙容許值以穩定靜止接觸圖)
+        function areCompoundBodiesTouching(bodyA, bodyB, padPx = 2.5) {
+            if (!bodyA || !bodyB) return false;
+            if (
+                bodyA.bounds.max.x + padPx < bodyB.bounds.min.x ||
+                bodyA.bounds.min.x - padPx > bodyB.bounds.max.x ||
+                bodyA.bounds.max.y + padPx < bodyB.bounds.min.y ||
+                bodyA.bounds.min.y - padPx > bodyB.bounds.max.y
+            ) {
+                return false;
+            }
+            const partsA = bodyA.parts.length > 1 ? bodyA.parts.slice(1) : bodyA.parts;
+            const partsB = bodyB.parts.length > 1 ? bodyB.parts.slice(1) : bodyB.parts;
+
+            for (const pa of partsA) {
+                for (const pb of partsB) {
+                    if (
+                        pa.bounds.max.x + padPx < pb.bounds.min.x ||
+                        pa.bounds.min.x - padPx > pb.bounds.max.x ||
+                        pa.bounds.max.y + padPx < pb.bounds.min.y ||
+                        pa.bounds.min.y - padPx > pb.bounds.max.y
+                    ) {
+                        continue;
+                    }
+                    const col = Matter.SAT.collides(pa, pb);
+                    if (col && col.collided) return true;
+
+                    // 檢查頂點間或頂點到邊的近距離接觸
+                    for (const va of pa.vertices) {
+                        for (let i = 0; i < pb.vertices.length; i++) {
+                            const v1 = pb.vertices[i];
+                            const v2 = pb.vertices[(i + 1) % pb.vertices.length];
+                            const dx = v2.x - v1.x;
+                            const dy = v2.y - v1.y;
+                            const lenSq = dx * dx + dy * dy || 1;
+                            const t = Math.max(0, Math.min(1, ((va.x - v1.x) * dx + (va.y - v1.y) * dy) / lenSq));
+                            const dist = Math.hypot(va.x - (v1.x + t * dx), va.y - (v1.y + t * dy));
+                            if (dist <= padPx) return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        // 每幀分析場上小魚的支撐來源：排除直接觸地或由地面魚堆一路往上支撐的小魚，只計入真正由鯨魚背部支撐的小魚
+        function evaluateFishSupportStates() {
+            if (!whaleBody) return { stackedList: [], fallenList: [] };
+
+            const floorY = scadToWorld(0, FLOOR_SCAD_Y).y;
+            const wMeta = whaleBody.scadMeta;
+            const cosA = Math.cos(whaleBody.angle);
+            const sinA = Math.sin(whaleBody.angle);
+
+            const placedFish = fishBodies.filter(fb => fb !== stagedFishBody && fb.scadMeta.isLockedAfterDrop);
+
+            // 將小魚世界座標轉為鯨魚本體局部 OpenSCAD 座標 (mm)
+            const getWhaleLocalScad = (fb) => {
+                const dx = fb.position.x - whaleBody.position.x;
+                const dy = fb.position.y - whaleBody.position.y;
+                const lx = (dx * cosA + dy * sinA) - wMeta.localOriginOffset.x;
+                const ly = (dx * (-sinA) + dy * cosA) - wMeta.localOriginOffset.y;
+                return { x: lx / SCALE, y: -ly / SCALE };
+            };
+
+            const groundedSet = new Set();
+
+            // 【步驟 1】找出直接觸碰桌面 (groundBody)、左右邊牆，或滑落至鯨魚頭尾下緣以下的小魚
+            for (const fb of placedFish) {
+                const touchesFloor = fb.bounds.max.y >= floorY - 3.0 || areCompoundBodiesTouching(fb, groundBody, 3.0);
+                const touchesWall = areCompoundBodiesTouching(fb, leftWall, 3.0) || areCompoundBodiesTouching(fb, rightWall, 3.0);
+                const localScad = getWhaleLocalScad(fb);
+                // 若小魚已經滑到鯨魚頭部最左側(-85mm)外、尾鰭右側(+95mm)外，或低於肚皮水平線(-5mm)，視為滑落
+                const belowWhaleBelly = localScad.y < -5 || localScad.x < -86 || localScad.x > 96;
+
+                if (touchesFloor || touchesWall || belowWhaleBelly) {
+                    groundedSet.add(fb);
+                }
+            }
+
+            // 【步驟 2】透過 BFS 將「由地面掉落魚堆所支撐/接觸」的小魚全部標記為 fallen (例如截圖左側從桌面一路疊到鯨魚頭側的魚堆)
+            let changed = true;
+            while (changed) {
+                changed = false;
+                for (const fb of placedFish) {
+                    if (groundedSet.has(fb)) continue;
+                    for (const gFish of groundedSet) {
+                        if (areCompoundBodiesTouching(fb, gFish, 2.5)) {
+                            groundedSet.add(fb);
+                            changed = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 【步驟 3】在未接觸地面魚堆的小魚中，找出真正與鯨魚上背部 (頭頂圓弧、深U型背谷、尾鰭) 形成支撐鏈的小魚
+            const stackedSet = new Set();
+            const candidates = placedFish.filter(fb => !groundedSet.has(fb));
+
+            for (const fb of candidates) {
+                const localScad = getWhaleLocalScad(fb);
+                const relSpeedY = Math.abs(fb.velocity.y - whaleBody.velocity.y);
+                // 位於鯨魚上背部有效承載範圍內且直接接觸鯨魚本體
+                const onUpperBackContour = localScad.y >= 2 && localScad.x >= -78 && localScad.x <= 92;
+                if (onUpperBackContour && relSpeedY < 3.2 && areCompoundBodiesTouching(fb, whaleBody, 3.0)) {
+                    stackedSet.add(fb);
+                }
+            }
+
+            // 傳遞鯨魚背部的疊放支撐鏈 (疊在已穩定背上小魚上方的小魚)
+            changed = true;
+            while (changed) {
+                changed = false;
+                for (const fb of candidates) {
+                    if (stackedSet.has(fb)) continue;
+                    const relSpeedY = Math.abs(fb.velocity.y - whaleBody.velocity.y);
+                    if (relSpeedY >= 3.5) continue;
+                    for (const sFish of stackedSet) {
+                        if (areCompoundBodiesTouching(fb, sFish, 3.0)) {
+                            stackedSet.add(fb);
+                            changed = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            const stackedList = [];
+            const fallenList = [];
+            for (const fb of placedFish) {
+                if (stackedSet.has(fb)) {
+                    fb.scadMeta.supportState = 'stacked';
+                    stackedList.push(fb);
+                } else if (groundedSet.has(fb)) {
+                    fb.scadMeta.supportState = 'fallen';
+                    fallenList.push(fb);
+                } else {
+                    fb.scadMeta.supportState = 'falling';
+                }
+            }
+
+            return { stackedList, fallenList };
+        }
+
+        // 真圓弧底 ($R=115\text{mm}$) 物理滾動平衡與平滑阻尼模型：
+        // 解決多邊形離散頂點造成的微幅折角誤差，使鯨魚精確遵循「系統合成重心 CG 與搖擺圓心 C0 的水平力臂平衡定理」
+        function applyWhaleTrueRockerPhysics() {
+            if (!whaleBody) return;
+            const wMeta = whaleBody.scadMeta;
+            const c0Scad = wMeta.geom.c0;
+            const localC0 = {
+                x: c0Scad.x * SCALE + wMeta.localOriginOffset.x,
+                y: -c0Scad.y * SCALE + wMeta.localOriginOffset.y
+            };
+            const cosA = Math.cos(whaleBody.angle);
+            const sinA = Math.sin(whaleBody.angle);
+
+            // 搖擺圓心 C0 (穩心 M) 的世界座標與桌面接觸支點 P (永遠位於 C0 正下方)
+            const metacenterWorldX = whaleBody.position.x + (localC0.x * cosA - localC0.y * sinA);
+
+            // 計算鯨魚本體加上目前真正疊在背上的小魚的合成重心世界座標
+            const { stackedList } = evaluateFishSupportStates();
+            let totalMass = wMeta.woodProps.massGrams;
+            let momentX = totalMass * whaleBody.position.x;
+            for (const fb of stackedList) {
+                const m = fb.scadMeta.woodProps.massGrams;
+                totalMass += m;
+                momentX += m * fb.position.x;
+            }
+            const sysCGWorldX = momentX / totalMass;
+
+            // 當合成重心 X 偏離曲率中心 C0 的鉛垂線時，產生真實圓弧滾動回正/傾倒角加速度
+            const leverArmPx = sysCGWorldX - metacenterWorldX;
+            const rockerRadiusPx = SCAD_PARAMS.rocker_radius * SCALE;
+
+            // 在有效圓弧搖擺角度內 (-32° ~ +32°)，以真圓弧幾何約束抵消多邊形頂點的高低起伏誤差
+            if (Math.abs(whaleBody.angle) < 0.56) {
+                const targetTorqueAccel = (leverArmPx / rockerRadiusPx) * 0.0028;
+                const damping = SCAD_PARAMS.material_mode === 'bambu_pla' ? 0.965 : 0.955;
+                const nextOmega = (whaleBody.angularVelocity + targetTorqueAccel) * damping;
+                Body.setAngularVelocity(whaleBody, Math.abs(nextOmega) < 0.00008 && Math.abs(leverArmPx) < 0.4 ? 0 : nextOmega);
+            }
+        }
+
+        function computeAndRenderPhysicsOverlay() {
+            if (!whaleBody) return;
+
+            const wMeta = whaleBody.scadMeta;
+            const whaleMass = wMeta.woodProps.massGrams;
+            const whaleCGWorld = whaleBody.position;
+
+            // 計算鯨魚搖擺圓心 C0 (曲率穩心 Metacenter) 的世界座標
+            const c0Scad = wMeta.geom.c0;
+            const localC0 = {
+                x: c0Scad.x * SCALE + wMeta.localOriginOffset.x,
+                y: -c0Scad.y * SCALE + wMeta.localOriginOffset.y
+            };
+            const cosA = Math.cos(whaleBody.angle);
+            const sinA = Math.sin(whaleBody.angle);
+            const metacenterWorld = {
+                x: whaleBody.position.x + (localC0.x * cosA - localC0.y * sinA),
+                y: whaleBody.position.y + (localC0.x * sinA + localC0.y * cosA)
+            };
+
+            const floorY = scadToWorld(0, FLOOR_SCAD_Y).y;
+            const contactWorld = {
+                x: metacenterWorld.x,
+                y: Math.min(floorY, metacenterWorld.y + SCAD_PARAMS.rocker_radius * SCALE)
+            };
+
+            // 使用剛體接觸鏈演算法精確取得「真正疊在鯨魚背上的小魚」與「已掉落桌面的小魚」
+            const { stackedList, fallenList } = evaluateFishSupportStates();
+            const stackedCount = stackedList.length;
+            const fallenCount = fallenList.length;
+
+            let fishMassTotal = 0;
+            let sysMomentX = whaleMass * whaleCGWorld.x;
+            let sysMomentY = whaleMass * whaleCGWorld.y;
+
+            for (const fb of stackedList) {
+                const m = fb.scadMeta.woodProps.massGrams;
+                fishMassTotal += m;
+                sysMomentX += m * fb.position.x;
+                sysMomentY += m * fb.position.y;
+            }
+
+            const totalSysMass = whaleMass + fishMassTotal;
+            const sysCGWorld = {
+                x: sysMomentX / totalSysMass,
+                y: sysMomentY / totalSysMass
+            };
+
+            // 轉回鯨魚本體座標系計算 OpenSCAD 物理報告數值
+            const dWorld = {
+                x: sysCGWorld.x - whaleBody.position.x,
+                y: sysCGWorld.y - whaleBody.position.y
+            };
+            const localSysX = (dWorld.x * cosA + dWorld.y * sinA) - wMeta.localOriginOffset.x;
+            const localSysY = (dWorld.x * (-sinA) + dWorld.y * cosA) - wMeta.localOriginOffset.y;
+            const sysCG_ScadY = -localSysY / SCALE;
+
+            const y_metacenter = SCAD_PARAMS.y_bottom + SCAD_PARAMS.rocker_radius;
+            const y_whale_cg = wMeta.woodProps.cgScad.y;
+            const stability_margin = y_metacenter - sysCG_ScadY;
+            const massRatio = fishMassTotal / whaleMass;
+
+            const tiltDeg = (whaleBody.angle * 180 / Math.PI);
+            const leverArmMM = (sysCGWorld.x - contactWorld.x) / SCALE;
+            const netTorqueNmm = (totalSysMass * 0.00981) * leverArmMM;
+
+            // 更新 UI 頂部與參數抽屜數值
+            document.getElementById('statStackedCount').textContent = stackedCount;
+            document.getElementById('statFallenCount').textContent = fallenCount;
+            document.getElementById('statTiltAngle').textContent = `${tiltDeg >= 0 ? '+' : ''}${tiltDeg.toFixed(1)}°`;
+            document.getElementById('statMargin').innerHTML = `${stability_margin >= 0 ? '+' : ''}${stability_margin.toFixed(1)}<span class="text-[9px]">mm</span>`;
+
+            document.getElementById('valYBottom').textContent = SCAD_PARAMS.y_bottom;
+            document.getElementById('valYMeta').textContent = (y_metacenter >= 0 ? '+' : '') + y_metacenter.toFixed(1);
+            document.getElementById('valWhaleMass').textContent = Math.round(whaleMass);
+            document.getElementById('valWhaleCG').textContent = y_whale_cg.toFixed(1);
+            document.getElementById('valFishMass').textContent = Math.round(fishMassTotal);
+            document.getElementById('valMassRatio').textContent = massRatio.toFixed(2);
+            document.getElementById('valSysCG').textContent = `${sysCG_ScadY >= 0 ? '+' : ''}${sysCG_ScadY.toFixed(1)} mm`;
+            document.getElementById('torqueText').textContent = `${leverArmMM >= 0 ? '+' : ''}${leverArmMM.toFixed(1)} mm (${netTorqueNmm >= 0 ? '+' : ''}${netTorqueNmm.toFixed(1)} N·mm)`;
+
+            const clampedTilt = Math.max(-35, Math.min(35, tiltDeg));
+            const pct = 50 + (clampedTilt / 35) * 46;
+            document.getElementById('tiltBarIndicator').style.left = `calc(${pct}% - 5px)`;
+
+            const badge = document.getElementById('stabilityBadge');
+            if (Math.abs(tiltDeg) > 28 || stability_margin < 0) {
+                badge.textContent = '⚠️ 傾倒失衡臨界';
+                badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/25 text-rose-300 border border-rose-500/50 animate-pulse';
+            } else if (Math.abs(tiltDeg) > 14 || stability_margin < 15) {
+                badge.textContent = '⚖️ 大幅搖擺平衡中';
+                badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/25 text-amber-300 border border-amber-500/50';
+            } else {
+                badge.textContent = '✅ 穩定回正安全';
+                badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+            }
+
+            if (!SCAD_PARAMS.show_physics_guide) return;
+
+            ctx.save();
+            // 1. 底部搖擺真圓弧虛線與曲率半徑線
+            ctx.beginPath();
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = 'rgba(59, 130, 246, 0.35)';
+            ctx.lineWidth = 1.5;
+            ctx.arc(metacenterWorld.x, metacenterWorld.y, SCAD_PARAMS.rocker_radius * SCALE, 0.15 * Math.PI, 0.85 * Math.PI);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.5)';
+            ctx.moveTo(metacenterWorld.x, metacenterWorld.y);
+            ctx.lineTo(contactWorld.x, contactWorld.y);
+            ctx.stroke();
+
+            // 2. 系統合成重心鉛垂重力向量線 (紅線)
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(244, 63, 94, 0.85)';
+            ctx.lineWidth = 2.2;
+            ctx.moveTo(sysCGWorld.x, sysCGWorld.y);
+            ctx.lineTo(sysCGWorld.x, contactWorld.y - 4);
+            ctx.stroke();
+
+            // 箭頭
+            ctx.fillStyle = '#f43f5e';
+            ctx.beginPath();
+            ctx.moveTo(sysCGWorld.x, contactWorld.y);
+            ctx.lineTo(sysCGWorld.x - 5, contactWorld.y - 9);
+            ctx.lineTo(sysCGWorld.x + 5, contactWorld.y - 9);
+            ctx.closePath();
+            ctx.fill();
+
+            // 3. 繪製四個關鍵物理點標記
+            const drawMarker = (pt, fill, label, offsetX = 10, offsetY = -6) => {
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
+                ctx.fillStyle = fill;
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#ffffff';
+                ctx.stroke();
+
+                ctx.font = 'bold 11px "JetBrains Mono", monospace';
+                ctx.fillStyle = '#f8fafc';
+                ctx.shadowColor = 'rgba(0,0,0,0.9)';
+                ctx.shadowBlur = 4;
+                ctx.fillText(label, pt.x + offsetX, pt.y + offsetY);
+                ctx.shadowBlur = 0;
+            };
+
+            drawMarker(contactWorld, '#fcd34d', '支點 P', 10, -4);
+            drawMarker(whaleCGWorld, '#34d399', `CG_whale (${y_whale_cg.toFixed(1)})`, 10, 12);
+            drawMarker(metacenterWorld, '#3b82f6', `穩心 M (+${y_metacenter.toFixed(0)})`, 10, -8);
+            drawMarker(sysCGWorld, '#f43f5e', `CG_sys (${sysCG_ScadY.toFixed(1)})`, -115, -8);
+
+            ctx.restore();
+        }
+
+        // =========================================================================
+        // 8. 滑鼠與觸控互動：先拉動小魚身上的旋轉角度輔助線選好角度，再按住魚身固定角度拖曳擺放
+        // =========================================================================
+        function getCanvasPoint(e) {
+            const rect = canvas.getBoundingClientRect();
+            let clientX = e.clientX;
+            let clientY = e.clientY;
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else if (e.changedTouches && e.changedTouches.length > 0) {
+                clientX = e.changedTouches[0].clientX;
+                clientY = e.changedTouches[0].clientY;
+            }
+            return {
+                x: (clientX || 0) - rect.left,
+                y: (clientY || 0) - rect.top
+            };
+        }
+
+        // 計算待命小魚外圍「旋轉角度輔助環」與左右兩顆旋轉把手的幾何位置 (針對 iPad 觸控加大把手尺寸)
+        function getStagedRotationGizmoGeometry(fishBody) {
+            const center = fishBody.position;
+            const ringRadius = 40 * SCALE;
+            const handleRadius = Math.max(18, 12.5 * SCALE);
+            const ang = fishBody.angle || 0;
+
+            // 主旋轉把手（位於魚尾方向外圈）與副把手（位於魚頭方向外圈），兩邊皆可拉動旋轉
+            const handleRight = {
+                x: center.x + ringRadius * Math.cos(ang),
+                y: center.y + ringRadius * Math.sin(ang)
+            };
+            const handleLeft = {
+                x: center.x - ringRadius * Math.cos(ang),
+                y: center.y - ringRadius * Math.sin(ang)
+            };
+            // 上方 90 度方向也提供一個角度指針把手
+            const handleTop = {
+                x: center.x + ringRadius * Math.cos(ang - Math.PI / 2),
+                y: center.y + ringRadius * Math.sin(ang - Math.PI / 2)
+            };
+
+            return { center, ringRadius, handleRadius, handleRight, handleLeft, handleTop };
+        }
+
+        // 繪製待命小魚身上的「可旋轉角度輔助線、量角器刻度環與拖曳把手」
+        function renderStagedFishRotationGizmo(fishBody, now) {
+            if (!fishBody || dragInteractionMode === 'move') return;
+
+            const gizmo = getStagedRotationGizmoGeometry(fishBody);
+            const { center, ringRadius, handleRadius, handleRight, handleLeft, handleTop } = gizmo;
+            const isRotating = (dragInteractionMode === 'rotate');
+            const deg = Math.round((-fishBody.angle * 180) / Math.PI);
+
+            ctx.save();
+
+            // 1. 柔和呼吸底光
+            const pulseRadius = ringRadius + (4 + Math.sin(now * 0.006) * 2) * SCALE;
+            const grad = ctx.createRadialGradient(center.x, center.y, ringRadius * 0.3, center.x, center.y, pulseRadius);
+            grad.addColorStop(0, 'rgba(56, 189, 248, 0.16)');
+            grad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, pulseRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 2. 十字水平/垂直基準參考虛線 (固定於世界座標，方便對照水平與垂直角度)
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+            ctx.lineWidth = 1.2;
+            ctx.setLineDash([3, 4]);
+            ctx.beginPath();
+            ctx.moveTo(center.x - ringRadius * 1.15, center.y);
+            ctx.lineTo(center.x + ringRadius * 1.15, center.y);
+            ctx.moveTo(center.x, center.y - ringRadius * 1.15);
+            ctx.lineTo(center.x, center.y + ringRadius * 1.15);
+            ctx.stroke();
+
+            // 3. 隨小魚同步旋轉的軸向輔助線 (連接左右把手與上方指針)
+            ctx.strokeStyle = isRotating ? '#fde047' : 'rgba(56, 189, 248, 0.85)';
+            ctx.lineWidth = 2.0;
+            ctx.setLineDash([4, 3]);
+            ctx.beginPath();
+            ctx.moveTo(handleLeft.x, handleLeft.y);
+            ctx.lineTo(handleRight.x, handleRight.y);
+            ctx.moveTo(center.x, center.y);
+            ctx.lineTo(handleTop.x, handleTop.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 4. 外圍量角器旋轉輔助圓環與每 15° 角度刻度線
+            ctx.strokeStyle = isRotating ? '#fde047' : 'rgba(56, 189, 248, 0.9)';
+            ctx.lineWidth = isRotating ? 2.8 : 2.0;
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, ringRadius, 0, Math.PI * 2);
+            ctx.stroke();
+
+            for (let d = 0; d < 360; d += 15) {
+                const rad = (d * Math.PI) / 180;
+                const innerR = (d % 45 === 0) ? ringRadius - 5 * SCALE : ringRadius - 2.8 * SCALE;
+                ctx.strokeStyle = (d % 45 === 0) ? 'rgba(253, 224, 71, 0.85)' : 'rgba(186, 230, 253, 0.45)';
+                ctx.lineWidth = (d % 45 === 0) ? 1.8 : 1.0;
+                ctx.beginPath();
+                ctx.moveTo(center.x + innerR * Math.cos(rad), center.y + innerR * Math.sin(rad));
+                ctx.lineTo(center.x + ringRadius * Math.cos(rad), center.y + ringRadius * Math.sin(rad));
+                ctx.stroke();
+            }
+
+            // 5. 繪製左右兩顆「🔄 旋轉控制把手」與上方角度指針點
+            const drawHandle = (pt, isPrimary) => {
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, isPrimary ? handleRadius : handleRadius * 0.78, 0, Math.PI * 2);
+                ctx.fillStyle = isRotating ? '#f59e0b' : (isPrimary ? '#0284c7' : '#0f172a');
+                ctx.fill();
+                ctx.lineWidth = 2.2;
+                ctx.strokeStyle = '#fde047';
+                ctx.stroke();
+
+                ctx.font = `bold ${Math.max(10, Math.round(9 * SCALE))}px "Noto Sans TC", sans-serif`;
+                ctx.fillStyle = '#ffffff';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('↻', pt.x, pt.y + 0.5);
+            };
+
+            drawHandle(handleRight, true);
+            drawHandle(handleLeft, false);
+
+            ctx.beginPath();
+            ctx.arc(handleTop.x, handleTop.y, 4.5 * SCALE, 0, Math.PI * 2);
+            ctx.fillStyle = '#fde047';
+            ctx.fill();
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // 6. 頂部即時角度數值與操作提示標籤
+            ctx.font = 'bold 12px "Noto Sans TC", sans-serif';
+            ctx.fillStyle = '#fde047';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = 'rgba(0,0,0,0.92)';
+            ctx.shadowBlur = 4;
+            const normDeg = ((deg % 360) + 540) % 360 - 180;
+            ctx.fillText(
+                `🔄 拉動外圈圓鈕調整角度 (${normDeg >= 0 ? '+' : ''}${normDeg}°) · 按住中央魚身即可拖曳擺放`,
+                center.x,
+                center.y - ringRadius - 12 * SCALE
+            );
+
+            ctx.restore();
+        }
+
+        function handlePointerDown(e) {
+            const pt = getCanvasPoint(e);
+            if (isNaN(pt.x) || isNaN(pt.y)) return;
+            pointerPos = pt;
+
+            // 【開局功能】在還沒放置任何小魚及骰子轉動前，點擊或觸控鯨魚時會依照點擊位置力臂發生真實物理搖擺！
+            if (fishBodies.length === 0 && !stagedFishBody && !isDiceRolling && whaleBody) {
+                const hitWhale = Matter.Query.point([whaleBody], pt);
+                const distToWhale = Vector.magnitude(Vector.sub(pt, whaleBody.position));
+                if (hitWhale.length > 0 || distToWhale < 95 * SCALE) {
+                    const dx = pt.x - whaleBody.position.x;
+                    const normArm = Math.abs(dx) < 12 * SCALE ? (Math.random() > 0.5 ? 0.45 : -0.45) : Math.max(-1.2, Math.min(1.2, dx / (65 * SCALE)));
+                    const impulseScale = SCAD_PARAMS.material_mode === 'bambu_pla' ? 0.055 : 0.042;
+                    Body.set(whaleBody, { isSleeping: false });
+                    Body.setAngularVelocity(whaleBody, whaleBody.angularVelocity + normArm * impulseScale);
+
+                    whaleTapRipples.push({
+                        x: pt.x,
+                        y: pt.y,
+                        startTime: performance.now(),
+                        sideText: dx < 0 ? '🌊 輕壓鯨魚頭測試搖擺！' : '🌊 輕壓鯨魚尾測試搖擺！'
+                    });
+                    return;
+                }
+            }
+
+            // 規則限制：只允許操作「剛骰出來、尚未放手落定的那隻待命小魚 (stagedFishBody)」
+            if (!stagedFishBody || stagedFishBody.scadMeta.isLockedAfterDrop) {
+                return;
+            }
+
+            const gizmo = getStagedRotationGizmoGeometry(stagedFishBody);
+            const distCenter = Vector.magnitude(Vector.sub(pt, gizmo.center));
+            const distRightHandle = Vector.magnitude(Vector.sub(pt, gizmo.handleRight));
+            const distLeftHandle = Vector.magnitude(Vector.sub(pt, gizmo.handleLeft));
+            const distTopHandle = Vector.magnitude(Vector.sub(pt, gizmo.handleTop));
+            const hitFishBody = Matter.Query.point([stagedFishBody], pt).length > 0;
+
+            // 判斷 1：若點擊在旋轉把手 (↻) 上，或點擊在外圍旋轉輔助圓環帶上，進入「旋轉角度模式 ('rotate')」(針對 iPad 手指觸控放寬感應半徑)
+            const hitRotationHandle = (
+                distRightHandle <= gizmo.handleRadius * 1.65 ||
+                distLeftHandle <= gizmo.handleRadius * 1.55 ||
+                distTopHandle <= gizmo.handleRadius * 1.35
+            );
+            const hitRotationRing = (!hitFishBody && distCenter >= 22 * SCALE && distCenter <= 56 * SCALE);
+
+            if (hitRotationHandle || hitRotationRing) {
+                dragInteractionMode = 'rotate';
+                rotateStartPointerAngle = Math.atan2(pt.y - gizmo.center.y, pt.x - gizmo.center.x);
+                rotateStartFishAngle = stagedFishBody.angle || 0;
+                return;
+            }
+
+            // 判斷 2：若點擊在小魚本體內部，進入「固定角度平移擺放模式 ('move')」
+            if (hitFishBody || distCenter < 24 * SCALE) {
+                dragInteractionMode = 'move';
+                draggedBody = stagedFishBody;
+                dragGrabOffset = {
+                    x: pt.x - draggedBody.position.x,
+                    y: pt.y - draggedBody.position.y
+                };
+
+                // 保持 Static 與 GHOST 無碰撞遮罩，並維持使用者剛剛選好的角度不變！
+                setBodyStaticSafe(draggedBody, true);
+                setBodyCollisionMode(draggedBody, true);
+                isDraggingOverlapping = checkBodyOverlapWithPlaced(draggedBody);
+            }
+        }
+
+        function handlePointerMove(e) {
+            if (!dragInteractionMode) return;
+            const pt = getCanvasPoint(e);
+            if (isNaN(pt.x) || isNaN(pt.y)) return;
+            pointerPos = pt;
+
+            if (dragInteractionMode === 'rotate' && stagedFishBody) {
+                // 依滑鼠繞行中心點的角度差，平滑旋轉待命小魚角度
+                const center = stagedFishBody.position;
+                const curPointerAngle = Math.atan2(pt.y - center.y, pt.x - center.x);
+                const newAngle = rotateStartFishAngle + (curPointerAngle - rotateStartPointerAngle);
+
+                Body.setAngle(stagedFishBody, newAngle);
+                stagedFishBody.anglePrev = newAngle;
+                Body.setAngularVelocity(stagedFishBody, 0);
+            } else if (dragInteractionMode === 'move' && draggedBody) {
+                // 按住魚身拖曳：嚴格保持已選定的角度，不產生鐘擺懸垂晃動
+                const fixedAngle = draggedBody.angle;
+                const newX = pt.x - dragGrabOffset.x;
+                const newY = pt.y - dragGrabOffset.y;
+
+                Body.setPosition(draggedBody, { x: newX, y: newY });
+                Body.setAngle(draggedBody, fixedAngle);
+                Body.setVelocity(draggedBody, { x: 0, y: 0 });
+                Body.setAngularVelocity(draggedBody, 0);
+
+                draggedBody.positionPrev.x = newX;
+                draggedBody.positionPrev.y = newY;
+                draggedBody.anglePrev = fixedAngle;
+
+                isDraggingOverlapping = checkBodyOverlapWithPlaced(draggedBody);
+            }
+        }
+
+        function handlePointerUp() {
+            if (!dragInteractionMode) return;
+
+            // 若剛才是在調整旋轉角度，鬆開滑鼠後保留該角度並繼續停留在上方，等待玩家按住魚身擺放
+            if (dragInteractionMode === 'rotate') {
+                dragInteractionMode = null;
+                return;
+            }
+
+            if (dragInteractionMode === 'move' && draggedBody) {
+                const releasingBody = draggedBody;
+                const chosenAngle = releasingBody.angle;
+                draggedBody = null;
+                dragInteractionMode = null;
+
+                const titleEl = document.getElementById('diceStatusTitle');
+                const subEl = document.getElementById('diceStatusSub');
+
+                // 檢查放手瞬間是否接觸到既有積木、鯨魚或地面（或是被拖出畫面外）
+                const isOutOfBounds = releasingBody.position.x < 40 || releasingBody.position.x > canvas.width - 40 || releasingBody.position.y < 30;
+                const overlappingNow = checkBodyOverlapWithPlaced(releasingBody) || isOutOfBounds;
+
+                if (overlappingNow) {
+                    // 禁止在接觸既有積木時放開：將小魚安全彈回鯨魚正上方待命位置，且保留玩家選好的角度！
+                    const spawnPos = releasingBody.scadMeta.spawnAnchor || {
+                        x: whaleBody ? whaleBody.position.x : ORIGIN_X,
+                        y: Math.max(125, Math.min(canvas.height * 0.23, scadToWorld(0, 125).y))
+                    };
+                    setBodyStaticSafe(releasingBody, true);
+                    Body.setPosition(releasingBody, spawnPos);
+                    Body.setAngle(releasingBody, chosenAngle);
+                    Body.setVelocity(releasingBody, { x: 0, y: 0 });
+                    Body.setAngularVelocity(releasingBody, 0);
+                    setBodyCollisionMode(releasingBody, true);
+                    isDraggingOverlapping = false;
+
+                    titleEl.textContent = '⚠️ 放開位置不可接觸既有積木！';
+                    titleEl.className = 'text-xs sm:text-sm font-black text-rose-400';
+                    subEl.textContent = '小魚已回到上方（保留您設定的角度），請移至無重疊處再鬆手。';
+                    return;
+                }
+
+                // 合法放手：解除 Static 與幽靈模式，以玩家設定的角度垂直落下，並永久鎖定不可再次拖曳！
+                releasingBody.scadMeta.isLockedAfterDrop = true;
+                setBodyCollisionMode(releasingBody, false);
+                setBodyStaticSafe(releasingBody, false);
+                Body.setAngle(releasingBody, chosenAngle);
+                Body.setVelocity(releasingBody, { x: 0, y: 0 });
+                Body.setAngularVelocity(releasingBody, 0);
+                Body.set(releasingBody, { frictionAir: 0.018 });
+
+                if (stagedFishBody === releasingBody) {
+                    stagedFishBody = null;
+                }
+                isDraggingOverlapping = false;
+
+                const remainingCount = unplacedFishPool.filter(f => !f.placed).length;
+                titleEl.textContent = '✅ 小魚已依設定角度落下！';
+                titleEl.className = 'text-xs sm:text-sm font-black text-emerald-400';
+                subEl.textContent = remainingCount > 0
+                    ? `已放開的小魚不可再移動。請點擊 3D 骰子抽下一隻（剩 ${remainingCount} 隻）！`
+                    : '🎉 16 隻小魚已全數擺放完畢！觀察鯨魚是否維持平衡！';
+            }
+        }
+
+        canvas.addEventListener('mousedown', handlePointerDown);
+        window.addEventListener('mousemove', handlePointerMove);
+        window.addEventListener('mouseup', handlePointerUp);
+
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handlePointerDown(e); }, { passive: false });
+        window.addEventListener('touchmove', (e) => { if (dragInteractionMode) e.preventDefault(); handlePointerMove(e); }, { passive: false });
+        window.addEventListener('touchend', handlePointerUp);
+
+        // =========================================================================
+        // 9. 左側無邊框 Three.js 真 3D 木頭六色骰子渲染與彈跳擲骰動畫
+        // =========================================================================
+        let diceScene, diceCamera, diceRenderer, diceMesh;
+        let diceAnimState = {
+            active: false,
+            startTime: 0,
+            duration: 920,
+            startRot: { x: 0.4, y: 0.6, z: 0 },
+            endRot: { x: 0.4, y: 0.6, z: 0 }
+        };
+
+        function createDiceFaceTexture(colorHex, colorName) {
+            const c = document.createElement('canvas');
+            c.width = 256;
+            c.height = 256;
+            const g = c.getContext('2d');
+
+            // 繪製木紋底色與圓角邊框質感
+            g.fillStyle = '#d9b382';
+            g.fillRect(0, 0, 256, 256);
+
+            // 內縮圓角彩色漆面
+            const pad = 16;
+            const r = 36;
+            g.fillStyle = colorHex;
+            g.beginPath();
+            g.moveTo(pad + r, pad);
+            g.arcTo(256 - pad, pad, 256 - pad, 256 - pad, r);
+            g.arcTo(256 - pad, 256 - pad, pad, 256 - pad, r);
+            g.arcTo(pad, 256 - pad, pad, pad, r);
+            g.arcTo(pad, pad, 256 - pad, pad, r);
+            g.closePath();
+            g.fill();
+
+            // 柔和木紋刷線
+            g.fillStyle = 'rgba(255,255,255,0.08)';
+            for (let i = 0; i < 16; i++) {
+                g.fillRect(pad, pad + i * 14, 256 - pad * 2, 4);
+            }
+
+            // 中央立體感小魚剪影與色名
+            g.fillStyle = 'rgba(255,255,255,0.95)';
+            g.beginPath();
+            g.ellipse(115, 112, 46, 30, 0, 0, Math.PI * 2);
+            g.fill();
+            g.beginPath();
+            g.moveTo(150, 112);
+            g.lineTo(192, 82);
+            g.lineTo(192, 142);
+            g.closePath();
+            g.fill();
+
+            g.fillStyle = colorHex;
+            g.beginPath();
+            g.arc(92, 105, 6, 0, Math.PI * 2);
+            g.fill();
+
+            g.fillStyle = '#ffffff';
+            g.font = '900 32px "Noto Sans TC", sans-serif';
+            g.textAlign = 'center';
+            g.fillText(colorName, 128, 196);
+
+            const tex = new THREE.CanvasTexture(c);
+            tex.anisotropy = 4;
+            return tex;
+        }
+
+        function initThreeDice() {
+            const diceCanvas = document.getElementById('dice3DCanvas');
+            const w = diceCanvas.clientWidth || 160;
+            const h = diceCanvas.clientHeight || 160;
+
+            diceScene = new THREE.Scene();
+            diceCamera = new THREE.PerspectiveCamera(36, w / h, 0.1, 100);
+            diceCamera.position.set(0, 0, 5.2);
+
+            diceRenderer = new THREE.WebGLRenderer({ canvas: diceCanvas, alpha: true, antialias: true });
+            diceRenderer.setSize(w, h);
+            diceRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            const ambLight = new THREE.AmbientLight(0xffffff, 0.85);
+            diceScene.add(ambLight);
+
+            const dirLight = new THREE.DirectionalLight(0xfffbeb, 0.9);
+            dirLight.position.set(4, 6, 7);
+            diceScene.add(dirLight);
+
+            // 依 matIndex 0~5 排序建立六面材質
+            const materials = new Array(6);
+            DICE_COLORS.forEach(dc => {
+                materials[dc.matIndex] = new THREE.MeshStandardMaterial({
+                    map: createDiceFaceTexture(dc.hex, dc.name),
+                    roughness: 0.35,
+                    metalness: 0.05
+                });
+            });
+
+            const geom = new THREE.BoxGeometry(2.15, 2.15, 2.15);
+            diceMesh = new THREE.Mesh(geom, materials);
+            diceMesh.rotation.set(0.35, -0.45, 0);
+            diceScene.add(diceMesh);
+        }
+
+        function updateThreeDiceAnimation(now) {
+            if (!diceRenderer || !diceMesh) return;
+
+            if (diceAnimState.active) {
+                const elapsed = now - diceAnimState.startTime;
+                const t = Math.min(1, elapsed / diceAnimState.duration);
+                // EaseOutBack + 拋物線彈跳
+                const ease = 1 - Math.pow(1 - t, 3);
+
+                diceMesh.rotation.x = diceAnimState.startRot.x + (diceAnimState.endRot.x - diceAnimState.startRot.x) * ease;
+                diceMesh.rotation.y = diceAnimState.startRot.y + (diceAnimState.endRot.y - diceAnimState.startRot.y) * ease;
+                diceMesh.rotation.z = diceAnimState.startRot.z + (diceAnimState.endRot.z - diceAnimState.startRot.z) * ease;
+
+                // 真實向上拋起並彈跳落下的 Y 位移與縮放感
+                const jumpArc = Math.sin(t * Math.PI) * 0.65 + Math.sin(t * Math.PI * 3) * 0.12 * (1 - t);
+                diceMesh.position.y = jumpArc;
+                const s = 1 + Math.sin(t * Math.PI) * 0.18;
+                diceMesh.scale.set(s, s, s);
+
+                if (t >= 1) {
+                    diceAnimState.active = false;
+                    diceMesh.position.y = 0;
+                    diceMesh.scale.set(1, 1, 1);
+                }
+            } else {
+                // 待機時柔和懸浮微動
+                diceMesh.position.y = Math.sin(now * 0.003) * 0.06;
+            }
+
+            diceRenderer.render(diceScene, diceCamera);
+        }
+
+        document.getElementById('dice3DWrapper').addEventListener('click', () => {
+            if (isDiceRolling) return;
+
+            const titleEl = document.getElementById('diceStatusTitle');
+            const subEl = document.getElementById('diceStatusSub');
+
+            // 若鯨魚正上方還有剛骰出來、尚未擺放落下的小魚，提醒玩家先完成該隻小魚的擺放
+            if (stagedFishBody && !stagedFishBody.scadMeta.isLockedAfterDrop) {
+                titleEl.textContent = '🐟 請先擺放上方的小魚！';
+                titleEl.className = 'text-xs sm:text-sm font-black text-amber-300 animate-bounce';
+                subEl.textContent = '將鯨魚正上方的小魚拖曳至理想位置放開後，即可擲下一次骰子。';
+                return;
+            }
+
+            const remainingAll = unplacedFishPool.filter(f => !f.placed);
+
+            if (remainingAll.length === 0) {
+                titleEl.textContent = '🎉 16 隻小魚已全數出場！';
+                titleEl.className = 'text-xs sm:text-sm font-black text-emerald-400';
+                subEl.textContent = '請點擊右上角「重新開始」再玩一局。';
+                return;
+            }
+
+            isDiceRolling = true;
+            diceSpinCount++;
+
+            // 隨機決定骰出的六種顏色之一
+            const rolledColorObj = DICE_COLORS[Math.floor(Math.random() * DICE_COLORS.length)];
+
+            // 設定 Three.js 3D 骰子多圈翻滾目標角度（稍微帶一點傾角讓 3D 立體面更明顯）
+            const spinsX = (3 + Math.floor(Math.random() * 2)) * Math.PI * 2;
+            const spinsY = (3 + Math.floor(Math.random() * 2)) * Math.PI * 2;
+            diceAnimState.active = true;
+            diceAnimState.startTime = performance.now();
+            diceAnimState.startRot = {
+                x: diceMesh.rotation.x % (Math.PI * 2),
+                y: diceMesh.rotation.y % (Math.PI * 2),
+                z: diceMesh.rotation.z % (Math.PI * 2)
+            };
+            diceAnimState.endRot = {
+                x: rolledColorObj.targetRot.x + spinsX + 0.18,
+                y: rolledColorObj.targetRot.y + spinsY - 0.18,
+                z: rolledColorObj.targetRot.z
+            };
+
+            titleEl.textContent = '🎲 3D 骰子翻滾中...';
+            titleEl.className = 'text-xs sm:text-sm font-black text-amber-300 animate-pulse';
+            subEl.textContent = '正在決定下一隻出場的小魚顏色...';
+
+            setTimeout(() => {
+                isDiceRolling = false;
+
+                // 檢查該顏色是否還有未擺放的小魚
+                const sameColorAvailable = remainingAll.filter(f => f.colorKey === rolledColorObj.key);
+                let chosenFish = null;
+
+                if (sameColorAvailable.length > 0) {
+                    chosenFish = sameColorAvailable[Math.floor(Math.random() * sameColorAvailable.length)];
+                    chosenFish.placed = true;
+
+                    titleEl.innerHTML = `骰出：<span style="color:${rolledColorObj.hex}">【${rolledColorObj.name}】</span>`;
+                    titleEl.className = 'text-xs sm:text-sm font-black text-white';
+                    subEl.textContent = `${rolledColorObj.name}${FISH_TYPE_NAMES[chosenFish.type]}已出現在鯨魚正上方，請拖曳擺放！`;
+                } else {
+                    chosenFish = remainingAll[Math.floor(Math.random() * remainingAll.length)];
+                    chosenFish.placed = true;
+                    const fallbackColorObj = DICE_COLORS.find(c => c.key === chosenFish.colorKey);
+
+                    titleEl.innerHTML = `<span style="color:${rolledColorObj.hex}">【${rolledColorObj.name}】</span>已無庫存`;
+                    titleEl.className = 'text-xs sm:text-sm font-black text-amber-300';
+                    subEl.innerHTML = `⚠️ 該顏色沒有了！隨機給一隻<span style="color:${fallbackColorObj.hex};font-weight:bold;">【${fallbackColorObj.name}${FISH_TYPE_NAMES[chosenFish.type]}】</span>在鯨魚上方！`;
+                }
+
+                renderUnplacedFishGallery();
+                spawnStagedFishAboveWhale(chosenFish);
+            }, 930);
+        });
+
+        // 物理參數抽屜開關與材質模式切換UI同步
+        function syncMaterialModeUI() {
+            const isPLA = SCAD_PARAMS.material_mode === 'bambu_pla';
+            const quickBtn = document.getElementById('btnQuickMaterial');
+            const btnWood = document.getElementById('btnMatWood');
+            const btnPLA = document.getElementById('btnMatPLA');
+            const infillBox = document.getElementById('bambuInfillBox');
+            const matTag = document.getElementById('lblMaterialTag');
+
+            if (isPLA) {
+                quickBtn.innerHTML = `🖨️ 3D列印PLA (${SCAD_PARAMS.pla_infill_percent}%)`;
+                quickBtn.className = 'px-2.5 py-1 rounded-xl bg-sky-500/25 hover:bg-sky-500/35 border border-sky-400/50 text-[11px] font-bold text-sky-200 transition active:scale-95';
+                btnPLA.className = 'py-1.5 px-2 rounded-lg border text-[11px] font-bold transition flex flex-col items-center bg-sky-500/25 border-sky-400 text-white';
+                btnWood.className = 'py-1.5 px-2 rounded-lg border text-[11px] font-bold transition flex flex-col items-center bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white';
+                infillBox.classList.remove('hidden');
+                matTag.textContent = `3D列印PLA 2壁+${SCAD_PARAMS.pla_infill_percent}%填充`;
+                matTag.className = 'text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-200 mono';
+            } else {
+                quickBtn.innerHTML = '🪵 實心原木';
+                quickBtn.className = 'px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-[11px] font-bold text-amber-200 transition active:scale-95';
+                btnWood.className = 'py-1.5 px-2 rounded-lg border text-[11px] font-bold transition flex flex-col items-center bg-amber-500/25 border-amber-400 text-white';
+                btnPLA.className = 'py-1.5 px-2 rounded-lg border text-[11px] font-bold transition flex flex-col items-center bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white';
+                infillBox.classList.add('hidden');
+                matTag.textContent = '山毛櫸 ρ=0.72g/cm³';
+                matTag.className = 'text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-200 mono';
+            }
+        }
+
+        function setMaterialMode(mode) {
+            SCAD_PARAMS.material_mode = mode;
+            SCAD_PARAMS.surface_friction = (mode === 'bambu_pla') ? 0.45 : 0.65;
+            document.getElementById('rngFriction').value = SCAD_PARAMS.surface_friction;
+            document.getElementById('lblFriction').textContent = SCAD_PARAMS.surface_friction.toFixed(2);
+            syncMaterialModeUI();
+            refreshPhysicsParameters();
+        }
+
+        document.getElementById('btnQuickMaterial').addEventListener('click', () => {
+            setMaterialMode(SCAD_PARAMS.material_mode === 'wood' ? 'bambu_pla' : 'wood');
+        });
+        document.getElementById('btnMatWood').addEventListener('click', () => setMaterialMode('wood'));
+        document.getElementById('btnMatPLA').addEventListener('click', () => setMaterialMode('bambu_pla'));
+
+        document.getElementById('rngInfillPct').addEventListener('input', (e) => {
+            SCAD_PARAMS.pla_infill_percent = parseInt(e.target.value, 10);
+            document.getElementById('lblInfillPct').textContent = SCAD_PARAMS.pla_infill_percent;
+            syncMaterialModeUI();
+            refreshPhysicsParameters();
+        });
+
+        document.getElementById('btnToggleSettings').addEventListener('click', () => {
+            document.getElementById('settingsPopover').classList.toggle('hidden');
+        });
+        document.getElementById('btnCloseSettings').addEventListener('click', () => {
+            document.getElementById('settingsPopover').classList.add('hidden');
+        });
+
+        // iPad 展場全螢幕與防手勢跳出設定步驟 彈窗開關控制
+        const ipadGuideModal = document.getElementById('ipadGuideModal');
+        document.getElementById('btnOpenIpadGuide').addEventListener('click', () => {
+            ipadGuideModal.classList.remove('hidden');
+        });
+        document.getElementById('btnCloseIpadGuideTop').addEventListener('click', () => {
+            ipadGuideModal.classList.add('hidden');
+        });
+        document.getElementById('btnCloseIpadGuideBottom').addEventListener('click', () => {
+            ipadGuideModal.classList.add('hidden');
+        });
+        ipadGuideModal.addEventListener('click', (e) => {
+            if (e.target === ipadGuideModal) {
+                ipadGuideModal.classList.add('hidden');
+            }
+        });
+
+        document.getElementById('btnResetTray').addEventListener('click', () => {
+            setupFreshGameScene();
+        });
+
+        // 綁定 OpenSCAD 物理參數控制項
+        document.getElementById('chkCavity').addEventListener('change', (e) => {
+            SCAD_PARAMS.enable_balance_cavity = e.target.checked;
+            refreshPhysicsParameters();
+        });
+
+        document.getElementById('chkCutaway').addEventListener('change', (e) => {
+            SCAD_PARAMS.cutaway_view = e.target.checked;
+        });
+
+        document.getElementById('chkPhysicsGuide').addEventListener('change', (e) => {
+            SCAD_PARAMS.show_physics_guide = e.target.checked;
+        });
+
+        document.getElementById('rngRockerRadius').addEventListener('input', (e) => {
+            SCAD_PARAMS.rocker_radius = parseFloat(e.target.value);
+            document.getElementById('lblRockerRadius').textContent = SCAD_PARAMS.rocker_radius;
+            refreshPhysicsParameters();
+        });
+
+        document.getElementById('rngXShift').addEventListener('input', (e) => {
+            SCAD_PARAMS.balance_x_shift = parseFloat(e.target.value);
+            document.getElementById('lblXShift').textContent = (SCAD_PARAMS.balance_x_shift > 0 ? '+' : '') + SCAD_PARAMS.balance_x_shift;
+            refreshPhysicsParameters();
+        });
+
+        document.getElementById('rngBlockThick').addEventListener('input', (e) => {
+            SCAD_PARAMS.block_thickness = parseFloat(e.target.value);
+            document.getElementById('lblBlockThick').textContent = SCAD_PARAMS.block_thickness;
+            document.getElementById('labelThickness').textContent = SCAD_PARAMS.block_thickness;
+            refreshPhysicsParameters();
+        });
+
+        document.getElementById('rngFriction').addEventListener('input', (e) => {
+            SCAD_PARAMS.surface_friction = parseFloat(e.target.value);
+            document.getElementById('lblFriction').textContent = SCAD_PARAMS.surface_friction.toFixed(2);
+            refreshPhysicsParameters();
+        });
+
+        document.getElementById('btnResetParams').addEventListener('click', () => {
+            SCAD_PARAMS.material_mode = 'wood';
+            SCAD_PARAMS.pla_infill_percent = 15;
+            SCAD_PARAMS.enable_balance_cavity = true;
+            SCAD_PARAMS.rocker_radius = 115;
+            SCAD_PARAMS.balance_x_shift = -6;
+            SCAD_PARAMS.block_thickness = 18;
+            SCAD_PARAMS.surface_friction = 0.65;
+
+            document.getElementById('rngInfillPct').value = 15;
+            document.getElementById('lblInfillPct').textContent = '15';
+            document.getElementById('chkCavity').checked = true;
+            document.getElementById('rngRockerRadius').value = 115;
+            document.getElementById('lblRockerRadius').textContent = '115';
+            document.getElementById('rngXShift').value = -6;
+            document.getElementById('lblXShift').textContent = '-6';
+            document.getElementById('rngBlockThick').value = 18;
+            document.getElementById('lblBlockThick').textContent = '18';
+            document.getElementById('labelThickness').textContent = '18';
+            document.getElementById('rngFriction').value = 0.65;
+            document.getElementById('lblFriction').textContent = '0.65';
+
+            syncMaterialModeUI();
+            refreshPhysicsParameters();
+        });
+
+        // =========================================================================
+        // 10. 針對 iPad 6 (4:3 比例) 與各螢幕之視窗自適應縮放與主渲染迴圈
+        // =========================================================================
+        function resizeCanvasAndWorld(isInitial = false) {
+            const container = document.getElementById('canvasContainer');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+
+            // 考量左側 3D 骰子與右側緊湊小魚盒後的可用中央遊戲寬度，確保在 iPad 6 (1024x768 或 768x1024) 完整顯示不裁切
+            const usableWidth = Math.max(320, canvas.width - 340);
+            const usableHeight = Math.max(300, canvas.height - 120);
+            const minDim = Math.min(usableWidth / 290, usableHeight / 270);
+            SCALE = Math.max(1.15, Math.min(2.25, minDim));
+            document.getElementById('scaleDisplay').textContent = SCALE.toFixed(2);
+
+            // 將鯨魚置於左側骰子與右側木塊盒之間的最佳視覺中心
+            ORIGIN_X = canvas.width * 0.46;
+            const floorScreenY = canvas.height * 0.82;
+            ORIGIN_Y = floorScreenY + FLOOR_SCAD_Y * SCALE;
+
+            woodGrainPattern = createWoodPattern();
+            buildBoundaries();
+
+            if (diceRenderer && diceCamera) {
+                const diceCanvas = document.getElementById('dice3DCanvas');
+                const dw = diceCanvas.clientWidth || 160;
+                const dh = diceCanvas.clientHeight || 160;
+                diceCamera.aspect = dw / dh;
+                diceCamera.updateProjectionMatrix();
+                diceRenderer.setSize(dw, dh);
+            }
+
+            if (isInitial) {
+                setupFreshGameScene();
+            }
+        }
+
+        function drawBackgroundAndTable() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const gridStepPx = 20 * SCALE;
+            ctx.strokeStyle = 'rgba(148, 163, 184, 0.06)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let x = ORIGIN_X % gridStepPx; x < canvas.width; x += gridStepPx) {
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+            }
+            for (let y = ORIGIN_Y % gridStepPx; y < canvas.height; y += gridStepPx) {
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+            }
+            ctx.stroke();
+
+            const floorY = scadToWorld(0, FLOOR_SCAD_Y).y;
+            const tableGrad = ctx.createLinearGradient(0, floorY, 0, canvas.height);
+            tableGrad.addColorStop(0, '#78350f');
+            tableGrad.addColorStop(0.12, '#451a03');
+            tableGrad.addColorStop(1, '#1c0a00');
+
+            ctx.fillStyle = tableGrad;
+            ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
+
+            ctx.strokeStyle = '#d97706';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(0, floorY);
+            ctx.lineTo(canvas.width, floorY);
+            ctx.stroke();
+
+            ctx.fillStyle = 'rgba(253, 230, 138, 0.45)';
+            ctx.font = '10px "JetBrains Mono", monospace';
+            ctx.textAlign = 'center';
+            for (let mm = -160; mm <= 160; mm += 20) {
+                const px = scadToWorld(mm, FLOOR_SCAD_Y).x;
+                ctx.fillRect(px - 0.5, floorY, 1, mm % 40 === 0 ? 10 : 5);
+                if (mm % 40 === 0) {
+                    ctx.fillText(`${mm}mm`, px, floorY + 22);
+                }
+            }
+        }
+
+        function animateLoop(now = performance.now()) {
+            // 執行鯨魚真圓弧底滾動平衡物理與 Matter.js 引擎步進
+            applyWhaleTrueRockerPhysics();
+            Engine.update(engine, 1000 / 60);
+            updateThreeDiceAnimation(now);
+
+            drawBackgroundAndTable();
+
+            // 開局尚未放置任何小魚且未擲骰前，顯示「可點擊鯨魚測試物理搖晃」引導提示
+            if (fishBodies.length === 0 && !stagedFishBody && !isDiceRolling && whaleBody) {
+                ctx.save();
+                ctx.font = 'bold 12px "Noto Sans TC", sans-serif';
+                ctx.fillStyle = 'rgba(186, 230, 253, 0.9)';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = 'rgba(0,0,0,0.85)';
+                ctx.shadowBlur = 4;
+                ctx.fillText('👆 開局體驗：可直接點擊鯨魚頭尾測試真實重力搖擺與回正！（或點擊左側 3D 骰子抽魚）', whaleBody.position.x, whaleBody.position.y - 68 * SCALE);
+                ctx.restore();
+            }
+
+            if (whaleBody) renderWhale(whaleBody);
+
+            for (const fb of fishBodies) {
+                renderFish(fb);
+            }
+
+            // 當有小魚在鯨魚正上方待命時，繪製「旋轉角度輔助環與拖曳把手」
+            if (stagedFishBody && dragInteractionMode !== 'move') {
+                renderStagedFishRotationGizmo(stagedFishBody, now);
+            }
+
+            // 繪製開局點擊鯨魚測試搖擺的水波紋與力回饋動畫
+            if (whaleTapRipples.length > 0) {
+                whaleTapRipples = whaleTapRipples.filter(rp => now - rp.startTime < 750);
+                for (const rp of whaleTapRipples) {
+                    const p = (now - rp.startTime) / 750;
+                    ctx.save();
+                    ctx.strokeStyle = `rgba(56, 189, 248, ${1 - p})`;
+                    ctx.lineWidth = 2.5 * (1 - p);
+                    ctx.beginPath();
+                    ctx.arc(rp.x, rp.y, (8 + p * 38) * SCALE, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    ctx.font = 'bold 11px "Noto Sans TC", sans-serif';
+                    ctx.fillStyle = `rgba(253, 224, 71, ${1 - p})`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(rp.sideText, rp.x, rp.y - (12 + p * 22));
+                    ctx.restore();
+                }
+            }
+
+            // 當按住魚身平移擺放時，繪製垂直落下對齊導引虛線與禁止重疊提示
+            if (dragInteractionMode === 'move' && draggedBody) {
+                const floorY = scadToWorld(0, FLOOR_SCAD_Y).y;
+                const deg = Math.round((-draggedBody.angle * 180) / Math.PI);
+                const normDeg = ((deg % 360) + 540) % 360 - 180;
+
+                ctx.save();
+                // 繪製小魚重心往下落下的鉛垂對齊輔助線
+                ctx.strokeStyle = isDraggingOverlapping ? 'rgba(239, 68, 68, 0.75)' : 'rgba(56, 189, 248, 0.55)';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(draggedBody.position.x, draggedBody.position.y);
+                ctx.lineTo(draggedBody.position.x, floorY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.font = 'bold 12px "Noto Sans TC", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = 'rgba(0,0,0,0.95)';
+                ctx.shadowBlur = 4;
+
+                if (isDraggingOverlapping) {
+                    ctx.fillStyle = '#fca5a5';
+                    ctx.fillText('🚫 接觸到既有積木！請移至上方淨空處再放手', draggedBody.position.x, draggedBody.position.y - 26 * SCALE);
+                } else {
+                    ctx.fillStyle = '#fde047';
+                    ctx.fillText(`📐 固定角度 ${normDeg >= 0 ? '+' : ''}${normDeg}° · 鬆手即可垂直落下擺放`, draggedBody.position.x, draggedBody.position.y - 26 * SCALE);
+                }
+                ctx.restore();
+            }
+
+            computeAndRenderPhysicsOverlay();
+
+            requestAnimationFrame(animateLoop);
+        }
+
+        window.onload = function () {
+            initThreeDice();
+            resizeCanvasAndWorld(true);
+            window.addEventListener('resize', () => resizeCanvasAndWorld(false));
+            requestAnimationFrame(animateLoop);
+        };
+    </script>
+</body>
+</html>

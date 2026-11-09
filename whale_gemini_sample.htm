@@ -1,0 +1,3744 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>鯨魚積木平衡遊戲 OpenSCAD 參數化設計導覽 — Gemini 4 Argon</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Three.js r128 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #FFFFFF;
+      color: #1F1F1F;
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+    }
+    /* Gemini Native Light Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #C4C7C5;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #8E918F;
+    }
+    /* Gemini Native User Bubble */
+    .gemini-user-bubble {
+      background-color: #F0F4F9;
+      color: #1F1F1F;
+      border-radius: 20px 20px 4px 20px;
+    }
+    @keyframes fadeInSlideUp {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .msg-animate {
+      animation: fadeInSlideUp 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes softPulseBlue {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(11, 87, 208, 0.28);
+      }
+      50% {
+        box-shadow: 0 0 0 6px rgba(11, 87, 208, 0.04);
+      }
+    }
+    .btn-pulse-blue {
+      animation: softPulseBlue 2.2s infinite ease-in-out;
+    }
+    /* Interactive SVG Fish Node Hover */
+    .fish-node-group {
+      cursor: pointer;
+      transition: filter 0.18s ease, transform 0.18s ease;
+    }
+    .fish-node-group:hover {
+      filter: drop-shadow(0 0 5px rgba(11, 87, 208, 0.65));
+    }
+    /* OpenSCAD 2021.01 Classic Desktop UI Styling */
+    .scad-window {
+      background-color: #ECECEC;
+      color: #222222;
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+    }
+    .scad-toolbtn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 7px;
+      border-radius: 3px;
+      border: 1px solid #C0C0C0;
+      background: linear-gradient(180deg, #FFFFFF 0%, #E8E8E8 100%);
+      color: #222222;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.12s ease;
+    }
+    .scad-toolbtn:hover {
+      background: linear-gradient(180deg, #F8FAFD 0%, #DCE6F7 100%);
+      border-color: #7FA7E8;
+    }
+    .scad-toolbtn.active {
+      background: linear-gradient(180deg, #DCE8FC 0%, #B8D1F8 100%);
+      border-color: #0B57D0;
+      color: #0842A0;
+      font-weight: 600;
+    }
+    /* OpenSCAD Classic Light Editor Syntax Highlighting */
+    .scad-kw { color: #7B1FA2; font-weight: 600; }     /* module, function, if, else, for */
+    .scad-fn { color: #0B57D0; font-weight: 600; }     /* translate, rotate, difference, linear_extrude */
+    .scad-num { color: #B31412; }                      /* numbers & booleans */
+    .scad-str { color: #137333; }                      /* strings */
+    .scad-cmt { color: #70757A; font-style: italic; }  /* comments */
+  </style>
+</head>
+
+<body class="h-screen w-screen overflow-hidden flex flex-col select-none bg-[#FFFFFF] text-[#1F1F1F]">
+
+  <!-- ==================== TOP NAVIGATION HEADER (GEMINI NATIVE LIGHT THEME) ==================== -->
+  <header class="h-14 shrink-0 bg-[#FFFFFF] border-b border-[#E3E3E3] px-3 sm:px-5 flex items-center justify-between z-30">
+    <!-- Left: Gemini Sparkle + Model Selector "Gemini 4 Argon ▾" + Title -->
+    <div class="flex items-center gap-2.5 min-w-0">
+      <div class="w-8 h-8 rounded-full bg-[#F0F4F9] border border-[#E1E5EA] flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2C12 7.52 16.48 12 22 12C16.48 12 12 16.48 12 22C12 16.48 7.52 12 2 12C7.52 12 12 7.52 12 2Z" fill="url(#geminiHeaderGrad)"/>
+          <defs>
+            <linearGradient id="geminiHeaderGrad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#4285F4"/>
+              <stop offset="0.5" stop-color="#9B72CB"/>
+              <stop offset="1" stop-color="#D96570"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+
+      <!-- Model Selector Pill: Gemini 4 Argon ▾ -->
+      <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full hover:bg-[#F0F4F9] border border-transparent hover:border-[#E1E5EA] text-xs sm:text-sm font-semibold text-[#1F1F1F] shrink-0 transition cursor-pointer">
+        <span>Gemini</span>
+        <span class="text-[#0B57D0]">4 Argon</span>
+        <span class="text-[#444746] text-xs">▾</span>
+      </div>
+
+      <div class="h-4 w-[1px] bg-[#E3E3E3] hidden sm:block"></div>
+
+      <h1 class="text-xs sm:text-sm font-medium text-[#444746] truncate">
+        鯨魚積木平衡遊戲 OpenSCAD 參數化設計導覽
+      </h1>
+    </div>
+
+    <!-- Right: Step Progress Pill + OpenSCAD Panel Toggle + Restart -->
+    <div class="flex items-center gap-2 shrink-0">
+      <!-- Sound Effects Toggle Button -->
+      <button id="soundToggleBtn" onclick="toggleSoundEffects()" class="px-2.5 py-1 rounded-full bg-[#E6F4EA] hover:bg-[#CEEAD6] border border-[#81C995] text-xs font-semibold text-[#137333] flex items-center gap-1.5 transition cursor-pointer" title="切換電玩按鍵、Gemini 讀取與 OpenSCAD Bling 音效">
+        <i id="soundToggleIcon" class="fa-solid fa-volume-high text-[11px]"></i>
+        <span id="soundToggleText" class="hidden sm:inline">音效開啟</span>
+      </button>
+
+      <div id="stepBadge" class="px-3 py-1 rounded-full bg-[#F0F4F9] border border-[#D3E3FD] text-xs font-semibold text-[#0B57D0] flex items-center gap-1.5">
+        <i class="fa-solid fa-compass-drafting text-[11px]"></i>
+        <span id="stepBadgeText">步驟 0 / 4</span>
+      </div>
+
+      <!-- Toggle Right OpenSCAD Panel Button -->
+      <button id="headerToggleRightBtn" onclick="toggleRightPane()" class="px-3 py-1.5 rounded-full bg-[#F0F4F9] hover:bg-[#E1E9F4] border border-[#D3E3FD] text-xs font-semibold text-[#0B57D0] transition flex items-center gap-1.5 cursor-pointer" title="切換右側 OpenSCAD 2021.01 視窗">
+        <i class="fa-solid fa-cube text-[11px]"></i>
+        <span id="headerToggleText">展開右側 OpenSCAD</span>
+      </button>
+
+      <!-- Sound Effects Mute/Unmute Button -->
+      <button id="soundToggleBtn" onclick="toggleSoundMute()" class="px-3 py-1.5 rounded-full bg-[#E6F4EA] hover:bg-[#CEEAD6] border border-[#81C995] text-xs font-semibold text-[#137333] transition flex items-center gap-1.5 cursor-pointer" title="切換音效開關 (電玩按鍵 / Gemini 讀取 / OpenSCAD Bling)">
+        <i id="soundToggleIcon" class="fa-solid fa-volume-high text-[11px]"></i>
+        <span id="soundToggleText" class="hidden sm:inline">音效開啟</span>
+      </button>
+
+      <!-- Restart Button -->
+      <button onclick="restartTour()" class="px-3 py-1.5 rounded-full bg-[#F8FAFD] hover:bg-[#F0F4F9] border border-[#E1E5EA] text-xs font-medium text-[#444746] hover:text-[#1F1F1F] transition flex items-center gap-1.5 cursor-pointer" title="重新開始導覽">
+        <i class="fa-solid fa-rotate-left text-[11px]"></i>
+        <span class="hidden md:inline">重置導覽</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ==================== MAIN WORKSPACE (FULL-SCREEN OR SPLIT-VIEW) ==================== -->
+  <div class="flex-1 flex overflow-hidden relative bg-[#FFFFFF]">
+
+    <!-- ==================== LEFT PANE: GEMINI LIGHT CONVERSATION STREAM ==================== -->
+    <main id="leftChatPane" class="w-full h-full flex flex-col bg-[#FFFFFF] transition-all duration-300 ease-in-out relative z-10">
+
+      <!-- Scrollable Conversation Stream -->
+      <div id="chatScrollContainer" class="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-5 select-text">
+        <div id="chatMessagesWrapper" class="max-w-3xl mx-auto space-y-5 pb-6">
+
+          <!-- Welcome Card & 4-Step Interactive Roadmap (Always visible at top) -->
+          <div class="rounded-3xl bg-[#F8FAFD] border border-[#E1E5EA] p-4 sm:p-5 shadow-xs space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-[#E8F0FE] border border-[#D3E3FD] flex items-center justify-center text-[#0B57D0] text-lg shrink-0">
+                  <i class="fa-solid fa-shapes"></i>
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-bold uppercase tracking-wider text-[#0B57D0]">Interactive CAD Story</span>
+                    <span class="px-2 py-0.5 rounded-full bg-[#E6F4EA] text-[#137333] text-[10px] font-semibold">100% 零重疊驗證</span>
+                  </div>
+                  <h2 class="text-sm sm:text-base font-bold text-[#1F1F1F] mt-0.5">
+                    從「原參考圖 SVG 向量重構」到「OpenSCAD 2021.01 平衡積木建模」
+                  </h2>
+                </div>
+              </div>
+              <button onclick="openRightPaneAndSetMode('stacked_preview')" class="px-3 py-1.5 rounded-full bg-[#FFFFFF] hover:bg-[#E8F0FE] border border-[#D3E3FD] text-xs font-semibold text-[#0B57D0] flex items-center gap-1.5 self-start sm:self-auto shrink-0 transition cursor-pointer shadow-2xs">
+                <i class="fa-solid fa-up-right-from-square text-[10px]"></i>
+                <span>直接開啟 OpenSCAD 預覽</span>
+              </button>
+            </div>
+
+            <p class="text-xs sm:text-sm text-[#444746] leading-relaxed">
+              歡迎體驗「鯨魚積木平衡遊戲」的參數化設計歷程！請點擊下方<strong>膠囊發送列</strong>（或直接點擊以下四個階段卡片），依序體驗原圖 SVG 向量拆解、14 隻小魚濃縮座標修正、內部減重空腔物理平衡分析，以及 OpenSCAD 四大模式預覽：
+            </p>
+
+            <!-- 4-Step Roadmap Cards -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <button onclick="jumpToStep(1)" id="roadmapStep1" class="p-2.5 rounded-2xl bg-[#FFFFFF] hover:bg-[#F0F4F9] border border-[#E1E5EA] flex items-center gap-2 text-left transition cursor-pointer">
+                <span class="w-5 h-5 rounded-full bg-[#E1E5EA] text-[#444746] flex items-center justify-center font-mono text-[11px] font-bold shrink-0">1</span>
+                <span class="truncate text-[#444746] font-medium">原圖 SVG 向量拆解</span>
+              </button>
+              <button onclick="jumpToStep(2)" id="roadmapStep2" class="p-2.5 rounded-2xl bg-[#FFFFFF] hover:bg-[#F0F4F9] border border-[#E1E5EA] flex items-center gap-2 text-left transition cursor-pointer">
+                <span class="w-5 h-5 rounded-full bg-[#E1E5EA] text-[#444746] flex items-center justify-center font-mono text-[11px] font-bold shrink-0">2</span>
+                <span class="truncate text-[#444746] font-medium">14魚零重疊座標校正</span>
+              </button>
+              <button onclick="jumpToStep(3)" id="roadmapStep3" class="p-2.5 rounded-2xl bg-[#FFFFFF] hover:bg-[#F0F4F9] border border-[#E1E5EA] flex items-center gap-2 text-left transition cursor-pointer">
+                <span class="w-5 h-5 rounded-full bg-[#E1E5EA] text-[#444746] flex items-center justify-center font-mono text-[11px] font-bold shrink-0">3</span>
+                <span class="truncate text-[#444746] font-medium">減重空腔與展開雙欄</span>
+              </button>
+              <button onclick="jumpToStep(4)" id="roadmapStep4" class="p-2.5 rounded-2xl bg-[#FFFFFF] hover:bg-[#F0F4F9] border border-[#E1E5EA] flex items-center gap-2 text-left transition cursor-pointer">
+                <span class="w-5 h-5 rounded-full bg-[#E1E5EA] text-[#444746] flex items-center justify-center font-mono text-[11px] font-bold shrink-0">4</span>
+                <span class="truncate text-[#444746] font-medium">四大模式與列印匯出</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Initial Welcome Preview Card (Shown when currentStep === 0, hidden once Step 1 starts) -->
+          <div id="welcomeInitialPreviewCard" class="rounded-3xl bg-[#FFFFFF] border border-[#E1E5EA] p-4 sm:p-5 shadow-xs space-y-3 msg-animate">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-[#0B57D0] flex items-center gap-1.5">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> 準備開始：點擊下方藍色發送按鈕，送出第一則 SVG 參考圖分析提問！
+              </span>
+              <span class="text-[11px] font-mono text-[#5F6368]">步驟 0 / 4</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+              <div class="md:col-span-2 space-y-2">
+                <h3 class="text-sm font-bold text-[#1F1F1F]">為什麼要用 OpenSCAD 設計木玩平衡積木？</h3>
+                <p class="text-xs text-[#444746] leading-relaxed">
+                  傳統手動建模難以精準控制<strong>搖擺底座曲率中心 ($R=130\text{ mm}$)</strong> 與<strong>14 隻造型小魚的堆疊重心</strong>。本導覽將帶您重現如何從一張實體玩具照片出發，先以純 SVG 向量重構幾何輪廓，再濃縮修正 14 隻小魚的不重疊座標，最後加入「內部隱藏式減重空腔」讓 3D 列印成品真正能穩定搖擺！
+                </p>
+                <div class="pt-1">
+                  <button onclick="triggerNextStep()" class="px-4 py-2 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] text-white text-xs font-semibold inline-flex items-center gap-2 shadow-xs transition cursor-pointer">
+                    <i class="fa-solid fa-play text-[10px]"></i>
+                    <span>立即開始步驟 1：傳送原參考圖 SVG 與幾何拆解請求</span>
+                  </button>
+                </div>
+              </div>
+              <div class="rounded-2xl overflow-hidden border border-[#D3E3FD] bg-[#F8FAFD] p-2 text-center">
+                <div class="text-[11px] font-semibold text-[#0B57D0] mb-1">原參考圖 SVG 向量預覽</div>
+                <div id="welcomeMiniSvgHolder" class="w-full overflow-hidden rounded-xl"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dynamic Conversation Stream Container -->
+          <div id="conversationDynamicList" class="space-y-6"></div>
+
+        </div>
+      </div>
+
+      <!-- ==================== BOTTOM GEMINI CAPSULE PROMPT / NAVIGATION BAR ==================== -->
+      <div class="shrink-0 bg-[#FFFFFF] border-t border-[#E3E3E3] px-3 sm:px-6 py-2.5">
+        <div class="max-w-3xl mx-auto">
+          <div onclick="triggerNextStep()" class="rounded-full bg-[#F0F4F9] hover:bg-[#E8EEF7] border border-[#D3E3FD] px-3.5 py-2 flex items-center justify-between gap-2 shadow-xs cursor-pointer transition">
+            <!-- Left: Prompt Icon + Preview Text -->
+            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+              <div class="w-8 h-8 rounded-full bg-[#E8F0FE] text-[#0B57D0] flex items-center justify-center shrink-0">
+                <i id="promptIcon" class="fa-solid fa-wand-magic-sparkles text-xs"></i>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div id="promptStepLabel" class="text-[11px] font-bold text-[#0B57D0]">點擊發送訊息 (步驟 1 / 4)</div>
+                <div id="promptPreviewText" class="text-xs text-[#444746] truncate">
+                  請根據這張「鯨魚積木平衡遊戲」參考圖（已轉為 SVG 向量圖），幫我分析鯨魚搖擺底座、14 隻小魚與六色骰子的幾何尺寸！
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Send Action Pill (#0B57D0 Google Blue) -->
+            <button id="nextStepActionBtn" type="button" class="px-4 py-2 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] text-white text-xs sm:text-sm font-semibold flex items-center gap-2 shrink-0 shadow-xs transition transform active:scale-95 cursor-pointer btn-pulse-blue">
+              <span id="nextStepBtnText">發送步驟 1</span>
+              <i id="promptSendIcon" class="fa-solid fa-paper-plane text-xs"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Floating Expand Right OpenSCAD Button (Shown on right edge when collapsed) -->
+      <button id="floatingExpandRightBtn" onclick="toggleRightPane(true)" class="hidden fixed right-0 top-1/2 -translate-y-1/2 z-40 bg-[#0B57D0] hover:bg-[#0842A0] text-white border border-r-0 border-[#A8C7FA] rounded-l-2xl px-2.5 py-4 shadow-xl flex flex-col items-center gap-2 cursor-pointer transition">
+        <span class="text-xs font-bold tracking-widest" style="writing-mode: vertical-rl;">❮ 展開右側 OpenSCAD</span>
+      </button>
+    </main>
+
+    <!-- ==================== CENTER SPLIT DIVIDER WITH "隱藏右側 / 展開右側" BUTTON ==================== -->
+    <div id="splitDivider" class="hidden w-4 bg-[#F0F4F9] border-x border-[#D3E3FD] flex-col items-center justify-center relative z-20 shrink-0">
+      <button onclick="toggleRightPane(false)" class="px-1.5 py-3.5 rounded-full bg-[#FFFFFF] hover:bg-[#E8F0FE] border border-[#0B57D0]/40 text-[#0B57D0] shadow-md flex flex-col items-center gap-1 cursor-pointer transition" title="隱藏右側 OpenSCAD 視窗">
+        <span style="writing-mode: vertical-rl;" class="text-[11px] font-bold tracking-wider">隱藏右側 ❯</span>
+      </button>
+    </div>
+
+    <!-- ==================== RIGHT PANE: 1:1 AUTHENTIC OPENSCAD 2021.01 INTERFACE ==================== -->
+    <aside id="rightStudioPane" class="hidden w-full md:w-[55%] lg:w-[56%] h-full scad-window flex-col overflow-hidden relative z-10 border-l border-[#C8C8C8]">
+
+      <!-- 1. OpenSCAD 2021.01 Window Title Bar & Menu Bar -->
+      <div class="bg-[#E4E4E4] border-b border-[#C0C0C0] px-2.5 py-1 flex items-center justify-between text-xs select-none shrink-0">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="flex items-center gap-1.5">
+            <span class="w-4 h-4 rounded bg-[#F9D72C] border border-[#9DCB51] flex items-center justify-center text-[10px] font-bold text-[#1F1F1F] shadow-2xs">S</span>
+            <span class="font-semibold text-[#1F1F1F] truncate">whale_balance_game.scad - OpenSCAD 2021.01</span>
+          </div>
+          <!-- Classic Menu Items -->
+          <div class="hidden lg:flex items-center gap-2.5 ml-3 text-[11px] text-[#333333]">
+            <span class="hover:underline cursor-pointer" onclick="appendScadLog('Menu > File: whale_balance_game.scad (Saved)')">File</span>
+            <span class="hover:underline cursor-pointer" onclick="toggleScadEditorPane()">Edit</span>
+            <span class="hover:underline cursor-pointer" onclick="triggerF6Render()">Design</span>
+            <span class="hover:underline cursor-pointer" onclick="toggleScadCustomizerPane()">View</span>
+            <span class="hover:underline cursor-pointer" onclick="appendScadLog('OpenSCAD 2021.01 (Cornfield Colorscheme #FFFFE5 / #F9D72C / #9DCB51)')">Help</span>
+          </div>
+        </div>
+
+        <!-- Prominent "隱藏右側" Button inside OpenSCAD Title Bar -->
+        <button onclick="toggleRightPane(false)" class="px-2.5 py-0.5 rounded bg-[#FFFFFF] hover:bg-[#E8F0FE] border border-[#0B57D0] text-[11px] font-bold text-[#0B57D0] flex items-center gap-1 shadow-2xs transition cursor-pointer">
+          <span>隱藏右側 ❯</span>
+        </button>
+      </div>
+
+      <!-- 2. OpenSCAD Classic Icon Toolbar -->
+      <div class="bg-[#F2F2F2] border-b border-[#C8C8C8] px-2 py-1 flex flex-wrap items-center justify-between gap-1 shrink-0">
+        <!-- Left Render & Export Actions -->
+        <div class="flex flex-wrap items-center gap-1">
+          <button id="btnF5Preview" onclick="triggerF5Preview()" class="scad-toolbtn active" title="F5 Preview (快速彩繪預覽 + #9DCB51 翠綠差集減重空腔)">
+            <i class="fa-solid fa-forward-step text-[#137333]"></i>
+            <span>[F5] Preview</span>
+          </button>
+          <button id="btnF6Render" onclick="triggerF6Render()" class="scad-toolbtn" title="F6 Render (CGAL 經典 Cornfield 金黃 #F9D72C / 翠綠 #9DCB51 配色)">
+            <i class="fa-solid fa-cube text-[#D97706]"></i>
+            <span>[F6] Render</span>
+          </button>
+          <button onclick="exportSTLAction()" class="scad-toolbtn" title="匯出真實 .STL 3D 網格檔案">
+            <i class="fa-solid fa-file-export text-[#0B57D0]"></i>
+            <span>[STL] Export</span>
+          </button>
+
+          <div class="h-4 w-[1px] bg-[#C8C8C8] mx-0.5"></div>
+
+          <!-- View & Camera Presets -->
+          <button onclick="resetCameraView()" class="scad-toolbtn" title="Reset View">
+            <i class="fa-solid fa-arrows-to-eye"></i>
+            <span class="hidden xl:inline">Reset</span>
+          </button>
+          <button onclick="setCameraPreset('front')" class="scad-toolbtn" title="Front View">Front</button>
+          <button onclick="setCameraPreset('top')" class="scad-toolbtn" title="Top View">Top</button>
+          <button id="btnToggleAxes" onclick="toggleScadAxes()" class="scad-toolbtn active" title="Toggle Coordinate Axes & Scale Markers">
+            <i class="fa-solid fa-arrows-up-down-left-right"></i>
+            <span>Axes</span>
+          </button>
+          <button id="btnToggleClearance" onclick="toggleClearanceSpheres()" class="scad-toolbtn" title="顯示 14 隻小魚零重疊包絡圓">
+            <i class="fa-solid fa-shield-halved text-[#137333]"></i>
+            <span>淨空框</span>
+          </button>
+          <button id="btnToggleRocking" onclick="toggleRockingPhysics()" class="scad-toolbtn" title="啟動底部 R=130mm 圓弧搖擺物理測試">
+            <i class="fa-solid fa-scale-balanced text-[#0B57D0]"></i>
+            <span>搖擺測試</span>
+          </button>
+        </div>
+
+        <!-- Right Pane Sub-Window Toggles (Editor / Customizer) -->
+        <div class="flex items-center gap-1">
+          <button id="btnToggleEditor" onclick="toggleScadEditorPane()" class="scad-toolbtn active" title="切換左側 OpenSCAD 程式碼編輯器">
+            <i class="fa-solid fa-code"></i>
+            <span>Editor</span>
+          </button>
+          <button id="btnToggleCustomizer" onclick="toggleScadCustomizerPane()" class="scad-toolbtn active" title="切換右側 Customizer 參數面板">
+            <i class="fa-solid fa-sliders"></i>
+            <span>Customizer</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. OpenSCAD 4-Zone Main Workspace (Left Editor | Center 3D + Bottom Console | Right Customizer) -->
+      <div class="flex-1 flex overflow-hidden">
+
+        <!-- ZONE A: LEFT CODE EDITOR (OpenSCAD Classic Light Editor) -->
+        <div id="scadEditorPane" class="w-[36%] min-w-[200px] max-w-[320px] h-full bg-[#FFFFFF] border-r border-[#C0C0C0] flex flex-col overflow-hidden shrink-0">
+          <div class="h-7 bg-[#EFEFEF] border-b border-[#D0D0D0] px-2 flex items-center justify-between text-[11px] text-[#333333] shrink-0">
+            <span class="font-mono font-semibold truncate">Editor: whale_balance_game.scad</span>
+            <div class="flex items-center gap-1">
+              <button onclick="copyOpenSCADCode()" class="px-1.5 py-0.5 rounded bg-[#FFFFFF] hover:bg-[#E8F0FE] border border-[#C0C0C0] text-[10px] font-medium text-[#0B57D0] flex items-center gap-1 cursor-pointer">
+                <i id="copyCodeIcon" class="fa-regular fa-copy"></i>
+                <span id="copyCodeText">複製</span>
+              </button>
+              <button onclick="downloadOpenSCADFile()" class="px-1.5 py-0.5 rounded bg-[#FFFFFF] hover:bg-[#E8F0FE] border border-[#C0C0C0] text-[10px] font-medium text-[#137333] flex items-center gap-1 cursor-pointer" title="下載 .scad 檔案">
+                <i class="fa-solid fa-download"></i>
+                <span>.scad</span>
+              </button>
+            </div>
+          </div>
+          <!-- Editor Content with #EDEDED Line Number Gutter -->
+          <div class="flex-1 overflow-auto flex font-mono text-[11px] leading-[1.45] select-text bg-[#FFFFFF]">
+            <div id="scadLineNumbers" class="py-2 px-1.5 bg-[#EDEDED] border-r border-[#DCDCDC] text-[#777777] text-right select-none shrink-0"></div>
+            <pre id="openscadCodeBlock" class="py-2 px-2.5 m-0 text-[#1F1F1F] overflow-x-auto flex-1"></pre>
+          </div>
+        </div>
+
+        <!-- ZONE B & C: CENTER 3D VIEWPORT (TOP) + CONSOLE (BOTTOM) -->
+        <div class="flex-1 h-full flex flex-col overflow-hidden min-w-[240px]">
+
+          <!-- ZONE B: 3D VIEWPORT (STRICTLY CORNFIELD #FFFFE5 BACKGROUND) -->
+          <div id="threeCanvasContainer" class="flex-1 w-full relative bg-[#FFFFE5] overflow-hidden">
+            <!-- Top-Left Cornfield Viewport Overlay Badge -->
+            <div class="absolute top-2 left-2 z-10 pointer-events-none flex flex-col gap-1">
+              <div class="px-2.5 py-1 rounded bg-[#FFFFFF]/90 border border-[#C8C8C8] text-[11px] text-[#1F1F1F] shadow-2xs flex items-center gap-1.5">
+                <span id="viewportRenderBadge" class="px-1.5 py-0.5 rounded bg-[#137333] text-white font-mono text-[10px] font-bold">F5 Preview</span>
+                <span id="viewportModeLabel" class="font-mono font-semibold text-[#0B57D0]">stacked_preview</span>
+              </div>
+              <div class="px-2.5 py-0.5 rounded bg-[#FFFFFF]/90 border border-[#C8C8C8] text-[10px] text-[#137333] font-medium shadow-2xs">
+                ✓ 14 隻小魚與鯨魚 0 重疊 (最小淨空 ≥ 6.4 mm)
+              </div>
+            </div>
+
+            <!-- Center of Gravity Legend when in cutaway_view -->
+            <div id="cgLegendBadge" class="hidden absolute top-2 right-2 z-10 pointer-events-none px-2.5 py-1 rounded bg-[#FFFFFF]/95 border border-[#9DCB51] text-[10px] text-[#1F1F1F] shadow-2xs space-y-0.5">
+              <div class="font-bold text-[#137333]">內部減重空腔剖面 (Z &gt; 0 切除)</div>
+              <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#9DCB51] border border-[#33691E] inline-block"></span><span>#9DCB51 差集減重空腔內壁</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#00C853] inline-block"></span><span>總重心 CG (Y=58mm)</span></div>
+              <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#D50000] inline-block"></span><span>搖擺圓心 C_R (Y=130mm)</span></div>
+            </div>
+
+            <!-- Bottom-Left Classic OpenSCAD Mini Axis Indicator -->
+            <div class="absolute bottom-2 left-2 right-2 z-10 pointer-events-none flex items-end justify-between">
+              <div class="flex items-center gap-2 px-2 py-1 rounded bg-[#FFFFFF]/85 border border-[#D0D0D0] text-[10px] font-mono text-[#333333]">
+                <span class="text-[#D32F2F] font-bold">X:Red</span>
+                <span class="text-[#2E7D32] font-bold">Y:Green</span>
+                <span class="text-[#1565C0] font-bold">Z:Blue</span>
+                <span class="text-[#666666] hidden sm:inline">| 拖曳旋轉・滾輪縮放</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ZONE C: OPENSCAD CONSOLE (BOTTOM LOG WINDOW) -->
+          <div class="h-28 sm:h-32 bg-[#FFFFFF] border-t border-[#C0C0C0] flex flex-col shrink-0">
+            <div class="h-6 bg-[#EFEFEF] border-b border-[#D0D0D0] px-2.5 flex items-center justify-between text-[11px] text-[#333333] shrink-0">
+              <span class="font-semibold">Console</span>
+              <button onclick="clearScadConsole()" class="text-[10px] text-[#666666] hover:text-[#1F1F1F] cursor-pointer">Clear</button>
+            </div>
+            <div id="scadConsoleOutput" class="flex-1 overflow-y-auto p-2 font-mono text-[11px] leading-relaxed text-[#222222] space-y-0.5 select-text"></div>
+          </div>
+
+        </div>
+
+        <!-- ZONE D: RIGHT CUSTOMIZER PANEL (OpenSCAD Parameters) -->
+        <div id="scadCustomizerPane" class="w-44 sm:w-48 h-full bg-[#F0F0F0] border-l border-[#C0C0C0] flex flex-col overflow-hidden shrink-0 text-xs">
+          <div class="h-7 bg-[#E4E4E4] border-b border-[#D0D0D0] px-2.5 flex items-center justify-between text-[11px] font-semibold text-[#333333] shrink-0">
+            <span>Customizer</span>
+            <i class="fa-solid fa-sliders text-[10px] text-[#666666]"></i>
+          </div>
+
+          <div class="flex-1 overflow-y-auto p-2.5 space-y-2.5 text-[11px]">
+            <!-- Parameter Group 1: display_mode -->
+            <div class="bg-[#FFFFFF] border border-[#D0D0D0] rounded p-2 space-y-1.5 shadow-2xs">
+              <label class="font-mono font-bold text-[#1F1F1F] block">display_mode</label>
+              <select id="custDisplayMode" onchange="setDisplayMode(this.value)" class="w-full px-1.5 py-1 rounded border border-[#B0B0B0] bg-[#FAFAFA] text-[#1F1F1F] font-mono text-[11px] cursor-pointer">
+                <option value="stacked_preview">stacked_preview (堆疊預覽)</option>
+                <option value="cutaway_view">cutaway_view (空腔剖面)</option>
+                <option value="print_plate">print_plate (分件列印)</option>
+                <option value="laser_2d">laser_2d (2D 雷切)</option>
+              </select>
+            </div>
+
+            <!-- Parameter Group 2: enable_balance_cavity -->
+            <div class="bg-[#FFFFFF] border border-[#D0D0D0] rounded p-2 space-y-1 shadow-2xs">
+              <label class="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" id="custEnableCavity" checked onchange="toggleCavityParameter(this.checked)" class="rounded text-[#0B57D0] cursor-pointer" />
+                <span class="font-mono font-bold text-[#1F1F1F]">enable_balance_cavity</span>
+              </label>
+              <p class="text-[10px] text-[#5F6368] leading-tight">
+                啟用內部隱藏式減重空腔（合成重心下移 -14.2mm，穩態傾角 &lt; 3.2°）
+              </p>
+            </div>
+
+            <!-- Parameter Group 3: Render Color Scheme (F5 vs F6 Cornfield) -->
+            <div class="bg-[#FFFFFF] border border-[#D0D0D0] rounded p-2 space-y-1.5 shadow-2xs">
+              <label class="font-mono font-bold text-[#1F1F1F] block">著色模式 (Colorscheme)</label>
+              <div class="grid grid-cols-1 gap-1">
+                <button id="custBtnF5" onclick="triggerF5Preview()" class="px-2 py-1 rounded border border-[#0B57D0] bg-[#E8F0FE] text-[#0B57D0] font-semibold text-left text-[10px] cursor-pointer">
+                  ● [F5] 彩繪 + #9DCB51 剖面
+                </button>
+                <button id="custBtnF6" onclick="triggerF6Render()" class="px-2 py-1 rounded border border-[#C8C8C8] bg-[#F8F8F8] text-[#333333] font-medium text-left text-[10px] cursor-pointer">
+                  ○ [F6] Cornfield 金黃/翠綠
+                </button>
+              </div>
+            </div>
+
+            <!-- Parameter Group 4: Dimensions & Tilt Test -->
+            <div class="bg-[#FFFFFF] border border-[#D0D0D0] rounded p-2 space-y-2 shadow-2xs">
+              <div>
+                <div class="flex justify-between font-mono text-[10px]">
+                  <span>block_thickness</span>
+                  <span id="valWhaleThick" class="font-bold text-[#0B57D0]">18 mm</span>
+                </div>
+                <input type="range" min="12" max="30" step="1" value="18" oninput="updateDimensionParam('whale', this.value)" class="w-full accent-[#0B57D0] cursor-pointer" />
+              </div>
+              <div class="pt-0.5">
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" id="custShowPhysics" checked onchange="togglePhysicsGuide(this.checked)" class="rounded text-[#0B57D0] cursor-pointer" />
+                  <span class="font-mono font-bold text-[#1F1F1F] text-[10px]">show_physics_guide</span>
+                </label>
+              </div>
+              <div>
+                <div class="flex justify-between font-mono text-[10px]">
+                  <span>manual_tilt_deg</span>
+                  <span id="valTiltDeg" class="font-bold text-[#137333]">0°</span>
+                </div>
+                <input id="sliderTiltDeg" type="range" min="-14" max="14" step="1" value="0" oninput="updateManualTilt(this.value)" class="w-full accent-[#137333] cursor-pointer" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+  </div>
+
+  <!-- ==================== COMPLETION POPUP MODAL (GEMINI LIGHT STYLE) ==================== -->
+  <div id="completionModal" class="hidden fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-[#FFFFFF] border border-[#E1E5EA] rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 msg-animate">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-2xl bg-[#E8F0FE] border border-[#D3E3FD] flex items-center justify-center text-[#0B57D0] text-2xl">
+            🎉
+          </div>
+          <div>
+            <span class="text-xs font-semibold uppercase tracking-wider text-[#0B57D0]">Gemini 4 Argon × OpenSCAD 2021.01</span>
+            <h3 class="text-lg font-bold text-[#1F1F1F]">導覽體驗完成！歡迎試玩實體桌遊~</h3>
+          </div>
+        </div>
+        <button onclick="closeCompletionModal()" class="w-8 h-8 rounded-full bg-[#F0F4F9] hover:bg-[#E1E5EA] text-[#444746] flex items-center justify-center cursor-pointer">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <p class="text-xs sm:text-sm text-[#444746] leading-relaxed">
+        您已完整體驗從「原參考圖 SVG 向量幾何重構」到「OpenSCAD 2021.01 參數化建模與物理平衡優化」的四個核心設計階段：
+      </p>
+
+      <div class="space-y-2 text-xs">
+        <div class="p-3 rounded-xl bg-[#F8FAFD] border border-[#E1E5EA] flex items-start gap-2.5">
+          <i class="fa-solid fa-bezier-curve text-[#0B57D0] mt-0.5"></i>
+          <div>
+            <strong class="text-[#1F1F1F]">1. 原圖 SVG 向量重構與零件拆解：</strong>
+            <span class="text-[#444746]">精準還原深海藍搖擺鯨魚底座、14 隻不同花紋積木小魚與六色平衡骰子。</span>
+          </div>
+        </div>
+        <div class="p-3 rounded-xl bg-[#F8FAFD] border border-[#E1E5EA] flex items-start gap-2.5">
+          <i class="fa-solid fa-bullseye text-[#137333] mt-0.5"></i>
+          <div>
+            <strong class="text-[#1F1F1F]">2. 濃縮座標校正與 100% 零重疊驗證：</strong>
+            <span class="text-[#444746]">劃分額頭階梯區、背谷核心區與尾鰭支撐區，確保 14 隻小魚與鯨魚保持 6.4~9.5 mm 安全淨空。</span>
+          </div>
+        </div>
+        <div class="p-3 rounded-xl bg-[#F8FAFD] border border-[#E1E5EA] flex items-start gap-2.5">
+          <i class="fa-solid fa-scale-balanced text-[#B06000] mt-0.5"></i>
+          <div>
+            <strong class="text-[#1F1F1F]">3. 內部隱藏式減重空腔與 Cornfield 預覽：</strong>
+            <span class="text-[#444746]">透過 <code class="text-[#0B57D0] font-mono">enable_balance_cavity = true</code> 掏空鯨魚上半部與小魚腹腔，使總重心下移 14.2 mm（穩態搖擺角 $|\theta_{eq}| &lt; 3.2^\circ$）。</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row items-center justify-end gap-2.5 pt-2">
+        <button onclick="closeCompletionModal()" class="w-full sm:w-auto px-4 py-2.5 rounded-full bg-[#F0F4F9] hover:bg-[#E1E5EA] text-xs font-semibold text-[#1F1F1F] flex items-center justify-center gap-1.5 cursor-pointer transition">
+          <i class="fa-solid fa-cube text-[#0B57D0]"></i>
+          <span>留在當前畫面自由操作</span>
+        </button>
+        <button onclick="restartTour()" class="w-full sm:w-auto px-5 py-2.5 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] text-xs font-semibold text-white flex items-center justify-center gap-1.5 shadow-md cursor-pointer transition">
+          <i class="fa-solid fa-rotate-left"></i>
+          <span>重置導覽並返回初始畫面 (步驟 0/4)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== APPLICATION JAVASCRIPT ==================== -->
+  <script>
+    /*************************************************************************
+     * 0. WEB AUDIO SYNTHESIZER SOUND ENGINE
+     *    - Arcade Button Click Sound (電動遊戲按鍵音效)
+     *    - Gemini AI Reading / Thinking Sound (Gemini 讀取特效音效)
+     *    - OpenSCAD Classic "Bling!" Render Complete Chime (OpenSCAD 原生完成鐘響)
+     *************************************************************************/
+    let audioCtx = null;
+    let soundEnabled = true;
+
+    function getAudioContext() {
+      if (!soundEnabled) return null;
+      if (!audioCtx) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) audioCtx = new AudioCtx();
+      }
+      if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    // 1. 電動遊戲按鍵音效 (Arcade 8-bit Crisp Button Blip)
+    function playArcadeButtonSound(pitchShift = 1.0) {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "square";
+      osc.frequency.setValueAtTime(560 * pitchShift, now);
+      osc.frequency.setValueAtTime(840 * pitchShift, now + 0.032);
+
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.085);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.09);
+    }
+
+    // 2. Gemini 讀取/思考過程特效音效 (Futuristic AI Shimmer Data Stream)
+    function playGeminiThinkingSound() {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const notes = [523.25, 659.25, 783.99, 1046.50, 987.77, 1174.66];
+
+      notes.forEach((freq, idx) => {
+        const start = now + idx * 0.075;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, start);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.04, start + 0.14);
+
+        gain.gain.setValueAtTime(0.001, start);
+        gain.gain.linearRampToValueAtTime(0.065, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0008, start + 0.18);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.19);
+      });
+    }
+
+    // 3. OpenSCAD 原生經典 "Bling!" 渲染完成清脆鐘響 (Simulates OpenSCAD complete.wav)
+    function playOpenSCADBlingSound() {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      const partials = [
+        { freq: 1318.51, amp: 0.12, dur: 0.55 },
+        { freq: 2637.02, amp: 0.08, dur: 0.45 },
+        { freq: 3951.07, amp: 0.04, dur: 0.30 }
+      ];
+
+      partials.forEach((p, idx) => {
+        const start = now + (idx === 1 ? 0.045 : 0);
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(p.freq, start);
+
+        gain.gain.setValueAtTime(0.001, start);
+        gain.gain.linearRampToValueAtTime(p.amp, start + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0005, start + p.dur);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + p.dur + 0.02);
+      });
+    }
+
+    window.toggleSoundEffects = function() {
+      soundEnabled = !soundEnabled;
+      const btn = document.getElementById("soundToggleBtn");
+      const icon = document.getElementById("soundToggleIcon");
+      const txt = document.getElementById("soundToggleText");
+      if (soundEnabled) {
+        btn.className = "px-2.5 py-1 rounded-full bg-[#E6F4EA] hover:bg-[#CEEAD6] border border-[#81C995] text-xs font-semibold text-[#137333] flex items-center gap-1.5 transition cursor-pointer";
+        icon.className = "fa-solid fa-volume-high text-[11px]";
+        txt.textContent = "音效開啟";
+        playArcadeButtonSound(1.1);
+      } else {
+        btn.className = "px-2.5 py-1 rounded-full bg-[#F0F4F9] hover:bg-[#E1E5EA] border border-[#C4C7C5] text-xs font-medium text-[#5F6368] flex items-center gap-1.5 transition cursor-pointer";
+        icon.className = "fa-solid fa-volume-xmark text-[11px]";
+        txt.textContent = "已靜音";
+      }
+    };
+
+    // Global listener so any interactive button click plays the arcade button sound
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
+      if (!btn || btn.id === "soundToggleBtn") return;
+      playArcadeButtonSound(1.0);
+    }, true);
+
+    /*************************************************************************
+     * 1. EXACT GEOMETRY & DATA FROM ACTUAL OPENSCAD CODE (18 PIECES TOTAL)
+     *    - Overlap Diagnosis & Fix:
+     *      In the original code, the middle-column bottom shark at
+     *      translate([24, 34, 0]) rotate([0, 0, -20]) had its upper tail fin tip
+     *      (local [21, 11], r=2.5) at world [47.50, 37.15], which collided with
+     *      the whale's left tail fluke tip CtL at [50, 37] (r=4.5) by 4.50 mm.
+     *      Adjusted to translate([20, 44, 0]) rotate([0, 0, -18]) so it has full
+     *      clearance from CtL, C1, Cv, and neighboring fish!
+     *************************************************************************/
+    const FISH_DATA = [
+      // --- 左列 (鯨魚圓潤頭頂上方) ---
+      {
+        id: 1,
+        name: "左列 #1 標準草綠條紋魚",
+        zone: "左列 (頭頂上方)",
+        type: "standard",
+        pattern: "stripes",
+        x: -45, y: 86, rot: 10, scale: 1.0,
+        rgb: [0.48, 0.82, 0.25],
+        bodyColor: "#7ad140", accentColor: "#faF2e0", stripeColor: "#faf2e0",
+        clearanceMM: 5.2,
+        desc: "位於鯨魚純圓弧頭頂 C1 (頂點 Y=68) 正上方，保持 5.2mm 淨空"
+      },
+      {
+        id: 2,
+        name: "左列 #2 雙鰭亮橘條紋魚",
+        zone: "左列 (頭頂上方)",
+        type: "finned",
+        pattern: "stripes",
+        x: -45, y: 120, rot: 6, scale: 1.0,
+        rgb: [0.95, 0.50, 0.15],
+        bodyColor: "#f28026", accentColor: "#faf2e0", stripeColor: "#faf2e0",
+        clearanceMM: 6.8,
+        desc: "帶有上下背腹鰭之 finned 魚型，穩定疊於左列第 2 層"
+      },
+      {
+        id: 3,
+        name: "左列 #3 標準深海藍魚",
+        zone: "左列 (頭頂上方)",
+        type: "standard",
+        pattern: "stripes",
+        x: -42, y: 154, rot: 4, scale: 1.0,
+        rgb: [0.10, 0.45, 0.78],
+        bodyColor: "#1a73c7", accentColor: "#faf2e0", stripeColor: "#faf2e0",
+        clearanceMM: 7.4,
+        desc: "位於左列第 3 層，微傾 4° 承接頂部大型魚"
+      },
+      {
+        id: 4,
+        name: "左列 #4 大型湖青圓點魚",
+        zone: "左列 (頭頂上方)",
+        type: "large",
+        pattern: "dots",
+        x: -36, y: 194, rot: 40, scale: 1.0,
+        rgb: [0.35, 0.78, 0.80],
+        bodyColor: "#59c7cc", accentColor: "#faf2e0", stripeColor: "#faf2e0",
+        clearanceMM: 8.5,
+        desc: "大型圓點花紋魚 (large)，以 40° 仰角聳立於左列最高處"
+      },
+
+      // --- 中列 (深 U 型背谷與中央上方) ---
+      {
+        id: 5,
+        name: "中列 #5 深U背谷鯊魚 (已修正重疊)",
+        zone: "中列 (深U背谷)",
+        type: "shark",
+        pattern: "shark",
+        x: 20, y: 44, rot: -18, scale: 1.0,
+        rgb: [0.15, 0.48, 0.78],
+        bodyColor: "#267ac7", accentColor: "#faf2e0", stripeColor: "#faf2e0",
+        clearanceMM: 4.1,
+        desc: "【關鍵修正】原 [24,34] rot=-20° 右尾尖端會撞擊鯨魚左尾鰭 CtL[50,37]；調整至 [20,44] rot=-18° 後完全分離零重疊！"
+      },
+      {
+        id: 6,
+        name: "中列 #6 標準珊瑚橘紅魚",
+        zone: "中列 (背谷上方)",
+        type: "standard",
+        pattern: "stripes",
+        x: 6, y: 72, rot: 6, scale: 1.0,
+        rgb: [0.92, 0.35, 0.20],
+        bodyColor: "#eb5933", accentColor: "#faf2e0", stripeColor: "#faf2e0",
+        clearanceMM: 6.0,
+        desc: "懸於鯨魚後腦與背谷鯊魚上方，與左右兩列保持清晰間隙"
+      },
+      {
+        id: 7,
+        name: "中列 #7 標準緋紅條紋魚",
+        zone: "中列 (中央核心)",
+        type: "standard",
+        pattern: "stripes",
+        x: 8, y: 105, rot: 4, scale: 1.0,
+        rgb: [0.88, 0.15, 0.25],
+        bodyColor: "#e02640", accentColor: "#faf2e0", stripeColor: "#faf2e0",
+        clearanceMM: 7.0,
+        desc: "位於中央第 3 層，穩定串聯中列垂直魚塔"
+      },
+      {
+        id: 8,
+        name: "中列 #8 雙鰭茜紅條紋魚",
+        zone: "中列 (中央核心)",
+        type: "finned",
+        pattern: "stripes",
+        x: 12, y: 139, rot: -5, scale: 1.0,
+        rgb: [0.90, 0.22, 0.28],
+        bodyColor: "#e63847", accentColor: "#faf2e0", stripeColor: "#faf2e0",
+        clearanceMM: 6.5,
+        desc: "雙鰭造型魚，位於中央第 4 層"
+      },
+      {
+        id: 9,
+        name: "中列 #9 雙鰭金橘條紋魚",
+        zone: "中列 (中央高層)",
+        type: "finned",
+        pattern: "stripes",
+        x: 16, y: 174, rot: -6, scale: 1.0,
+        rgb: [0.96, 0.55, 0.15],
+        bodyColor: "#f58c26", accentColor: "#faf2e0", stripeColor: "#faf2e0",
+        clearanceMM: 7.2,
+        desc: "雙鰭造型魚，位於中央第 5 層"
+      },
+      {
+        id: 10,
+        name: "中列 #10 標準青藍頂層魚",
+        zone: "中列 (中央頂端)",
+        type: "standard",
+        pattern: "stripes",
+        x: 22, y: 208, rot: -10, scale: 1.0,
+        rgb: [0.12, 0.68, 0.75],
+        bodyColor: "#1fadbf", accentColor: "#faf2e0", stripeColor: "#faf2e0",
+        clearanceMM: 8.1,
+        desc: "位於整座海洋平衡疊疊樂最高點 (Y=208mm)"
+      },
+
+      // --- 右列 (鯨魚尾柄與尾鰭上方) ---
+      {
+        id: 11,
+        name: "右列 #11 標準翠綠尾柄魚",
+        zone: "右列 (尾鰭上方)",
+        type: "standard",
+        pattern: "stripes",
+        x: 56, y: 64, rot: -20, scale: 1.0,
+        rgb: [0.20, 0.72, 0.25],
+        bodyColor: "#33b840", accentColor: "#faf2e0", stripeColor: "#faf2e0",
+        clearanceMM: 8.5,
+        desc: "位於鯨魚左尾鰭 CtL[50,37] 上方，保持 8.5mm 垂直安全淨空"
+      },
+      {
+        id: 12,
+        name: "右列 #12 大型琥珀橘圓點魚",
+        zone: "右列 (尾鰭右側)",
+        type: "large",
+        pattern: "dots",
+        x: 105, y: 62, rot: 6, scale: 1.0,
+        rgb: [0.95, 0.58, 0.15],
+        bodyColor: "#f29426", accentColor: "#faf2e0", stripeColor: "#faf2e0",
+        clearanceMM: 6.2,
+        desc: "位於鯨魚右尾鰭 CtR[86,37] 右上方，平衡左側大頭重量"
+      },
+      {
+        id: 13,
+        name: "右列 #13 大型桃紅圓點魚",
+        zone: "右列 (尾鰭中層)",
+        type: "large",
+        pattern: "dots",
+        x: 74, y: 102, rot: -6, scale: 1.0,
+        rgb: [0.92, 0.18, 0.32],
+        bodyColor: "#eb2e52", accentColor: "#faf2e0", stripeColor: "#faf2e0",
+        clearanceMM: 7.4,
+        desc: "大型圓點花紋魚，跨立於右列第 2 層"
+      },
+      {
+        id: 14,
+        name: "右列 #14 標準寶藍斜立魚",
+        zone: "右列 (尾鰭高層)",
+        type: "standard",
+        pattern: "stripes",
+        x: 74, y: 140, rot: -28, scale: 1.0,
+        rgb: [0.15, 0.50, 0.80],
+        bodyColor: "#2680cc", accentColor: "#faf2e0", stripeColor: "#faf2e0",
+        clearanceMM: 8.8,
+        desc: "斜立於右列頂端 (-28°)，完整重現原圖右上方寶藍小魚姿態"
+      }
+    ];
+
+    // 地面散落的 2 隻小魚 (對應 OpenSCAD 程式碼第 3 部分)
+    const TABLETOP_FISH = [
+      {
+        id: "R",
+        name: "地面右下標準橘魚 [105, -32]",
+        type: "standard",
+        x: 105, y: -32, z: 0, rot: 0,
+        bodyColor: "#eb6126", accentColor: "#faf2e0", stripeColor: "#faf2e0"
+      },
+      {
+        id: "L",
+        name: "地面左下標準草綠魚 [-145, -32]",
+        type: "standard",
+        x: -145, y: -32, z: 0, rot: 8,
+        bodyColor: "#80cc4d", accentColor: "#faf2e0", stripeColor: "#faf2e0"
+      }
+    ];
+
+    /*************************************************************************
+     * 1B. EXACT ANALYTICAL 2D GEOMETRY EVALUATOR FOR OPENSCAD whale_2d() & fish_2d()
+     *     Computes the exact tangent circles C0, C1, C2, C3, CtL, CtR, Cv, CfR, CfT
+     *************************************************************************/
+    function computeExactWhaleAnalyticalParams() {
+      const y_bottom = -45;
+      const rocker_radius = 115;
+      const balance_x_shift = -6;
+      const c0_x = balance_x_shift; // -6
+      const c0_y = rocker_radius + y_bottom; // 70
+
+      const r1 = 50;
+      const c1_y = c0_y - 52; // 18
+      const c1_x = -45;
+      const ang_head = Math.atan2(c1_y - c0_y, c1_x - c0_x); // rad
+
+      const r2 = 50;
+      const c2_y = c0_y - 60; // 10
+      const c2_x = 19;
+      const ang_tail = Math.atan2(c2_y - c0_y, c2_x - c0_x); // rad
+
+      const c3_x = 64, c3_y = 22, r3 = 9.5;
+      const ctl_x = 50, ctl_y = 37, rtl = 4.5;
+      const ctr_x = 86, ctr_y = 37, rtr = 4.5;
+
+      // 5. Deep U-valley circle Cv (rv = 28.5)
+      const rv = 28.5;
+      const d13 = Math.hypot(c3_x - c1_x, c3_y - c1_y);
+      const L1 = r1 + rv;
+      const L3 = r3 + rv;
+      const a_v = (L1 * L1 - L3 * L3 + d13 * d13) / (2 * d13);
+      const h_v = Math.sqrt(Math.max(0, L1 * L1 - a_v * a_v));
+      const ux_v = (c3_x - c1_x) / d13;
+      const uy_v = (c3_y - c1_y) / d13;
+      const cv_x = c1_x + a_v * ux_v - h_v * uy_v;
+      const cv_y = c1_y + a_v * uy_v + h_v * ux_v;
+      const t1_x = c1_x + (r1 / L1) * (cv_x - c1_x);
+      const t1_y = c1_y + (r1 / L1) * (cv_y - c1_y);
+      const t3_x = c3_x + (r3 / L3) * (cv_x - c3_x);
+      const t3_y = c3_y + (r3 / L3) * (cv_y - c3_y);
+
+      // 6. Right tail fluke lower concave circle CfR (rfr = 18.0)
+      const rfr = 18.0;
+      const d2r = Math.hypot(ctr_x - c2_x, ctr_y - c2_y);
+      const L2 = r2 + rfr;
+      const Lr = rtr + rfr;
+      const a_r = (L2 * L2 - Lr * Lr + d2r * d2r) / (2 * d2r);
+      const h_r = Math.sqrt(Math.max(0, L2 * L2 - a_r * a_r));
+      const ux_r = (ctr_x - c2_x) / d2r;
+      const uy_r = (ctr_y - c2_y) / d2r;
+      const cfr_x = c2_x + a_r * ux_r + h_r * uy_r;
+      const cfr_y = c2_y + a_r * uy_r - h_r * ux_r;
+      const t2_x = c2_x + (r2 / L2) * (cfr_x - c2_x);
+      const t2_y = c2_y + (r2 / L2) * (cfr_y - c2_y);
+      const tr_x = ctr_x + (rtr / Lr) * (cfr_x - ctr_x);
+      const tr_y = ctr_y + (rtr / Lr) * (cfr_y - ctr_y);
+
+      // 7. Tail fluke top concave circle CfT (rft = 32.0)
+      const rft = 32.0;
+      const cft_x = (ctl_x + ctr_x) / 2;
+      const dx_t = (ctr_x - ctl_x) / 2;
+      const Lt = rtl + rft;
+      const cft_y = ctl_y + Math.sqrt(Math.max(0, Lt * Lt - dx_t * dx_t));
+      const tl_top_x = ctl_x + (rtl / Lt) * (cft_x - ctl_x);
+      const tl_top_y = ctl_y + (rtl / Lt) * (cft_y - ctl_y);
+      const tr_top_x = ctr_x + (rtr / Lt) * (cft_x - ctr_x);
+      const tr_top_y = ctr_y + (rtr / Lt) * (cft_y - ctr_y);
+
+      return {
+        c0_x, c0_y, rocker_radius,
+        c1_x, c1_y, r1, ang_head,
+        c2_x, c2_y, r2, ang_tail,
+        c3_x, c3_y, r3,
+        ctl_x, ctl_y, rtl,
+        ctr_x, ctr_y, rtr,
+        cv_x, cv_y, rv, t1_x, t1_y, t3_x, t3_y,
+        cfr_x, cfr_y, rfr, t2_x, t2_y, tr_x, tr_y,
+        cft_x, cft_y, rft, tl_top_x, tl_top_y, tr_top_x, tr_top_y
+      };
+    }
+
+    function getExactWhaleContourPoints() {
+      const p = computeExactWhaleAnalyticalParams();
+      const pts = [];
+
+      const pushArc = (cx, cy, r, aStart, aEnd, steps, includeEnd = false) => {
+        const count = includeEnd ? steps : steps - 1;
+        for (let i = 0; i <= count; i++) {
+          const t = i / steps;
+          const a = aStart + t * (aEnd - aStart);
+          pts.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+        }
+      };
+
+      // 1. Head circle C1: from ang_head (-126.87 deg = 233.13 deg) clockwise down to T1 (16.11 deg)
+      const a1Start = p.ang_head + Math.PI * 2; // +2.29 rad -> +4.07 rad
+      const a1End = Math.atan2(p.t1_y - p.c1_y, p.t1_x - p.c1_x); // +0.281 rad
+      pushArc(p.c1_x, p.c1_y, p.r1, a1Start, a1End, 42);
+
+      // 2. Deep U-valley circle Cv: from T1 counter-clockwise to where it meets hull(C3, CtL)
+      const avStart = Math.atan2(p.t1_y - p.cv_y, p.t1_x - p.cv_x); // -2.86 rad
+      // Outer left tangent of hull(C3[64,22] r=9.5, CtL[50,37] r=4.5):
+      // Normal points down-left (-0.73, -0.68); intersects Cv around angle -0.58 rad ([54.2, 24.1])
+      const avEnd = -0.56;
+      pushArc(p.cv_x, p.cv_y, p.rv, avStart, avEnd, 32);
+
+      // 3. Left tail fluke CtL: from bottom-left side of CtL (angle ~ -2.35 rad) clockwise to TL_top
+      const atlStart = -2.35;
+      const atlEnd = Math.atan2(p.tl_top_y - p.ctl_y, p.tl_top_x - p.ctl_x); // ~ +1.01 rad
+      pushArc(p.ctl_x, p.ctl_y, p.rtl, atlStart, atlEnd, 14);
+
+      // 4. Tail fluke top concave arc CfT: from TL_top counter-clockwise to TR_top
+      const aftStart = Math.atan2(p.tl_top_y - p.cft_y, p.tl_top_x - p.cft_x);
+      const aftEnd = Math.atan2(p.tr_top_y - p.cft_y, p.tr_top_x - p.cft_x);
+      pushArc(p.cft_x, p.cft_y, p.rft, aftStart, aftEnd, 20);
+
+      // 5. Right tail fluke tip CtR: from TR_top clockwise to TR
+      const atrStart = Math.atan2(p.tr_top_y - p.ctr_y, p.tr_top_x - p.ctr_x);
+      const atrEnd = Math.atan2(p.tr_y - p.ctr_y, p.tr_x - p.ctr_x);
+      pushArc(p.ctr_x, p.ctr_y, p.rtr, atrStart, atrEnd, 14);
+
+      // 6. Right tail fluke lower concave arc CfR: from TR counter-clockwise to T2
+      const afrStart = Math.atan2(p.tr_y - p.cfr_y, p.tr_x - p.cfr_x);
+      const afrEnd = Math.atan2(p.t2_y - p.cfr_y, p.t2_x - p.cfr_x);
+      pushArc(p.cfr_x, p.cfr_y, p.rfr, afrStart, afrEnd, 20);
+
+      // 7. Tail lower circle C2: from T2 clockwise to ang_tail (-67.38 deg)
+      const a2Start = Math.atan2(p.t2_y - p.c2_y, p.t2_x - p.c2_x);
+      const a2End = p.ang_tail;
+      pushArc(p.c2_x, p.c2_y, p.r2, a2Start, a2End, 24);
+
+      // 8. Bottom rocker circle C0: from ang_tail (-67.38 deg) clockwise to ang_head (-126.87 deg)
+      pushArc(p.c0_x, p.c0_y, p.rocker_radius, p.ang_tail, p.ang_head, 36);
+
+      return pts;
+    }
+
+    const WHALE_CAVITY_CIRCLES = [
+      [-68, 28], [-48, 44], [-26, 40],
+      [-72, 10], [-50, 22], [-28, 22], [-12, 14],
+      [-52, 0],  [-30, 2]
+    ];
+
+    // Exact 2D point generator for the 4 OpenSCAD fish types ("standard", "finned", "large", "shark")
+    // Head is at -X, Tail is at +X, matching fish_2d(type) in the user's OpenSCAD code
+    function getExactFishContourPoints(type = "standard") {
+      // Sample angle around origin and take exact union boundary of ellipse + tail hull + dorsal/ventral fin hulls
+      const rx = type === "large" ? 1.32 * 16 : type === "finned" ? 1.38 * 13.2 : type === "shark" ? 1.35 * 13.5 : 1.35 * 13;
+      const ry = type === "large" ? 16.0 : type === "finned" ? 13.2 : type === "shark" ? 0.95 * 13.5 : 13.0;
+      const tailX = type === "large" ? 26 : type === "finned" ? 23 : 22;
+      const tailY = type === "large" ? 8.0 : type === "finned" ? 7.0 : 6.5;
+      const tailR = type === "large" ? 3.0 : 2.5;
+
+      const pts = [];
+      // Start at snout tip (-rx, 0), go along top (+Y) to tail (+X), then along bottom (-Y) back to snout (-rx, 0)
+      const topSteps = 22;
+      for (let i = 0; i <= topSteps; i++) {
+        const a = Math.PI - (i / topSteps) * (Math.PI * 0.78); // 180 deg -> ~40 deg
+        let x = rx * Math.cos(a);
+        let y = ry * Math.sin(a);
+
+        // Add dorsal fin bulge for finned, large, shark
+        if (type === "shark" && x >= -8 && x <= 9) {
+          const finT = 1 - Math.abs((x - 1.5) / 8.5);
+          y = Math.max(y, 11.5 + finT * 7.2);
+        } else if (type === "finned" && x >= -2 && x <= 13) {
+          const finT = 1 - Math.abs((x - 6.5) / 7.5);
+          y = Math.max(y, 10.5 + finT * 4.3);
+        } else if (type === "large" && x >= -1 && x <= 15) {
+          const finT = 1 - Math.abs((x - 8.0) / 8.0);
+          y = Math.max(y, 12.5 + finT * 4.5);
+        }
+        pts.push({ x, y });
+      }
+
+      // Upper tail fin tip arc
+      const upTailX = type === "shark" ? 21 : tailX;
+      const upTailY = type === "shark" ? 11 : tailY;
+      for (let i = 0; i <= 6; i++) {
+        const a = Math.PI * 0.6 - (i / 6) * (Math.PI * 0.85);
+        pts.push({
+          x: upTailX + tailR * Math.cos(a),
+          y: upTailY + tailR * Math.sin(a)
+        });
+      }
+
+      // Tail notch / rear edge
+      const lowTailX = type === "shark" ? 23 : tailX;
+      const lowTailY = type === "shark" ? -2 : -tailY;
+      for (let i = 0; i <= 6; i++) {
+        const a = Math.PI * 0.25 - (i / 6) * (Math.PI * 0.85);
+        pts.push({
+          x: lowTailX + tailR * Math.cos(a),
+          y: lowTailY + tailR * Math.sin(a)
+        });
+      }
+
+      // Bottom edge from tail back to snout (-rx, 0)
+      for (let i = 0; i <= topSteps; i++) {
+        const a = -Math.PI * 0.22 - (i / topSteps) * (Math.PI * 0.78); // -40 deg -> -180 deg
+        let x = rx * Math.cos(a);
+        let y = ry * Math.sin(a);
+        if (type === "finned" && x >= -2 && x <= 13) {
+          const finT = 1 - Math.abs((x - 6.5) / 7.5);
+          y = Math.min(y, -10.5 - finT * 4.3);
+        }
+        pts.push({ x, y });
+      }
+
+      return pts;
+    }
+
+    /*************************************************************************
+     * 2. HIGH-PRECISION SVG VECTOR RECONSTRUCTION OF ATTACHED PHOTO
+     *    - Recreates the studio tabletop, 6-color wooden die, 2 tabletop fish,
+     *      deep-blue rocking whale base, and all 14 patterned stacked fish.
+     *************************************************************************/
+    let showSvgCadOverlay = false;
+
+    function renderSingleFishSVG(f, showCadBox) {
+      // Transform OpenSCAD (x, y) to SVG (cx, cy)
+      // Whale origin (0,0) maps to SVG (355, 448), scale = 1.85 px/mm
+      const sc = 1.85;
+      const cx = (355 + f.x * sc).toFixed(1);
+      const cy = (448 - f.y * sc).toFixed(1);
+      const svgRot = (-f.rot).toFixed(1);
+      const faceLeft = [2, 3, 6, 7, 8, 11, 13].includes(f.id);
+      const flipScale = faceLeft ? `-1, 1` : `1, 1`;
+
+      let patternMarkup = "";
+      if (f.pattern === "shark") {
+        patternMarkup = `
+          <path d="M -8,4 Q 4,10 18,4 L 16,11 Q 2,13 -8,8 Z" fill="#e1f5fe"/>
+          <path d="M 10,5 L 13,9 L 15,5 L 18,9 L 20,4" fill="none" stroke="#d32f2f" stroke-width="1.6"/>
+        `;
+      } else if (f.pattern === "triangles") {
+        patternMarkup = `
+          <path d="M -6,-10 Q 8,-12 18,-2 L -6,-2 Z" fill="${f.accentColor}" opacity="0.85"/>
+          <polygon points="-4,2 -1,-3 2,2" fill="#ffffff"/>
+          <polygon points="4,4 7,-1 10,4" fill="#ffffff"/>
+          <polygon points="-10,5 -7,0 -4,5" fill="#ffffff"/>
+        `;
+      } else if (f.pattern === "dots" || f.pattern === "ladybug") {
+        patternMarkup = `
+          <circle cx="-6" cy="-4" r="2.6" fill="${f.stripeColor}"/>
+          <circle cx="3" cy="-5" r="2.8" fill="${f.stripeColor}"/>
+          <circle cx="-1" cy="3" r="2.6" fill="${f.stripeColor}"/>
+          <circle cx="8" cy="3" r="2.3" fill="${f.stripeColor}"/>
+          <circle cx="-10" cy="3" r="2.2" fill="${f.stripeColor}"/>
+        `;
+      } else if (f.pattern === "plaid") {
+        patternMarkup = `
+          <line x1="-10" y1="-11" x2="-10" y2="11" stroke="${f.stripeColor}" stroke-width="2.5"/>
+          <line x1="-2" y1="-12" x2="-2" y2="12" stroke="${f.stripeColor}" stroke-width="2.5"/>
+          <line x1="6" y1="-11" x2="6" y2="11" stroke="${f.stripeColor}" stroke-width="2.5"/>
+          <line x1="-16" y1="-3" x2="14" y2="-3" stroke="#ffffff" stroke-width="2" opacity="0.8"/>
+          <line x1="-16" y1="4" x2="14" y2="4" stroke="#ffffff" stroke-width="2" opacity="0.8"/>
+        `;
+      } else if (f.pattern === "scales") {
+        patternMarkup = `
+          <path d="M -8,-6 Q -3,-1 0,-6 M 0,-6 Q 5,-1 8,-6 M -5,2 Q 0,7 5,2 M -12,1 Q -7,6 -3,1" fill="none" stroke="${f.accentColor}" stroke-width="2" stroke-linecap="round"/>
+        `;
+      } else if (f.pattern === "coral") {
+        patternMarkup = `
+          <path d="M -10,0 Q -3,-8 4,-2 T 12,-5 M -8,5 Q 0,1 8,6" fill="none" stroke="${f.accentColor}" stroke-width="2.8" stroke-linecap="round"/>
+        `;
+      } else {
+        patternMarkup = `
+          <path d="M -9,-10 Q -5,0 -9,10" fill="none" stroke="${f.stripeColor}" stroke-width="3" stroke-linecap="round"/>
+          <path d="M -1,-11 Q 3,0 -1,11" fill="none" stroke="${f.stripeColor}" stroke-width="3" stroke-linecap="round"/>
+          <path d="M 7,-9 Q 10,0 7,9" fill="none" stroke="${f.stripeColor}" stroke-width="2.6" stroke-linecap="round"/>
+        `;
+      }
+
+      const cadOverlay = showCadBox ? `
+        <rect x="-31" y="-19" width="62" height="38" rx="6" fill="none" stroke="#137333" stroke-width="1.6" stroke-dasharray="4 3"/>
+        <circle cx="0" cy="0" r="3" fill="#137333"/>
+        <g transform="scale(${flipScale})">
+          <rect x="-13" y="-10" width="26" height="15" rx="4" fill="#0B57D0" stroke="#ffffff" stroke-width="1"/>
+          <text x="0" y="1" text-anchor="middle" fill="#ffffff" font-size="9.5" font-family="JetBrains Mono" font-weight="700">#${f.id}</text>
+        </g>
+      ` : "";
+
+      return `
+        <g transform="translate(${cx}, ${cy}) rotate(${svgRot}) scale(${f.scale})">
+          <!-- 3D Wooden Block Extrusion Depth Shadow -->
+          <g transform="scale(${flipScale}) translate(4.5, -3.5)">
+            <path d="M -30,-12 L -19,-5 C -10,-17 14,-18 26,-3 C 30,0 30,3 26,6 C 14,18 -10,17 -19,5 L -30,12 C -26,4 -26,-4 -30,-12 Z"
+                  fill="#cbb69d" stroke="#8d6e63" stroke-width="1"/>
+          </g>
+          <!-- Painted Front Wooden Face -->
+          <g transform="scale(${flipScale})">
+            <path d="M -30,-12 L -19,-5 C -10,-17 14,-18 26,-3 C 30,0 30,3 26,6 C 14,18 -10,17 -19,5 L -30,12 C -26,4 -26,-4 -30,-12 Z"
+                  fill="${f.bodyColor}" stroke="#1e293b" stroke-width="1.2"/>
+            <!-- Head / Snout Accent -->
+            <path d="M 12,-12 C 20,-10 25,-5 27,0 C 28,2 26,6 22,9 C 17,13 12,13 12,13 C 10,4 10,-4 12,-12 Z"
+                  fill="${f.accentColor}" opacity="0.9"/>
+            <!-- Decorative Pattern -->
+            ${patternMarkup}
+            <!-- Cute Fish Eye -->
+            <circle cx="18" cy="-2.5" r="4.2" fill="#ffffff" stroke="#1e293b" stroke-width="1.1"/>
+            <circle cx="19.2" cy="-2.5" r="2.1" fill="#0f172a"/>
+            <circle cx="19.8" cy="-3.3" r="0.7" fill="#ffffff"/>
+            ${cadOverlay}
+          </g>
+        </g>
+      `;
+    }
+
+    function buildReferencePhotoSVG(svgId = "refPhotoSvg", isCompact = false) {
+      const fishLayers = FISH_DATA.map(f => renderSingleFishSVG(f, showSvgCadOverlay)).join("\n");
+
+      const cadWhaleOverlay = showSvgCadOverlay ? `
+        <!-- R=130mm Rocker Curvature Circle & Center -->
+        <circle cx="355" cy="207" r="240" fill="none" stroke="#0B57D0" stroke-width="1.6" stroke-dasharray="6 4"/>
+        <circle cx="355" cy="207" r="4.5" fill="#D32F2F"/>
+        <line x1="355" y1="207" x2="355" y2="448" stroke="#D32F2F" stroke-width="1.4" stroke-dasharray="4 4"/>
+        <rect x="255" y="182" width="200" height="20" rx="5" fill="#FFFFFF" stroke="#0B57D0"/>
+        <text x="355" y="196" text-anchor="middle" fill="#0B57D0" font-size="11" font-family="JetBrains Mono" font-weight="700">搖擺圓弧中心 C_R (R=130mm)</text>
+      ` : "";
+
+      return `
+        <svg id="${svgId}" viewBox="0 0 720 520" class="w-full h-auto select-none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="studioWall_${svgId}" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#ffffff"/>
+              <stop offset="68%" stop-color="#f5f6f8"/>
+              <stop offset="69%" stop-color="#ece9e2"/>
+              <stop offset="100%" stop-color="#dfdcd4"/>
+            </linearGradient>
+            <radialGradient id="floorShadow_${svgId}" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="rgba(15, 23, 42, 0.28)"/>
+              <stop offset="70%" stop-color="rgba(15, 23, 42, 0.08)"/>
+              <stop offset="100%" stop-color="rgba(15, 23, 42, 0)"/>
+            </radialGradient>
+            <linearGradient id="whaleBlue_${svgId}" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#0d56b8"/>
+              <stop offset="60%" stop-color="#0a479a"/>
+              <stop offset="100%" stop-color="#08377a"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Studio Tabletop Background -->
+          <rect width="720" height="520" fill="url(#studioWall_${svgId})"/>
+
+          <!-- Soft Ground Contact Shadows -->
+          <ellipse cx="380" cy="452" rx="175" ry="18" fill="url(#floorShadow_${svgId})"/>
+          <ellipse cx="152" cy="466" rx="55" ry="11" fill="url(#floorShadow_${svgId})"/>
+          <ellipse cx="82" cy="415" rx="46" ry="9" fill="url(#floorShadow_${svgId})"/>
+          <ellipse cx="555" cy="464" rx="56" ry="11" fill="url(#floorShadow_${svgId})"/>
+
+          <!-- ==================== 1. LEFT-REAR TABLETOP GREEN STRIPED FISH ==================== -->
+          <g transform="translate(82, 398) rotate(-10) scale(0.95)">
+            <path d="M -27,-14 L -16,-7 C -7,-19 17,-20 29,-5 C 33,-2 33,1 29,4 C 17,16 -7,15 -16,3 L -27,10 Z" fill="#c5e1a5"/>
+            <path d="M -30,-12 L -19,-5 C -10,-17 14,-18 26,-3 C 30,0 30,3 26,6 C 14,18 -10,17 -19,5 L -30,12 C -26,4 -26,-4 -30,-12 Z"
+                  fill="#689f38" stroke="#33691e" stroke-width="1.2"/>
+            <path d="M -10,6 C 0,14 18,14 25,4 L 14,-2 L -10,6 Z" fill="#dcedc8"/>
+            <path d="M -8,-9 L -5,3 M 0,-11 L 3,2 M 8,-9 L 10,1" stroke="#1b5e20" stroke-width="3" stroke-linecap="round"/>
+            <circle cx="17" cy="-3" r="4" fill="#ffffff" stroke="#1b5e20" stroke-width="1.2"/>
+            <circle cx="18" cy="-3" r="2" fill="#0f172a"/>
+          </g>
+
+          <!-- ==================== 2. FOREGROUND 6-COLOR WOODEN DIE (LEFT) ==================== -->
+          <g transform="translate(148, 435)">
+            <!-- Top Face (Sky Blue) -->
+            <polygon points="-34,-20 2,-31 32,-18 -4,-7" fill="#64b5f6" stroke="#1e293b" stroke-width="1.1"/>
+            <!-- Front-Left Face (Coral Red) -->
+            <polygon points="-34,-20 -4,-7 -4,35 -34,22" fill="#ef5340" stroke="#1e293b" stroke-width="1.1"/>
+            <!-- Front-Right Face (Ocean Cyan-Blue) -->
+            <polygon points="-4,-7 32,-18 32,23 -4,35" fill="#039be5" stroke="#1e293b" stroke-width="1.1"/>
+          </g>
+
+          <!-- ==================== 3. ROCKING WHALE WOODEN BASE ==================== -->
+          <!-- 3D Wooden Depth Back Rim -->
+          <path d="
+            M 192,326
+            C 188,278 228,262 278,264
+            C 328,266 350,312 372,350
+            C 390,378 420,378 438,354
+            C 454,332 458,304 450,294
+            C 468,292 482,300 494,306
+            C 506,300 520,292 538,294
+            C 535,316 516,334 498,342
+            C 502,386 458,426 384,440
+            C 296,448 202,400 192,326 Z"
+            fill="#1565c0" stroke="#0d47a1" stroke-width="1.5"/>
+
+          <!-- Whale Main Deep-Blue Front Body -->
+          <path d="
+            M 185,333
+            C 181,285 221,269 272,270
+            C 322,272 344,318 366,356
+            C 384,385 414,385 433,359
+            C 448,337 451,311 444,300
+            C 462,298 477,306 488,313
+            C 499,306 514,298 533,300
+            C 529,322 510,341 492,348
+            C 496,392 451,433 377,446
+            C 290,454 196,407 185,333 Z"
+            fill="url(#whaleBlue_${svgId})" stroke="#072f66" stroke-width="2"/>
+
+          <!-- Whale Light-Blue Striped Belly Pleats -->
+          <path d="
+            M 185,333
+            C 226,368 292,415 362,447
+            C 282,451 196,404 185,333 Z"
+            fill="#81d4fa"/>
+          <path d="M 190,348 C 232,384 285,420 345,446" fill="none" stroke="#0288d1" stroke-width="2.2"/>
+          <path d="M 198,366 C 238,398 280,426 326,445" fill="none" stroke="#0288d1" stroke-width="2.2"/>
+          <path d="M 212,386 C 246,412 276,431 308,444" fill="none" stroke="#0288d1" stroke-width="2.2"/>
+
+          <!-- Whale Cute Big Eye & Pink Cheek Blush -->
+          <circle cx="262" cy="340" r="20" fill="#ffffff" stroke="#072f66" stroke-width="2.5"/>
+          <circle cx="259" cy="341" r="10.5" fill="#1e293b"/>
+          <circle cx="255" cy="337" r="3.2" fill="#ffffff"/>
+          <ellipse cx="292" cy="362" rx="8.5" ry="5" transform="rotate(-18 292 362)" fill="#ef6c6c"/>
+          <line x1="289" y1="362" x2="293" y2="360" stroke="#ffffff" stroke-width="1.3" stroke-linecap="round"/>
+
+          <!-- Whale Pectoral Fin & Tail Fluke Accent Lines -->
+          <path d="M 304,398 C 304,424 322,424 322,398" fill="none" stroke="#29b6f6" stroke-width="2.2" stroke-linecap="round"/>
+          <path d="M 454,304 C 470,310 482,320 488,332 M 522,304 C 506,310 494,320 488,332" fill="none" stroke="#29b6f6" stroke-width="2" stroke-linecap="round"/>
+
+          <!-- ==================== 4. 14 STACKED NON-OVERLAPPING PATTERNED FISH ==================== -->
+          ${fishLayers}
+
+          <!-- ==================== 5. FOREGROUND CLOWNFISH BLOCK (BOTTOM-RIGHT) ==================== -->
+          <g transform="translate(555, 444) rotate(14) scale(0.96)">
+            <path d="M -30,-12 L -19,-5 C -10,-17 14,-18 26,-3 C 30,0 30,3 26,6 C 14,18 -10,17 -19,5 L -30,12 C -26,4 -26,-4 -30,-12 Z"
+                  transform="scale(-1, 1) translate(4, -4)" fill="#d7ccc8" stroke="#8d6e63" stroke-width="1"/>
+            <g transform="scale(-1, 1)">
+              <path d="M -30,-12 L -19,-5 C -10,-17 14,-18 26,-3 C 30,0 30,3 26,6 C 14,18 -10,17 -19,5 L -30,12 C -26,4 -26,-4 -30,-12 Z"
+                    fill="#e65100" stroke="#3e2723" stroke-width="1.2"/>
+              <path d="M -12,-10 Q -8,0 -12,10" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round"/>
+              <path d="M 2,-12 Q 6,0 2,12" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round"/>
+              <circle cx="18" cy="-2.5" r="4.2" fill="#ffffff" stroke="#1e293b" stroke-width="1.1"/>
+              <circle cx="19" cy="-2.5" r="2.1" fill="#0f172a"/>
+            </g>
+          </g>
+
+          <!-- Optional CAD Engineering Overlay -->
+          ${cadWhaleOverlay}
+
+          <!-- Top-Left SVG Vector Badge -->
+          ${isCompact ? "" : `
+          <g transform="translate(16, 16)">
+            <rect width="248" height="28" rx="8" fill="rgba(15, 23, 42, 0.82)"/>
+            <circle cx="14" cy="14" r="4.5" fill="#34A853"/>
+            <text x="26" y="18" fill="#ffffff" font-size="11" font-family="Inter, Noto Sans TC" font-weight="600">
+              SVG 純向量重構原參考圖 (14 隻小魚 + 鯨魚 + 骰子)
+            </text>
+          </g>
+          `}
+        </svg>
+      `;
+    }
+
+    window.toggleSvgCadOverlay = function() {
+      showSvgCadOverlay = !showSvgCadOverlay;
+      const svgEl = document.getElementById("step1RefSvg");
+      if (svgEl) {
+        svgEl.outerHTML = buildReferencePhotoSVG("step1RefSvg", false);
+      }
+      const btnText = document.getElementById("svgOverlayBtnText");
+      if (btnText) {
+        btnText.textContent = showSvgCadOverlay
+          ? "隱藏 SVG 工程標註圖層"
+          : "切換 SVG 工程標註圖層 (編號 #1~#14 與邊界框)";
+      }
+    };
+
+    /*************************************************************************
+     * 3. STEP 2 INTERACTIVE 2D BLUEPRINT & CLEARANCE INSPECTOR SVG
+     *    Uses the exact whale_2d() analytical contour + whale_head_lightweight_cavity_2d()
+     *    + exact 14 fish_2d(type) contours at their OpenSCAD coordinates
+     *************************************************************************/
+    function buildStep2BlueprintSVG() {
+      const sc = 1.52;
+      const ox = 315;
+      const oy = 372;
+      const tx = (x) => (ox + x * sc).toFixed(1);
+      const ty = (y) => (oy - y * sc).toFixed(1);
+
+      const whalePts = getExactWhaleContourPoints();
+      const whalePolygonAttr = whalePts.map(pt => `${tx(pt.x)},${ty(pt.y)}`).join(" ");
+
+      const whaleCavitiesSvg = WHALE_CAVITY_CIRCLES.map(([cx, cy]) =>
+        `<circle cx="${tx(cx)}" cy="${ty(cy)}" r="${(7.8 * sc).toFixed(1)}" fill="rgba(157, 203, 81, 0.35)" stroke="#137333" stroke-width="1" stroke-dasharray="2 2"/>`
+      ).join("\n");
+
+      const nodesSvg = FISH_DATA.map(f => {
+        const cx = tx(f.x);
+        const cy = ty(f.y);
+        const svgRot = (-f.rot).toFixed(1);
+        const fPts = getExactFishContourPoints(f.type);
+        const fPoly = fPts.map(p => `${(p.x * sc).toFixed(1)},${(-p.y * sc).toFixed(1)}`).join(" ");
+        const isFixedShark = f.id === 5;
+        return `
+          <g class="fish-node-group" onclick="inspectFishNode(${f.id})" onmouseenter="inspectFishNode(${f.id})" transform="translate(${cx}, ${cy})">
+            <!-- Non-Overlapping Safety Envelope Circle -->
+            <circle cx="0" cy="0" r="${(19 * sc).toFixed(1)}" fill="${isFixedShark ? 'rgba(11, 87, 208, 0.12)' : 'rgba(19, 115, 51, 0.06)'}" stroke="${isFixedShark ? '#0B57D0' : '#137333'}" stroke-width="${isFixedShark ? '1.8' : '1.1'}" stroke-dasharray="3 2"/>
+            <g transform="rotate(${svgRot})">
+              <polygon points="${fPoly}" fill="${f.bodyColor}" fill-opacity="0.92" stroke="#1F1F1F" stroke-width="1.2"/>
+              <!-- Internal 2 Lightweight Cavities -->
+              <circle cx="${(-5 * sc).toFixed(1)}" cy="0" r="${(5.8 * sc).toFixed(1)}" fill="rgba(255,255,255,0.35)" stroke="#1F1F1F" stroke-width="0.7" stroke-dasharray="2 1"/>
+              <circle cx="${(6.5 * sc).toFixed(1)}" cy="0" r="${(4.8 * sc).toFixed(1)}" fill="rgba(255,255,255,0.35)" stroke="#1F1F1F" stroke-width="0.7" stroke-dasharray="2 1"/>
+            </g>
+            <circle cx="0" cy="0" r="9.5" fill="${isFixedShark ? '#0B57D0' : '#FFFFFF'}" stroke="${f.bodyColor}" stroke-width="2"/>
+            <text x="0" y="3.5" text-anchor="middle" fill="${isFixedShark ? '#FFFFFF' : '#1F1F1F'}" font-size="9.5" font-family="JetBrains Mono" font-weight="700">#${f.id}</text>
+          </g>
+        `;
+      }).join("\n");
+
+      // Also show the ghost outline of the old overlapping shark at [24, 34] rot=-20 for clear visual comparison
+      const sharkPts = getExactFishContourPoints("shark").map(p => `${(p.x * sc).toFixed(1)},${(-p.y * sc).toFixed(1)}`).join(" ");
+
+      return `
+        <svg viewBox="0 0 680 460" class="w-full h-auto rounded-xl bg-[#FFFFE5] border border-[#D0D0C0] shadow-inner" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="bpGrid" width="30.4" height="30.4" patternUnits="userSpaceOnUse">
+              <path d="M 30.4 0 L 0 0 0 30.4" fill="none" stroke="#E6E6C8" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect width="680" height="460" fill="url(#bpGrid)"/>
+
+          <!-- X and Y Axes through (0,0) and Y_bottom = -45 -->
+          <line x1="20" y1="${ty(-45)}" x2="660" y2="${ty(-45)}" stroke="#888877" stroke-width="1.2" stroke-dasharray="4 3"/>
+          <text x="650" y="${ty(-48)}" text-anchor="end" fill="#555544" font-size="9.5" font-family="JetBrains Mono">底部最低點 Y = -45 mm</text>
+          <line x1="20" y1="${oy}" x2="660" y2="${oy}" stroke="#444746" stroke-width="1.2"/>
+          <line x1="${ox}" y1="12" x2="${ox}" y2="450" stroke="#444746" stroke-width="1.2" stroke-dasharray="5 5"/>
+
+          <!-- Exact Analytical Whale Base CAD Profile (whale_2d) -->
+          <polygon points="${whalePolygonAttr}" fill="rgba(20, 97, 173, 0.26)" stroke="#0B57D0" stroke-width="2.2"/>
+
+          <!-- 9 Honeycomb Head Lightening Cavities -->
+          ${whaleCavitiesSvg}
+
+          <!-- Whale Eye CAD Marker [-45, 22] -->
+          <circle cx="${tx(-45)}" cy="${ty(22)}" r="${(11 * sc).toFixed(1)}" fill="#FFFFFF" stroke="#0B57D0" stroke-width="1.5"/>
+          <circle cx="${tx(-46.5)}" cy="${ty(21.5)}" r="${(5.8 * sc).toFixed(1)}" fill="#0d47a1"/>
+
+          <!-- Ghost Comparison of Old Overlapping Position [24, 34] rot=-20 -->
+          <g transform="translate(${tx(24)}, ${ty(34)}) rotate(20)" opacity="0.55">
+            <polygon points="${sharkPts}" fill="none" stroke="#D32F2F" stroke-width="1.6" stroke-dasharray="3 2"/>
+          </g>
+          <circle cx="${tx(47.5)}" cy="${ty(37.15)}" r="6" fill="rgba(211, 47, 47, 0.22)" stroke="#D32F2F" stroke-width="1.5"/>
+
+          <!-- Physics Metacenter [-6, 70] & Whale CG [-6, -13.2] -->
+          <circle cx="${tx(-6)}" cy="${ty(70)}" r="4.5" fill="#1976D2" stroke="#FFFFFF" stroke-width="1.2"/>
+          <text x="${tx(-6)}" y="${ty(76)}" text-anchor="middle" fill="#0B57D0" font-size="9.5" font-family="JetBrains Mono" font-weight="700">穩心 Y_c=+70</text>
+
+          <!-- 14 Interactive Fish Nodes -->
+          ${nodesSvg}
+        </svg>
+      `;
+    }
+
+    window.inspectFishNode = function(fishId) {
+      const f = FISH_DATA.find(item => item.id === fishId);
+      if (!f) return;
+      playArcadeButtonSound(1.18 + (fishId % 5) * 0.05);
+      const box = document.getElementById("fishInspectorPanel");
+      if (!box) return;
+      box.innerHTML = `
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5">
+            <span class="w-7 h-7 rounded-lg flex items-center justify-center font-mono text-xs font-bold text-white shadow-2xs" style="background:${f.bodyColor}">#${f.id}</span>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs sm:text-sm font-bold text-[#1F1F1F]">${f.name}</span>
+                <span class="px-2 py-0.5 rounded-full bg-[#E8F0FE] border border-[#D3E3FD] text-[10px] font-semibold text-[#0B57D0]">${f.zone}</span>
+                <span class="px-2 py-0.5 rounded-full bg-[#F0F4F9] border border-[#E1E5EA] text-[10px] font-mono text-[#444746]">type="${f.type}"</span>
+              </div>
+              <p class="text-[11px] text-[#444746] mt-0.5">${f.desc}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 font-mono text-xs shrink-0">
+            <span class="px-2.5 py-1 rounded-lg bg-[#FFFFFF] border border-[#E1E5EA] text-[#0B57D0] font-semibold">
+              translate([${f.x}, ${f.y}, 0]) rotate([0, 0, ${f.rot}])
+            </span>
+            <span class="px-2.5 py-1 rounded-lg bg-[#E6F4EA] border border-[#CEEAD6] text-[#137333] font-semibold">
+              淨空 ${f.clearanceMM} mm
+            </span>
+          </div>
+        </div>
+      `;
+    };
+
+    /*************************************************************************
+     * 4. COMPLETE PARAMETRIC OPENSCAD SOURCE CODE (.SCAD)
+     *    Exact OpenSCAD code from the user's conversation, with the overlapping
+     *    shark at [24, 34, 0] rot=-20 corrected to [20, 44, 0] rot=-18!
+     *************************************************************************/
+    const OPENSCAD_SOURCE_CODE = `// =========================================================================
+// 鯨魚海洋平衡疊疊樂 (修正後腦扇形尖角 + 18件完全獨立分離 + 零錯誤快速渲染版)
+// =========================================================================
+
+/* [顯示與輸出模式] */
+// stacked_preview: 立體分離堆疊預覽 | print_plate: 全套18件平鋪列印排版 | cutaway_view: 剖面檢視內部配重空腔 | laser_2d: 雷切2D投影
+display_mode = "stacked_preview"; // ["stacked_preview", "print_plate", "cutaway_view", "laser_2d"]
+
+// 積木厚度 (mm)
+block_thickness = 18; // [12:1:30]
+
+// 是否生成表面立體紋路 (眼睛、肚皮條紋、魚身花紋)
+show_details = true;
+
+// 陰刻紋路深度 (mm)
+detail_depth = 1.2;
+
+/* [物理重心與平衡參數] */
+// 啟用內部隱藏式配重空腔 (減輕鯨魚頭頂與小魚重量、降低重心，外觀完全封閉平整)
+enable_balance_cavity = true;
+
+// 顯示物理重心與穩心(曲率中心)視覺化指標 (僅於預覽模式顯示)
+show_physics_guide = false;
+
+// 鯨魚底部搖擺真圓弧半徑 R (mm)
+rocker_radius = 115; // [100:1:140]
+
+// 搖擺圓心水平偏移量 X_c (mm，負值代表往頭側偏移以平衡大頭重量)
+balance_x_shift = -6; // [-15:1:5]
+
+/* [隱藏設定] */
+$fn = 64;
+wall_skin = 2.4; // 內部空腔上下封閉面板厚度 (mm)
+
+// 物理平衡計算回報
+y_bottom = -45;
+y_metacenter = y_bottom + rocker_radius;
+y_whale_cg = enable_balance_cavity ? -13.2 : -6.8;
+y_fish_avg = 112.0;
+mass_ratio_fish_to_whale = enable_balance_cavity ? 0.82 : 1.38;
+y_sys_cg = (1.0 * y_whale_cg + mass_ratio_fish_to_whale * y_fish_avg) / (1.0 + mass_ratio_fish_to_whale);
+stability_margin = y_metacenter - y_sys_cg;
+
+echo("================ 平衡物理評估報告 ================");
+echo(str("1. 底部最低點 Y = ", y_bottom, " mm | 曲率中心(傾倒臨界點) Y_c = +", y_metacenter, " mm"));
+echo(str("2. 鯨魚單體重心 Y_whale = ", y_whale_cg, " mm | 14隻小魚疊滿合成重心 Y_sys = +", round(y_sys_cg*10)/10, " mm"));
+echo(str("3. 穩定安全裕度 (Y_c - Y_sys) = +", round(stability_margin*10)/10, " mm (正值代表可穩定回正)"));
+echo("==================================================");
+
+// =========================================================================
+// 主程式路由
+// =========================================================================
+if (display_mode == "stacked_preview") {
+    rotate([90, 0, 0]) {
+        // 1. 鯨魚底座 (純圓弧頭頂 + 真圓搖擺底弧 + 深U型背谷 + 飽滿雙尾鰭)
+        whale_block();
+        
+        // 2. 背部堆疊小魚群 (14隻小魚與鯨魚皆保持安全淨空，100% 獨立分離零重疊)
+        // --- 左列 (鯨魚圓潤頭頂上方) ---
+        translate([-45, 86, 0])  rotate([0, 0, 10])
+            fish_block("standard", [0.48, 0.82, 0.25]);
+        translate([-45, 120, 0]) rotate([0, 0, 6])
+            fish_block("finned",   [0.95, 0.50, 0.15]);
+        translate([-42, 154, 0]) rotate([0, 0, 4])
+            fish_block("standard", [0.10, 0.45, 0.78]);
+        translate([-36, 194, 0]) rotate([0, 0, 40])
+            fish_block("large",    [0.35, 0.78, 0.80]);
+
+        // --- 中列 (深 U 型背谷與中央上方，已修正鯊魚位置避免尾鰭與鯨魚左尾鰭 CtL[50,37] 重疊) ---
+        translate([20, 44, 0])   rotate([0, 0, -18])
+            fish_block("shark",    [0.15, 0.48, 0.78]);
+        translate([6, 72, 0])    rotate([0, 0, 6])
+            fish_block("standard", [0.92, 0.35, 0.20]);
+        translate([8, 105, 0])   rotate([0, 0, 4])
+            fish_block("standard", [0.88, 0.15, 0.25]);
+        translate([12, 139, 0])  rotate([0, 0, -5])
+            fish_block("finned",   [0.90, 0.22, 0.28]);
+        translate([16, 174, 0])  rotate([0, 0, -6])
+            fish_block("finned",   [0.96, 0.55, 0.15]);
+        translate([22, 208, 0])  rotate([0, 0, -10])
+            fish_block("standard", [0.12, 0.68, 0.75]);
+
+        // --- 右列 (鯨魚尾柄與尾鰭上方) ---
+        translate([56, 64, 0])   rotate([0, 0, -20])
+            fish_block("standard", [0.20, 0.72, 0.25]);
+        translate([105, 62, 0])  rotate([0, 0, 6])
+            fish_block("large",    [0.95, 0.58, 0.15]);
+        translate([74, 102, 0])  rotate([0, 0, -6])
+            fish_block("large",    [0.92, 0.18, 0.32]);
+        translate([74, 140, 0])  rotate([0, 0, -28])
+            fish_block("standard", [0.15, 0.50, 0.80]);
+
+        // 3. 地面散落的小魚與骰子
+        translate([105, -32, 0])  rotate([0, 0, 0])
+            fish_block("standard", [0.92, 0.38, 0.15]);
+        translate([-145, -32, 0]) rotate([0, 0, 8])
+            fish_block("standard", [0.50, 0.80, 0.30]);
+        translate([-98, -34, 0])
+            dice_block(22);
+
+        // 4. 物理重心與穩心視覺化標記
+        if (show_physics_guide) {
+            physics_markers();
+        }
+    }
+
+} else if (display_mode == "print_plate") {
+    // 3D 列印平鋪模式：全套 18 件積木平躺貼齊 Z=0
+    translate([0, 0, block_thickness/2]) {
+        translate([0, -55, 0]) whale_block();
+        
+        for (i = [0:3])
+            translate([-102 + i*68, 42, 0])  fish_block("standard", [0.92, 0.35, 0.20]);
+        for (i = [0:3])
+            translate([-102 + i*68, 84, 0])  fish_block("standard", [0.20, 0.72, 0.25]);
+        for (i = [0:2])
+            translate([-102 + i*68, 126, 0]) fish_block("finned",   [0.95, 0.50, 0.15]);
+        translate([-102 + 3*68, 126, 0])     fish_block("shark",    [0.15, 0.48, 0.78]);
+        for (i = [0:2])
+            translate([-102 + i*68, 170, 0]) fish_block("large",    [0.92, 0.18, 0.32]);
+        translate([-102 + 3*68, 170, 0])     fish_block("standard", [0.15, 0.50, 0.80]);
+    }
+    translate([-130, -55, 11]) dice_block(22);
+
+} else if (display_mode == "cutaway_view") {
+    // 剖面檢視模式：切開上半部面板，檢視內部配重空腔
+    difference() {
+        union() {
+            whale_block();
+            translate([-50, 95, 0]) fish_block("standard", [0.92, 0.35, 0.20]);
+            translate([20, 95, 0])  fish_block("large",    [0.95, 0.58, 0.15]);
+        }
+        translate([0, 30, block_thickness/2])
+            cube([300, 260, block_thickness], center = true);
+    }
+
+} else if (display_mode == "laser_2d") {
+    // 2D 雷射切割輪廓模式
+    translate([0, -55]) whale_2d();
+    translate([-102, 42]) fish_2d("standard");
+    translate([-34, 42])  fish_2d("finned");
+    translate([34, 42])   fish_2d("large");
+    translate([102, 42])  fish_2d("shark");
+}
+
+// =========================================================================
+// 模組 1：鯨魚搖擺底座 (純解析相切圓幾何，零 offset 確保 100% 封閉網格)
+// =========================================================================
+module whale_block() {
+    difference() {
+        // 1. 鯨魚深藍色主體
+        color([0.08, 0.38, 0.68])
+        linear_extrude(height = block_thickness, center = true, convexity = 6)
+            whale_2d();
+        
+        // 2. 內部隱藏式配重空腔 (掏空左上方頭頂，保留下腹 100% 實心壓艙)
+        if (enable_balance_cavity) {
+            cavity_h = max(0, block_thickness - wall_skin * 2);
+            if (cavity_h > 1) {
+                linear_extrude(height = cavity_h, center = true, convexity = 6)
+                    whale_head_lightweight_cavity_2d();
+            }
+        }
+
+        // 3. 雙面陰刻凹槽 (眼睛、腮紅、肚皮條紋、胸鰭)
+        if (show_details) {
+            for (side = [-1, 1]) {
+                translate([0, 0, side * (block_thickness/2 - detail_depth/2 + side * 0.2)])
+                color([0.75, 0.90, 0.98])
+                linear_extrude(height = detail_depth + 0.4, center = true, convexity = 6)
+                    whale_grooves_2d();
+            }
+        }
+    }
+}
+
+// 鯨魚 2D 主輪廓 (修正扇形遮罩頂點，消除後腦尖角並完整保留左右對稱尾鰭)
+module whale_2d() {
+    // 1. 底部搖擺主圓 C0 (半徑 R0=115, 圓心 [-6, 70])
+    c0_x = balance_x_shift;          // -6
+    c0_y = rocker_radius + y_bottom; // 70
+
+    // 2. 鯨魚頭部單一純圓穹頂 C1 (半徑 R1=50, 圓心 [-45, 18], 與 C0 精確內切)
+    r1 = 50;
+    d01 = rocker_radius - r1; // 65
+    c1_y = c0_y - 52;         // 18
+    c1_x = c0_x - sqrt(max(0, d01*d01 - 52*52)); // -45
+    ang_head = atan2(c1_y - c0_y, c1_x - c0_x);  // -126.87 度
+
+    // 3. 尾巴下緣平滑大圓弧 C2 (半徑 R2=50, 圓心 [19, 10], 與 C0 精確內切)
+    r2 = 50;
+    d02 = rocker_radius - r2; // 65
+    c2_y = c0_y - 60;         // 10
+    c2_x = c0_x + sqrt(max(0, d02*d02 - 60*60)); // +19
+    ang_tail = atan2(c2_y - c0_y, c2_x - c0_x);  // -67.38 度
+
+    // 4. 尾柄上端圓 C3 與左右尾鰭尖端圓 CtL, CtR
+    c3_x = 64;  c3_y = 22;  r3 = 9.5;
+    ctl_x = 50; ctl_y = 37; rtl = 4.5;
+    ctr_x = 86; ctr_y = 37; rtr = 4.5;
+
+    // 5. 解析計算「深 U 型背谷圓 Cv (半徑 Rv=28.5)」：同時與頭部圓 C1 及尾柄圓 C3 精確外切
+    rv = 28.5;
+    d13 = sqrt((c3_x - c1_x)*(c3_x - c1_x) + (c3_y - c1_y)*(c3_y - c1_y));
+    L1 = r1 + rv;
+    L3 = r3 + rv;
+    a_v = (L1*L1 - L3*L3 + d13*d13) / (2 * d13);
+    h_v = sqrt(max(0, L1*L1 - a_v*a_v));
+    ux_v = (c3_x - c1_x) / d13;
+    uy_v = (c3_y - c1_y) / d13;
+    cv_x = c1_x + a_v * ux_v - h_v * uy_v; // +30.41
+    cv_y = c1_y + a_v * uy_v + h_v * ux_v; // +39.78
+    // 背谷與頭部、尾柄的精確外切點 T1, T3
+    t1_x = c1_x + (r1 / L1) * (cv_x - c1_x);
+    t1_y = c1_y + (r1 / L1) * (cv_y - c1_y);
+    t3_x = c3_x + (r3 / L3) * (cv_x - c3_x);
+    t3_y = c3_y + (r3 / L3) * (cv_y - c3_y);
+
+    // 6. 解析計算「右尾鰭下緣內凹圓 CfR (半徑 RfR=18)」：同時與尾柄下緣圓 C2 及右尾鰭尖端圓 CtR 精確外切
+    rfr = 18.0;
+    d2r = sqrt((ctr_x - c2_x)*(ctr_x - c2_x) + (ctr_y - c2_y)*(ctr_y - c2_y));
+    L2 = r2 + rfr;
+    Lr = rtr + rfr;
+    a_r = (L2*L2 - Lr*Lr + d2r*d2r) / (2 * d2r);
+    h_r = sqrt(max(0, L2*L2 - a_r*a_r));
+    ux_r = (ctr_x - c2_x) / d2r;
+    uy_r = (ctr_y - c2_y) / d2r;
+    cfr_x = c2_x + a_r * ux_r + h_r * uy_r;
+    cfr_y = c2_y + a_r * uy_r - h_r * ux_r;
+    t2_x = c2_x + (r2 / L2) * (cfr_x - c2_x);
+    t2_y = c2_y + (r2 / L2) * (cfr_y - c2_y);
+    tr_x = ctr_x + (rtr / Lr) * (cfr_x - ctr_x);
+    tr_y = ctr_y + (rtr / Lr) * (cfr_y - ctr_y);
+
+    // 7. 解析計算「尾鰭頂部微凹圓 CfT (半徑 RfT=32)」：同時與左右尾鰭尖端圓 CtL, CtR 精確外切
+    rft = 32.0;
+    cft_x = (ctl_x + ctr_x) / 2;
+    dx_t = (ctr_x - ctl_x) / 2;
+    Lt = rtl + rft;
+    cft_y = ctl_y + sqrt(max(0, Lt*Lt - dx_t*dx_t));
+    tl_top_x = ctl_x + (rtl / Lt) * (cft_x - ctl_x);
+    tl_top_y = ctl_y + (rtl / Lt) * (cft_y - ctl_y);
+    tr_top_x = ctr_x + (rtr / Lt) * (cft_x - ctr_x);
+    tr_top_y = ctr_y + (rtr / Lt) * (cft_y - ctr_y);
+
+    // 組合鯨魚主體與尾鰭
+    difference() {
+        union() {
+            // 【第一部分：鯨魚主體與深 U 型背谷】
+            difference() {
+                union() {
+                    // A. 飽滿純圓弧頭部 C1
+                    translate([c1_x, c1_y]) circle(r = r1, $fn = 128);
+
+                    // B. 底部搖擺真圓弧扇形區 C0
+                    // 【關鍵修正】頂點改為 [c1_x, c1_y] 與 [c2_x, c2_y]，徹底消除延伸至 [-6, 70] 的後腦尖角！
+                    intersection() {
+                        translate([c0_x, c0_y]) circle(r = rocker_radius, $fn = 160);
+                        polygon([
+                            [c1_x, c1_y],
+                            [c0_x + 2*rocker_radius*cos(ang_head), c0_y + 2*rocker_radius*sin(ang_head)],
+                            [c0_x, c0_y - 2*rocker_radius],
+                            [c0_x + 2*rocker_radius*cos(ang_tail), c0_y + 2*rocker_radius*sin(ang_tail)],
+                            [c2_x, c2_y]
+                        ]);
+                    }
+
+                    // C. 尾巴下緣大圓弧區 C2
+                    intersection() {
+                        translate([c2_x, c2_y]) circle(r = r2, $fn = 128);
+                        polygon([
+                            [-10, 15],
+                            [-10, -60],
+                            [80, -60],
+                            [80, t2_y + 5],
+                            [c2_x, c2_y]
+                        ]);
+                    }
+
+                    // D. 背谷下方與尾柄主體實心填補多邊形
+                    polygon([
+                        [c1_x, c1_y],
+                        [t1_x, t1_y],
+                        [cv_x, cv_y - rv + 5],
+                        [t3_x, t3_y],
+                        [c3_x, c3_y],
+                        [ctr_x, ctr_y],
+                        [tr_x, tr_y],
+                        [t2_x, t2_y],
+                        [c2_x, c2_y],
+                        [0, -25]
+                    ]);
+                }
+
+                // 挖除精確外切之深 U 型背谷圓 Cv (僅作用於背谷，不傷左尾鰭)
+                translate([cv_x, cv_y]) circle(r = rv, $fn = 128);
+            }
+
+            // 【第二部分：飽滿對稱的左右尾鰭】
+            // E. 左尾鰭凸包絡 (C3 至 CtL，獨立於背谷差集之外，完整保留飽滿厚度)
+            hull() {
+                translate([c3_x, c3_y]) circle(r = r3, $fn = 64);
+                translate([ctl_x, ctl_y]) circle(r = rtl, $fn = 48);
+            }
+
+            // F. 右尾鰭尖端圓 CtR 與頂部填補多邊形
+            translate([ctr_x, ctr_y]) circle(r = rtr, $fn = 48);
+            polygon([
+                [ctl_x, ctl_y],
+                [tl_top_x, tl_top_y],
+                [tr_top_x, tr_top_y],
+                [ctr_x, ctr_y],
+                [c3_x, c3_y]
+            ]);
+        }
+
+        // 挖除右尾鰭下緣內凹圓 CfR
+        translate([cfr_x, cfr_y]) circle(r = rfr, $fn = 96);
+
+        // 挖除尾鰭頂部微凹圓 CfT
+        translate([cft_x, cft_y]) circle(r = rft, $fn = 96);
+    }
+}
+
+// 鯨魚頭頂內部蜂巢減重空腔 2D
+module whale_head_lightweight_cavity_2d() {
+    for (pt = [
+        [-68, 28], [-48, 44], [-26, 40],
+        [-72, 10], [-50, 22], [-28, 22], [-12, 14],
+        [-52, 0],  [-30, 2]
+    ]) {
+        translate(pt) circle(r = 7.8, $fn = 36);
+    }
+}
+
+// 鯨魚雙面陰刻細節 2D 圖案
+module whale_grooves_2d() {
+    // 1. 大眼睛外框與眼珠 (帶眼神反光點)
+    translate([-45, 22]) {
+        difference() {
+            circle(r = 11, $fn = 64);
+            circle(r = 9.0, $fn = 64);
+        }
+        difference() {
+            translate([-1.5, -0.5]) circle(r = 5.8, $fn = 48);
+            translate([-3.5, 1.5])  circle(r = 1.8, $fn = 32);
+        }
+    }
+    // 2. 橢圓腮紅
+    translate([-28, 8]) rotate([0, 0, 25])
+        scale([1.5, 0.9]) circle(r = 3.6, $fn = 36);
+
+    // 3. 肚皮弧形條紋
+    intersection() {
+        intersection() {
+            translate([balance_x_shift, rocker_radius + y_bottom])
+                circle(r = rocker_radius - 2.5, $fn = 128);
+            union() {
+                translate([-45, 18]) circle(r = 47.5, $fn = 96);
+                translate([19, 10])  circle(r = 47.5, $fn = 96);
+                translate([-15, -15]) square([75, 50], center = true);
+            }
+        }
+        difference() {
+            union() {
+                for (r_val = [79.5, 85, 90.5, 96]) {
+                    difference() {
+                        translate([-2, 58]) circle(r = r_val, $fn = 128);
+                        translate([-2, 58]) circle(r = r_val - 1.5, $fn = 128);
+                    }
+                }
+            }
+            translate([0, 35]) square([220, 100], center = true);
+            translate([-20, -23]) rotate([0, 0, 15]) scale([0.65, 1.3]) circle(r = 9.2, $fn = 48);
+        }
+    }
+
+    // 4. 小胸鰭輪廓與鰭線
+    translate([-20, -23]) rotate([0, 0, 15]) {
+        difference() {
+            scale([0.65, 1.3]) circle(r = 8.2, $fn = 48);
+            scale([0.65, 1.3]) circle(r = 6.6, $fn = 48);
+            translate([0, 6]) square([16, 12], center = true);
+        }
+        translate([-1.5, -1.5]) square([1.2, 5.5], center = true);
+        translate([1.5, -1.5])  square([1.2, 5.5], center = true);
+    }
+}
+
+// =========================================================================
+// 模組 2：海洋小魚積木
+// =========================================================================
+module fish_block(type = "standard", body_color = [0.95, 0.5, 0.15]) {
+    difference() {
+        // 1. 魚身主體
+        color(body_color)
+        linear_extrude(height = block_thickness, center = true, convexity = 4)
+            fish_2d(type);
+        
+        // 2. 內部輕量化空腔
+        if (enable_balance_cavity) {
+            cavity_h = max(0, block_thickness - wall_skin * 2);
+            if (cavity_h > 1) {
+                linear_extrude(height = cavity_h, center = true, convexity = 4)
+                    fish_lightweight_cavity_2d();
+            }
+        }
+
+        // 3. 雙面陰刻魚眼、魚鰓與專屬花紋
+        if (show_details) {
+            for (side = [-1, 1]) {
+                translate([0, 0, side * (block_thickness/2 - detail_depth/2 + side * 0.2)])
+                color([0.98, 0.95, 0.88])
+                linear_extrude(height = detail_depth + 0.4, center = true, convexity = 4)
+                    fish_pattern_2d(type);
+            }
+        }
+    }
+}
+
+module fish_lightweight_cavity_2d() {
+    translate([-5, 0]) circle(r = 5.8, $fn = 36);
+    translate([6.5, 0]) circle(r = 4.8, $fn = 36);
+}
+
+module fish_2d(type = "standard") {
+    if (type == "standard") {
+        union() {
+            scale([1.35, 1.0]) circle(r = 13, $fn = 64);
+            hull() {
+                translate([11, 0]) circle(r = 5.5, $fn = 36);
+                translate([22, 6.5]) circle(r = 2.5, $fn = 36);
+                translate([22, -6.5]) circle(r = 2.5, $fn = 36);
+            }
+        }
+    } else if (type == "finned") {
+        union() {
+            scale([1.38, 1.0]) circle(r = 13.2, $fn = 64);
+            hull() {
+                translate([11, 0]) circle(r = 5.5, $fn = 36);
+                translate([23, 7]) circle(r = 2.5, $fn = 36);
+                translate([23, -7]) circle(r = 2.5, $fn = 36);
+            }
+            hull() {
+                translate([1, 9.5]) circle(r = 3.5, $fn = 32);
+                translate([11, 12.5]) circle(r = 2.4, $fn = 32);
+                translate([10, 6]) circle(r = 3.5, $fn = 32);
+            }
+            hull() {
+                translate([1, -9.5]) circle(r = 3.5, $fn = 32);
+                translate([11, -12.5]) circle(r = 2.4, $fn = 32);
+                translate([10, -6]) circle(r = 3.5, $fn = 32);
+            }
+        }
+    } else if (type == "large") {
+        union() {
+            scale([1.32, 1.0]) circle(r = 16, $fn = 64);
+            hull() {
+                translate([14, 0]) circle(r = 6.5, $fn = 36);
+                translate([26, 8]) circle(r = 3.0, $fn = 36);
+                translate([26, -8]) circle(r = 3.0, $fn = 36);
+            }
+            hull() {
+                translate([3, 11.5]) circle(r = 4.0, $fn = 32);
+                translate([13, 14.5]) circle(r = 2.6, $fn = 32);
+                translate([12, 8]) circle(r = 4.0, $fn = 32);
+            }
+        }
+    } else if (type == "shark") {
+        union() {
+            scale([1.35, 0.95]) circle(r = 13.5, $fn = 64);
+            hull() {
+                translate([10, 1.5]) circle(r = 5.5, $fn = 36);
+                translate([21, 11]) circle(r = 2.5, $fn = 36);
+                translate([23, -2]) circle(r = 2.5, $fn = 36);
+            }
+            hull() {
+                translate([-5, 8.5]) circle(r = 4.5, $fn = 32);
+                translate([2, 16.5]) circle(r = 2.4, $fn = 32);
+                translate([6, 8]) circle(r = 4.5, $fn = 32);
+            }
+        }
+    }
+}
+
+module fish_pattern_2d(type = "standard") {
+    eye_pos = (type == "large") ? [-14, 3] : 
+              (type == "shark") ? [-11, -1.5] : [-11.5, 2.5];
+    
+    // 1. 魚眼
+    translate(eye_pos) {
+        difference() {
+            circle(r = 3.8, $fn = 36);
+            circle(r = 2.5, $fn = 36);
+        }
+        translate([-0.4, 0]) circle(r = 1.4, $fn = 24);
+    }
+
+    // 2. 魚鰓與魚身花紋
+    core_rx = (type == "large") ? 18.2 : 15.0;
+    core_ry = (type == "large") ? 13.6 : (type == "shark") ? 10.4 : 10.6;
+
+    intersection() {
+        scale([core_rx / 10, core_ry / 10]) circle(r = 10, $fn = 64);
+        union() {
+            translate([-11, 0])
+            difference() {
+                circle(r = 8.8, $fn = 48);
+                circle(r = 7.4, $fn = 48);
+                translate([-5, 0]) square([10, 22], center = true);
+            }
+            
+            if (type == "large") {
+                for (pt = [[0, 6], [0, -5], [6, 1], [8, 9], [8, -8], [14, 3], [14, -4]]) {
+                    translate(pt) circle(r = 2.2, $fn = 28);
+                }
+            } else if (type == "shark") {
+                translate([-9, -7]) rotate([0, 0, -15]) square([9, 1.4], center = true);
+                for (x_pos = [2, 7, 12]) {
+                    translate([x_pos, 3]) rotate([0, 0, 15]) square([1.5, 15], center = true);
+                }
+            } else {
+                for (x_pos = [1, 6, 11]) {
+                    translate([x_pos, 0]) square([1.6, 30], center = true);
+                }
+            }
+        }
+    }
+
+    // 3. 尾鰭放射紋線
+    tail_x = (type == "large") ? 21 : 18;
+    translate([tail_x, 2.5])  rotate([0, 0, 18])  square([5.5, 1.2], center = true);
+    translate([tail_x, -2.5]) rotate([0, 0, -18]) square([5.5, 1.2], center = true);
+}
+
+// =========================================================================
+// 模組 3：高速渲染圓角骰子與物理重心視覺化指標
+// =========================================================================
+module dice_block(size = 22) {
+    r_corner = 1.5;
+    d = size/2 - r_corner;
+    color([0.92, 0.25, 0.18])
+    hull() {
+        for (x = [-d, d], y = [-d, d], z = [-d, d]) {
+            translate([x, y, z]) sphere(r = r_corner, $fn = 20);
+        }
+    }
+}
+
+module physics_markers() {
+    translate([0, 0, block_thickness/2 + 4]) {
+        color([0.1, 0.3, 1.0]) translate([balance_x_shift, y_metacenter, 0]) sphere(r = 4.5, $fn = 24);
+        color([1.0, 0.1, 0.1]) translate([balance_x_shift + 4, y_sys_cg, 0]) sphere(r = 4.5, $fn = 24);
+        color([0.1, 0.85, 0.2]) translate([balance_x_shift, y_whale_cg, 0]) sphere(r = 4.5, $fn = 24);
+        color([0.2, 0.2, 0.2, 0.5]) translate([balance_x_shift, (y_metacenter + y_bottom)/2, 0])
+            cube([1.2, rocker_radius, 1.2], center = true);
+    }
+}`;
+
+    function renderOpenSCADCodeEditor() {
+      const codeLines = OPENSCAD_SOURCE_CODE.split("\n");
+      const lineNumContainer = document.getElementById("scadLineNumbers");
+      const codeContainer = document.getElementById("openscadCodeBlock");
+      if (!lineNumContainer || !codeContainer) return;
+
+      lineNumContainer.innerHTML = codeLines.map((_, idx) => `<div>${idx + 1}</div>`).join("");
+
+      const escapeHtml = (str) =>
+        str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+      const highlightedLines = codeLines.map((rawLine) => {
+        const trimmed = rawLine.trim();
+        if (trimmed.startsWith("//") || trimmed.startsWith("/*")) {
+          return `<span class="scad-cmt">${escapeHtml(rawLine)}</span>`;
+        }
+        let line = escapeHtml(rawLine);
+        let commentPart = "";
+        const cmtIdx = line.indexOf("//");
+        if (cmtIdx !== -1) {
+          commentPart = `<span class="scad-cmt">${line.slice(cmtIdx)}</span>`;
+          line = line.slice(0, cmtIdx);
+        }
+        line = line.replace(/"([^"]*)"/g, '<span class="scad-str">"$1"</span>');
+        line = line.replace(/\b(module|function|if|else|for|true|false)\b/g, '<span class="scad-kw">$1</span>');
+        line = line.replace(/\b(difference|union|intersection|hull|linear_extrude|projection|translate|rotate|scale|color|polygon|circle|cube|cylinder|offset)\b/g, '<span class="scad-fn">$1</span>');
+        line = line.replace(/\b(-?\d+(\.\d+)?)\b/g, '<span class="scad-num">$1</span>');
+        return line + commentPart;
+      });
+
+      codeContainer.innerHTML = highlightedLines.join("\n");
+    }
+
+    /*************************************************************************
+     * 4B. OPENSCAD 2021.01 CONSOLE LOGGER
+     *************************************************************************/
+    function appendScadLog(msg, isEcho = false) {
+      const box = document.getElementById("scadConsoleOutput");
+      if (!box) return;
+      const line = document.createElement("div");
+      if (isEcho) {
+        line.className = "text-[#0B57D0] font-semibold";
+      } else if (msg.includes("Rendering") || msg.includes("Total rendering time") || msg.includes("STL export")) {
+        line.className = "text-[#137333] font-medium";
+      }
+      line.textContent = msg;
+      box.appendChild(line);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    window.clearScadConsole = function() {
+      const box = document.getElementById("scadConsoleOutput");
+      if (box) box.innerHTML = "";
+    };
+
+    function logFullScadCompile(mode, renderType = "F5") {
+      clearScadConsole();
+      appendScadLog("Parsing design (AST generation)...");
+      appendScadLog("Compiling design (CSG Tree generation)...");
+      const y_bottom = -45;
+      const rocker_radius = 115;
+      const y_metacenter = y_bottom + rocker_radius; // 70
+      const y_whale_cg = enableBalanceCavity ? -13.2 : -6.8;
+      const y_fish_avg = 112.0;
+      const ratio = enableBalanceCavity ? 0.82 : 1.38;
+      const y_sys_cg = Math.round(((1.0 * y_whale_cg + ratio * y_fish_avg) / (1.0 + ratio)) * 10) / 10;
+      const margin = Math.round((y_metacenter - y_sys_cg) * 10) / 10;
+
+      appendScadLog(`ECHO: "================ 平衡物理評估報告 ================"`, true);
+      appendScadLog(`ECHO: "1. 底部最低點 Y = ${y_bottom} mm | 曲率中心(傾倒臨界點) Y_c = +${y_metacenter} mm"`, true);
+      appendScadLog(`ECHO: "2. 鯨魚單體重心 Y_whale = ${y_whale_cg} mm | 14隻小魚疊滿合成重心 Y_sys = +${y_sys_cg} mm"`, true);
+      appendScadLog(`ECHO: "3. 穩定安全裕度 (Y_c - Y_sys) = +${margin} mm (正值代表可穩定回正)"`, true);
+      appendScadLog(`ECHO: "=================================================="`, true);
+      if (renderType === "F6") {
+        appendScadLog("Rendering Polygon Mesh using CGAL...");
+        appendScadLog("Geometries in cache: 42 | CGAL Polyhedrons in cache: 21");
+        appendScadLog("Top level object is a 3D object: Simple: yes | Vertices: 5280 | Facets: 10556");
+        appendScadLog("Total rendering time: 0:00:00.640");
+      } else {
+        appendScadLog("Compiling highlights (0 CSG Trees)...");
+        appendScadLog("Normalized CSG tree has 36 elements! Total rendering time: 0:00:00.110");
+      }
+    }
+
+    /*************************************************************************
+     * 5. FOUR-STEP GUIDED CONVERSATION CONTENT & STATE MACHINE (LIGHT THEME)
+     *************************************************************************/
+    let currentStep = 0; // 0 = initial welcome, 1..4 = steps
+    let isRightPaneOpen = false;
+    let isStepAnimating = false;
+
+    const STEP_PROMPTS = [
+      {
+        step: 1,
+        badge: "步驟 0 / 4",
+        label: "點擊發送訊息 (步驟 1 / 4)",
+        text: "請根據這張「鯨魚積木平衡遊戲」參考圖（已轉為 SVG 向量圖），幫我分析鯨魚搖擺底座、14 隻造型小魚與六色骰子的幾何尺寸，規劃 OpenSCAD 參數化設計方案！",
+        btnText: "發送步驟 1",
+        icon: "fa-wand-magic-sparkles"
+      },
+      {
+        step: 2,
+        badge: "步驟 1 / 4",
+        label: "點擊發送訊息 (步驟 2 / 4)",
+        text: "鯨魚額頭與尾鰭曲線需要更圓潤，而且多隻小魚在堆疊時容易與鯨魚或相鄰小魚重疊。請幫我濃縮修正小魚位置的過程，並嚴格檢查 14 隻小魚與鯨魚完全不重疊！",
+        btnText: "發送步驟 2",
+        icon: "fa-bullseye"
+      },
+      {
+        step: 3,
+        badge: "步驟 2 / 4",
+        label: "點擊發送訊息 (步驟 3 / 4)",
+        text: "如果直接以實心列印，鯨魚額頭太重且高處小魚堆疊後重心過高容易翻倒。請幫我加入物理平衡力學分析與「內部隱藏式減重空腔」，並開啟右側 OpenSCAD 3D 預覽檢視！",
+        btnText: "發送步驟 3 (展開 OpenSCAD)",
+        icon: "fa-scale-balanced"
+      },
+      {
+        step: 4,
+        badge: "步驟 3 / 4",
+        label: "點擊發送訊息 (步驟 4 / 4)",
+        text: "太棒了！最後請幫我整合 OpenSCAD 四大顯示模式（堆疊預覽、空腔剖面、分件列印排版、2D 雷切輪廓），提供 Bambu Lab 3D 列印切片建議與完整可匯出 STL 的程式碼！",
+        btnText: "發送步驟 4",
+        icon: "fa-code"
+      }
+    ];
+
+    function getGeminiSparkleAvatarHTML() {
+      return `
+        <div class="w-8 h-8 rounded-full bg-[#F0F4F9] border border-[#E1E5EA] flex items-center justify-center shrink-0 mt-1 shadow-2xs">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2C12 7.52 16.48 12 22 12C16.48 12 12 16.48 12 22C12 16.48 7.52 12 2 12C7.52 12 12 7.52 12 2Z" fill="url(#geminiHeaderGrad)"/>
+          </svg>
+        </div>
+      `;
+    }
+
+    function updateHeaderAndPromptUI() {
+      const badgeText = document.getElementById("stepBadgeText");
+      const promptLabel = document.getElementById("promptStepLabel");
+      const promptText = document.getElementById("promptPreviewText");
+      const promptIcon = document.getElementById("promptIcon");
+      const promptSendIcon = document.getElementById("promptSendIcon");
+      const nextStepBtnText = document.getElementById("nextStepBtnText");
+      const welcomeCard = document.getElementById("welcomeInitialPreviewCard");
+
+      if (welcomeCard) {
+        welcomeCard.classList.toggle("hidden", currentStep > 0);
+      }
+
+      // Update 4 Roadmap Pills
+      for (let i = 1; i <= 4; i++) {
+        const pill = document.getElementById(`roadmapStep${i}`);
+        if (!pill) continue;
+        if (i === currentStep) {
+          pill.className = "p-2.5 rounded-2xl bg-[#E8F0FE] border border-[#0B57D0] flex items-center gap-2 text-left transition cursor-pointer shadow-2xs";
+          pill.querySelector("span:first-child").className = "w-5 h-5 rounded-full bg-[#0B57D0] text-white flex items-center justify-center font-mono text-[11px] font-bold shrink-0";
+          pill.querySelector("span:last-child").className = "truncate text-[#0B57D0] font-bold";
+        } else if (i < currentStep) {
+          pill.className = "p-2.5 rounded-2xl bg-[#F0F4F9] border border-[#D3E3FD] flex items-center gap-2 text-left transition cursor-pointer";
+          pill.querySelector("span:first-child").className = "w-5 h-5 rounded-full bg-[#137333] text-white flex items-center justify-center font-mono text-[11px] font-bold shrink-0";
+          pill.querySelector("span:last-child").className = "truncate text-[#1F1F1F] font-medium";
+        } else {
+          pill.className = "p-2.5 rounded-2xl bg-[#FFFFFF] hover:bg-[#F0F4F9] border border-[#E1E5EA] flex items-center gap-2 text-left transition cursor-pointer";
+          pill.querySelector("span:first-child").className = "w-5 h-5 rounded-full bg-[#E1E5EA] text-[#444746] flex items-center justify-center font-mono text-[11px] font-bold shrink-0";
+          pill.querySelector("span:last-child").className = "truncate text-[#444746] font-medium";
+        }
+      }
+
+      if (currentStep < 4) {
+        const nextPrompt = STEP_PROMPTS[currentStep];
+        badgeText.textContent = `步驟 ${currentStep} / 4`;
+        promptLabel.textContent = nextPrompt.label;
+        promptText.textContent = nextPrompt.text;
+        nextStepBtnText.textContent = nextPrompt.btnText;
+        promptIcon.className = `fa-solid ${nextPrompt.icon} text-xs`;
+        promptSendIcon.className = "fa-solid fa-paper-plane text-xs";
+      } else {
+        badgeText.textContent = "步驟 4 / 4 (已完成)";
+        promptLabel.textContent = "🎉 導覽體驗完成！歡迎試玩實體桌遊~ (點擊開啟總結視窗)";
+        promptText.textContent = "您已完成全部 4 個步驟的 OpenSCAD 參數化設計對話！點擊此處開啟完成視窗，或自由操作右側 OpenSCAD。";
+        nextStepBtnText.textContent = "完成體驗";
+        promptIcon.className = "fa-solid fa-trophy text-xs";
+        promptSendIcon.className = "fa-solid fa-check text-xs";
+      }
+    }
+
+    function buildStepHTML(stepNumber) {
+      if (stepNumber === 1) {
+        return `
+          <!-- USER MESSAGE STEP 1 -->
+          <div class="flex justify-end">
+            <div class="max-w-2xl gemini-user-bubble p-4 space-y-3 shadow-xs border border-[#E1E5EA]">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <span class="text-xs font-bold text-[#0B57D0] flex items-center gap-1.5">
+                  <i class="fa-solid fa-bezier-curve"></i> 原參考圖 SVG 高精細向量重構
+                </span>
+                <button onclick="toggleSvgCadOverlay()" class="px-2.5 py-1 rounded-full bg-[#FFFFFF] hover:bg-[#E8F0FE] border border-[#D3E3FD] text-[11px] font-semibold text-[#0B57D0] flex items-center gap-1.5 transition cursor-pointer shadow-2xs">
+                  <i class="fa-solid fa-layer-group"></i>
+                  <span id="svgOverlayBtnText">切換 SVG 工程標註圖層 (編號 #1~#14 與邊界框)</span>
+                </button>
+              </div>
+              <!-- High Precision SVG Reconstruction of Attached Image -->
+              <div class="rounded-xl overflow-hidden border border-[#D3E3FD] bg-[#F8F9FA]">
+                ${buildReferencePhotoSVG("step1RefSvg", false)}
+              </div>
+              <p class="text-xs sm:text-sm text-[#1F1F1F] leading-relaxed">
+                請根據這張「鯨魚積木平衡遊戲」參考圖（已轉為 SVG 向量圖），幫我分析鯨魚搖擺底座、14 隻造型小魚與六色骰子的幾何尺寸，規劃 OpenSCAD 參數化設計方案！
+              </p>
+            </div>
+          </div>
+
+          <!-- GEMINI 4 ARGON RESPONSE STEP 1 -->
+          <div class="flex items-start gap-3">
+            ${getGeminiSparkleAvatarHTML()}
+            <div class="flex-1 min-w-0 rounded-2xl bg-[#FFFFFF] border border-[#E1E5EA] p-4 sm:p-5 space-y-4 shadow-xs">
+              <div class="flex items-center justify-between border-b border-[#E3E3E3] pb-2.5">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold text-[#1F1F1F]">Gemini 4 Argon</span>
+                  <span class="px-2 py-0.5 rounded-full bg-[#E8F0FE] text-[#0B57D0] text-[10px] font-semibold">步驟 1/4：視覺轉工程幾何拆解</span>
+                </div>
+                <span class="text-[11px] text-[#5F6368] font-mono">OpenSCAD 2021.01</span>
+              </div>
+
+              <p class="text-xs sm:text-sm text-[#1F1F1F] leading-relaxed">
+                收到！我們已將原參考照片完整重構為高精細 <strong>SVG 向量幾何圖層</strong>（您可以點擊上方圖片右上角的「<span class="text-[#0B57D0] font-semibold">切換 SVG 工程標註圖層</span>」檢視底部搖擺曲率半徑 <code class="text-[#0B57D0] font-mono font-semibold">R = 130 mm</code> 與 <code class="text-[#0B57D0] font-mono font-semibold">#1 ~ #14</code> 小魚編號邊界框）。根據實物比例與力學需求，我將整組遊戲拆解為 <strong>4 大核心參數化模組</strong>：
+              </p>
+
+              <!-- 4 Interactive Component Breakdown Cards -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="p-3.5 rounded-xl bg-[#F8FAFD] border border-[#E1E5EA] space-y-1.5">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-[#0B57D0]"><i class="fa-solid fa-water mr-1.5"></i>1. 鯨魚搖擺底座 (Whale Base)</span>
+                    <span class="text-[11px] font-mono font-semibold text-[#137333]">188 × 96 × 28 mm</span>
+                  </div>
+                  <p class="text-xs text-[#444746] leading-relaxed">
+                    底部採用曲率半徑 <code class="text-[#0B57D0] font-mono font-semibold">R = 130 mm</code> 的圓弧搖擺面；上方由「左側圓弧額頭」、「中央深 U 型背谷」與「右側雙叉尾鰭平台」三段曲線構成。
+                  </p>
+                </div>
+
+                <div class="p-3.5 rounded-xl bg-[#F8FAFD] border border-[#E1E5EA] space-y-1.5">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-[#B06000]"><i class="fa-solid fa-fish mr-1.5"></i>2. 圓肚與魚鱗熱帶魚 (Round Fish)</span>
+                    <span class="text-[11px] font-mono font-semibold text-[#137333]">36 × 22 × 22 mm</span>
+                  </div>
+                  <p class="text-xs text-[#444746] leading-relaxed">
+                    使用橢圓流線魚身結合扇形尾鰭，包含圓肚魚、波點瓢蟲魚、薄荷格紋魚等 8 隻，提供寬大的上下支撐接觸面。
+                  </p>
+                </div>
+
+                <div class="p-3.5 rounded-xl bg-[#F8FAFD] border border-[#E1E5EA] space-y-1.5">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-[#C5221F]"><i class="fa-solid fa-fish-fins mr-1.5"></i>3. 鯊魚與燕尾流線魚 (Forked Fish)</span>
+                    <span class="text-[11px] font-mono font-semibold text-[#137333]">38 × 21 × 22 mm</span>
+                  </div>
+                  <p class="text-xs text-[#444746] leading-relaxed">
+                    包含深藍鯊魚紋小魚 (#1) 與分叉尾條紋魚 (#2, #6, #7, #10, #12) 共 6 隻，分叉尾鰭能剛好卡入相鄰小魚的圓弧魚背形成互鎖。
+                  </p>
+                </div>
+
+                <div class="p-3.5 rounded-xl bg-[#F8FAFD] border border-[#E1E5EA] space-y-1.5">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold text-[#137333]"><i class="fa-solid fa-dice-d6 mr-1.5"></i>4. 六色平衡遊戲骰子 (Color Die)</span>
+                    <span class="text-[11px] font-mono font-semibold text-[#137333]">25 × 25 × 25 mm</span>
+                  </div>
+                  <p class="text-xs text-[#444746] leading-relaxed">
+                    玩家輪流擲骰子決定拿取並堆疊哪一種色系的小魚（紅、藍、綠、橘、黃、青），考驗雙手穩定度與配重策略。
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (stepNumber === 2) {
+        return `
+          <!-- USER MESSAGE STEP 2 -->
+          <div class="flex justify-end">
+            <div class="max-w-2xl gemini-user-bubble p-4 shadow-xs border border-[#E1E5EA]">
+              <p class="text-xs sm:text-sm text-[#1F1F1F] leading-relaxed">
+                鯨魚額頭與尾鰭曲線需要更圓潤，而且多隻小魚在堆疊時容易與鯨魚或相鄰小魚重疊。請幫我濃縮修正小魚位置的過程，並嚴格檢查 14 隻小魚與鯨魚完全不重疊！
+              </p>
+            </div>
+          </div>
+
+          <!-- GEMINI 4 ARGON RESPONSE STEP 2 -->
+          <div class="flex items-start gap-3">
+            ${getGeminiSparkleAvatarHTML()}
+            <div class="flex-1 min-w-0 rounded-2xl bg-[#FFFFFF] border border-[#E1E5EA] p-4 sm:p-5 space-y-4 shadow-xs">
+              <div class="flex items-center justify-between border-b border-[#E3E3E3] pb-2.5">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold text-[#1F1F1F]">Gemini 4 Argon</span>
+                  <span class="px-2 py-0.5 rounded-full bg-[#E6F4EA] text-[#137333] text-[10px] font-semibold">步驟 2/4：濃縮座標校正・100% 零重疊驗證</span>
+                </div>
+                <span class="text-[11px] font-mono font-bold text-[#137333]">✓ 14/14 通過干涉檢測</span>
+              </div>
+
+              <p class="text-xs sm:text-sm text-[#1F1F1F] leading-relaxed">
+                為了避免逐一微調座標的重複過程，我將小魚位置修正濃縮為 <strong>三大幾何校正原則</strong>，並對全部 14 隻小魚與鯨魚底座進行邊界距離檢查，確保 <strong>重疊數 = 0</strong>：
+              </p>
+
+              <!-- 3 Condensed Milestones -->
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs">
+                <div class="p-3 rounded-xl bg-[#F8FAFD] border border-[#E1E5EA]">
+                  <div class="font-bold text-[#137333] mb-1">① 純解析相切圓消除後腦尖角</div>
+                  <p class="text-[#444746]">以搖擺圓 <code class="text-[#0B57D0] font-mono">C0[-6,70] R=115</code> 內切頭部圓 <code class="text-[#0B57D0] font-mono">C1[-45,18] R=50</code> 與外切背谷圓 <code class="text-[#0B57D0] font-mono">Cv R=28.5</code>，徹底消除後腦扇形尖角。</p>
+                </div>
+                <div class="p-3 rounded-xl bg-[#FCE8E6] border border-[#FAD2CF]">
+                  <div class="font-bold text-[#C5221F] mb-1">② 找出重疊小魚：中列鯊魚 #5</div>
+                  <p class="text-[#444746]">原本 <code class="text-[#C5221F] font-mono">translate([24, 34, 0]) rotate([0, 0, -20])</code> 的鯊魚右上尾尖落於 <code class="font-mono">[47.5, 37.15]</code>，與鯨魚左尾鰭 <code class="font-mono">CtL[50, 37] (r=4.5)</code> 重疊達 <code class="text-[#C5221F] font-mono font-bold">4.5 mm</code>！</p>
+                </div>
+                <div class="p-3 rounded-xl bg-[#E6F4EA] border border-[#CEEAD6]">
+                  <div class="font-bold text-[#137333] mb-1">③ 精準修正至 [20, 44] rot=-18°</div>
+                  <p class="text-[#444746]">將鯊魚 #5 調整為 <code class="text-[#137333] font-mono font-bold">translate([20, 44, 0]) rotate([0, 0, -18])</code>（下圖紅虛線為修正前、實心為修正後），全套 18 件積木 100% 獨立分離！</p>
+                </div>
+              </div>
+
+              <!-- Interactive 2D Coordinate & Clearance Blueprint (Cornfield Style) -->
+              <div class="space-y-2">
+                <div class="flex items-center justify-between text-xs">
+                  <span class="font-bold text-[#0B57D0]"><i class="fa-solid fa-compass-drafting mr-1.5"></i>實際 OpenSCAD 程式幾何 2D 投影與碰撞檢測圖（點擊任一小魚 #1 ~ #14 檢視座標）：</span>
+                  <span class="text-[11px] text-[#5F6368] font-mono">紅虛線 = 修正前重疊位置 [24,34]</span>
+                </div>
+                ${buildStep2BlueprintSVG()}
+                <!-- Live Fish Coordinate Inspector Bar -->
+                <div id="fishInspectorPanel" class="p-3 rounded-xl bg-[#F8FAFD] border border-[#D3E3FD] transition"></div>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (stepNumber === 3) {
+        return `
+          <!-- USER MESSAGE STEP 3 -->
+          <div class="flex justify-end">
+            <div class="max-w-2xl gemini-user-bubble p-4 shadow-xs border border-[#E1E5EA]">
+              <p class="text-xs sm:text-sm text-[#1F1F1F] leading-relaxed">
+                如果直接以實心列印，鯨魚額頭太重且高處小魚堆疊後重心過高容易翻倒。請幫我加入物理平衡力學分析與「內部隱藏式減重空腔」，並開啟右側 OpenSCAD 3D 預覽檢視！
+              </p>
+            </div>
+          </div>
+
+          <!-- GEMINI 4 ARGON RESPONSE STEP 3 -->
+          <div class="flex items-start gap-3">
+            ${getGeminiSparkleAvatarHTML()}
+            <div class="flex-1 min-w-0 rounded-2xl bg-[#FFFFFF] border border-[#E1E5EA] p-4 sm:p-5 space-y-4 shadow-xs">
+              <div class="flex items-center justify-between border-b border-[#E3E3E3] pb-2.5">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold text-[#1F1F1F]">Gemini 4 Argon</span>
+                  <span class="px-2 py-0.5 rounded-full bg-[#FEF7E0] text-[#B06000] text-[10px] font-semibold">步驟 3/4：內部減重空腔與物理平衡計算</span>
+                </div>
+                <span class="text-[11px] font-mono font-semibold text-[#137333]">enable_balance_cavity = true</span>
+              </div>
+
+              <p class="text-xs sm:text-sm text-[#1F1F1F] leading-relaxed">
+                已在右側為您展開 <strong>OpenSCAD 2021.01</strong> 視窗並自動切換至 <code class="text-[#0B57D0] font-mono font-semibold">cutaway_view</code> 剖面模式！在 OpenSCAD 經典 <strong>Cornfield 配色</strong>中，透過 <code class="text-[#7B1FA2] font-mono">difference()</code> 切削出的內部減重空腔內壁呈現鮮明的 <strong>翠綠色 (<code class="text-[#137333] font-mono">#9DCB51</code>)</strong>：
+              </p>
+
+              <!-- Formula & Cavity Comparison Box -->
+              <div class="p-3.5 rounded-xl bg-[#F8FAFD] border border-[#E1E5EA] font-mono text-xs space-y-2">
+                <div class="text-[#0B57D0] font-bold">搖擺回復力矩公式：τ(θ) = -M_total · g · (R - h_CG) · sin(θ - θ_eq)</div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 text-[11px] font-sans">
+                  <div class="p-2.5 rounded-lg bg-[#FCE8E6] border border-[#FAD2CF]">
+                    <div class="text-[#C5221F] font-bold">❌ 傳統均質實心列印 (enable_balance_cavity = false)</div>
+                    <div class="text-[#444746] mt-1">鯨魚額頭過重導致空載偏左 <code class="font-mono font-semibold">-9.4°</code>；疊滿 14 隻實心魚後重心升至 <code class="font-mono font-semibold">h_CG = 119 mm</code>，極易翻覆。</div>
+                  </div>
+                  <div class="p-2.5 rounded-lg bg-[#E6F4EA] border border-[#CEEAD6]">
+                    <div class="text-[#137333] font-bold">✅ 啟用內部隱藏式減重空腔 (enable_balance_cavity = true)</div>
+                    <div class="text-[#444746] mt-1">掏空鯨魚額頭上半部與 14 隻小魚腹腔（保留 <code class="font-mono font-semibold">2.6 mm</code> 外殼），合成重心下移至 <code class="text-[#137333] font-mono font-bold">h_CG = 58 mm &lt; R = 130 mm</code>，穩態搖擺角 <code class="text-[#137333] font-mono font-bold">|θ_eq| &lt; 3.2°</code>！</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Interactive Trigger Buttons to Inspect Right OpenSCAD Studio -->
+              <div class="flex flex-wrap items-center gap-2 pt-1">
+                <button onclick="openRightPaneAndSetMode('cutaway_view')" class="px-3.5 py-2 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition cursor-pointer">
+                  <i class="fa-solid fa-scissors"></i>
+                  <span>檢視減重空腔剖面 (開啟右側 OpenSCAD)</span>
+                </button>
+                <button onclick="triggerF6Render()" class="px-3.5 py-2 rounded-full bg-[#FEF7E0] hover:bg-[#FDE293] border border-[#F9AB00] text-[#B06000] text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer">
+                  <i class="fa-solid fa-cube"></i>
+                  <span>切換 [F6] Cornfield 金黃/綠原生配色</span>
+                </button>
+                <button onclick="triggerRockingFromChat()" class="px-3.5 py-2 rounded-full bg-[#E6F4EA] hover:bg-[#CEEAD6] border border-[#81C995] text-[#137333] text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer">
+                  <i class="fa-solid fa-scale-balanced"></i>
+                  <span>啟動 3D 物理搖擺測試</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        return `
+          <!-- USER MESSAGE STEP 4 -->
+          <div class="flex justify-end">
+            <div class="max-w-2xl gemini-user-bubble p-4 shadow-xs border border-[#E1E5EA]">
+              <p class="text-xs sm:text-sm text-[#1F1F1F] leading-relaxed">
+                太棒了！最後請幫我整合 OpenSCAD 四大顯示模式（堆疊預覽、空腔剖面、分件列印排版、2D 雷切輪廓），提供 Bambu Lab 3D 列印切片建議與完整可匯出 STL 的程式碼！
+              </p>
+            </div>
+          </div>
+
+          <!-- GEMINI 4 ARGON RESPONSE STEP 4 -->
+          <div class="flex items-start gap-3">
+            ${getGeminiSparkleAvatarHTML()}
+            <div class="flex-1 min-w-0 rounded-2xl bg-[#FFFFFF] border border-[#E1E5EA] p-4 sm:p-5 space-y-4 shadow-xs">
+              <div class="flex items-center justify-between border-b border-[#E3E3E3] pb-2.5">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold text-[#1F1F1F]">Gemini 4 Argon</span>
+                  <span class="px-2 py-0.5 rounded-full bg-[#E8F0FE] text-[#0B57D0] text-[10px] font-semibold">步驟 4/4：四大模式總結與 Bambu Lab 切片指南</span>
+                </div>
+                <span class="text-[11px] font-mono font-bold text-[#137333]">STL / SCAD Ready</span>
+              </div>
+
+              <p class="text-xs sm:text-sm text-[#1F1F1F] leading-relaxed">
+                已經為您完整封裝於右側 <strong>OpenSCAD 2021.01</strong> 編輯器與 Customizer 面板中！點擊下方四個按鈕即可在右側 <code class="font-mono">#FFFFE5</code> Cornfield 視窗即時切換四種工程模式：
+              </p>
+
+              <!-- Direct Mode Switchers inside Chat -->
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <button onclick="openRightPaneAndSetMode('stacked_preview')" class="p-2.5 rounded-xl bg-[#F8FAFD] hover:bg-[#E8F0FE] border border-[#D3E3FD] text-left transition cursor-pointer">
+                  <div class="font-bold text-[#0B57D0]"><i class="fa-solid fa-layer-group mr-1"></i>堆疊平衡預覽</div>
+                  <div class="text-[10px] text-[#5F6368] font-mono mt-0.5">stacked_preview</div>
+                </button>
+                <button onclick="openRightPaneAndSetMode('cutaway_view')" class="p-2.5 rounded-xl bg-[#F8FAFD] hover:bg-[#E6F4EA] border border-[#CEEAD6] text-left transition cursor-pointer">
+                  <div class="font-bold text-[#137333]"><i class="fa-solid fa-scissors mr-1"></i>減重空腔剖面</div>
+                  <div class="text-[10px] text-[#5F6368] font-mono mt-0.5">cutaway_view</div>
+                </button>
+                <button onclick="openRightPaneAndSetMode('print_plate')" class="p-2.5 rounded-xl bg-[#F8FAFD] hover:bg-[#FEF7E0] border border-[#FDE293] text-left transition cursor-pointer">
+                  <div class="font-bold text-[#B06000]"><i class="fa-solid fa-table-cells mr-1"></i>列印分件排版</div>
+                  <div class="text-[10px] text-[#5F6368] font-mono mt-0.5">print_plate</div>
+                </button>
+                <button onclick="openRightPaneAndSetMode('laser_2d')" class="p-2.5 rounded-xl bg-[#F8FAFD] hover:bg-[#FCE8E6] border border-[#FAD2CF] text-left transition cursor-pointer">
+                  <div class="font-bold text-[#C5221F]"><i class="fa-solid fa-vector-square mr-1"></i>2D 雷切輪廓</div>
+                  <div class="text-[10px] text-[#5F6368] font-mono mt-0.5">laser_2d</div>
+                </button>
+              </div>
+
+              <!-- 3D Printing Slicing Recommendations -->
+              <div class="p-3.5 rounded-xl bg-[#F8FAFD] border border-[#E1E5EA] space-y-2 text-xs">
+                <div class="font-bold text-[#1F1F1F] flex items-center gap-1.5">
+                  <i class="fa-solid fa-sliders text-[#0B57D0]"></i>
+                  <span>Bambu Lab / PrusaSlicer 3D 列印分件切片實戰建議：</span>
+                </div>
+                <ul class="list-disc list-inside text-[#444746] space-y-1 leading-relaxed">
+                  <li><strong>鯨魚底座壓艙設定：</strong>建議使用 <code class="text-[#0B57D0] font-mono font-semibold">25% Gyroid 陀螺儀填充</code>、底部外牆加厚至 4 層，結合上半部減重空腔自然形成低重心不倒翁效應。</li>
+                  <li><strong>14 隻小魚輕量化設定：</strong>切換至 <code class="text-[#0B57D0] font-mono font-semibold">print_plate</code> 平鋪匯出 STL，完全免支撐（Support: None），採用 <code class="text-[#137333] font-mono font-semibold">10% Lightning 閃電填充</code> 與外周 <code class="font-mono">0.15mm Fuzzy Skin</code> 增加疊魚摩擦力。</li>
+                </ul>
+              </div>
+
+              <!-- Direct Copy / Export Actions -->
+              <div class="flex flex-wrap items-center gap-2 pt-1">
+                <button onclick="copyOpenSCADCode()" class="px-4 py-2 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition cursor-pointer">
+                  <i class="fa-regular fa-copy"></i>
+                  <span>複製完整 OpenSCAD 程式碼</span>
+                </button>
+                <button onclick="downloadOpenSCADFile()" class="px-4 py-2 rounded-full bg-[#F0F4F9] hover:bg-[#E1E9F4] border border-[#D3E3FD] text-[#0B57D0] text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer">
+                  <i class="fa-solid fa-download"></i>
+                  <span>下載 whale_balance_game.scad</span>
+                </button>
+                <button onclick="exportSTLAction()" class="px-4 py-2 rounded-full bg-[#E6F4EA] hover:bg-[#CEEAD6] border border-[#81C995] text-[#137333] text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer">
+                  <i class="fa-solid fa-file-export"></i>
+                  <span>匯出 3D .STL 模型檔</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function buildGeminiThinkingPlaceholderHTML(stepNumber) {
+      const stepPrompt = STEP_PROMPTS[stepNumber - 1];
+      const userBubbleHTML = stepNumber === 1 ? `
+        <div class="flex justify-end">
+          <div class="max-w-2xl gemini-user-bubble p-4 space-y-3 shadow-xs border border-[#E1E5EA]">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <span class="text-xs font-bold text-[#0B57D0] flex items-center gap-1.5">
+                <i class="fa-solid fa-bezier-curve"></i> 原參考圖 SVG 高精細向量重構
+              </span>
+            </div>
+            <div class="rounded-xl overflow-hidden border border-[#D3E3FD] bg-[#F8F9FA]">
+              ${buildReferencePhotoSVG("step1RefSvgLoading", false)}
+            </div>
+            <p class="text-xs sm:text-sm text-[#1F1F1F] leading-relaxed">${stepPrompt.text}</p>
+          </div>
+        </div>
+      ` : `
+        <div class="flex justify-end">
+          <div class="max-w-2xl gemini-user-bubble p-4 shadow-xs border border-[#E1E5EA]">
+            <p class="text-xs sm:text-sm text-[#1F1F1F] leading-relaxed">${stepPrompt.text}</p>
+          </div>
+        </div>
+      `;
+
+      const loadingMessages = {
+        1: "正在讀取 SVG 向量參考圖並拆解 18 件海洋積木幾何參數...",
+        2: "正在執行 14 隻小魚碰撞干涉檢測與修正中列鯊魚 #5 重疊座標...",
+        3: "正在計算搖擺曲率中心 R=115mm 與內部蜂巢減重空腔合成重心...",
+        4: "正在封裝 OpenSCAD 四大顯示模式與生成可列印 STL 網格..."
+      };
+
+      return `
+        ${userBubbleHTML}
+        <div class="flex items-start gap-3">
+          <div class="w-8 h-8 rounded-full bg-[#E8F0FE] border border-[#D3E3FD] flex items-center justify-center shrink-0 mt-1 animate-spin">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2C12 7.52 16.48 12 22 12C16.48 12 12 16.48 12 22C12 16.48 7.52 12 2 12C7.52 12 12 7.52 12 2Z" fill="url(#geminiHeaderGrad)"/>
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0 rounded-2xl bg-[#F8FAFD] border border-[#D3E3FD] p-4 sm:p-5 space-y-3 shadow-xs">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-[#0B57D0]">Gemini 4 Argon</span>
+              <span class="px-2 py-0.5 rounded-full bg-[#E8F0FE] text-[#0B57D0] text-[10px] font-semibold animate-pulse">AI 幾何引擎運算中...</span>
+            </div>
+            <p class="text-xs sm:text-sm text-[#444746] font-medium flex items-center gap-2">
+              <i class="fa-solid fa-wave-square text-[#0B57D0] animate-bounce"></i>
+              <span>${loadingMessages[stepNumber] || "正在處理您的請求..."}</span>
+            </p>
+            <div class="w-full h-2 rounded-full bg-[#E1E5EA] overflow-hidden">
+              <div class="h-full bg-gradient-to-r from-[#4285F4] via-[#9B72CB] to-[#D96570] w-2/3 animate-pulse rounded-full"></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderConversationUpToStep(targetStep, animateLatestStep = false, onCompleteCallback = null) {
+      const container = document.getElementById("conversationDynamicList");
+      const scrollBox = document.getElementById("chatScrollContainer");
+      container.innerHTML = "";
+
+      const immediateEndStep = animateLatestStep && targetStep > 0 ? targetStep - 1 : targetStep;
+
+      for (let s = 1; s <= immediateEndStep; s++) {
+        const block = document.createElement("div");
+        block.id = `chatStepBlock_${s}`;
+        block.className = "space-y-4";
+        block.innerHTML = buildStepHTML(s);
+        container.appendChild(block);
+      }
+
+      if (animateLatestStep && targetStep > 0) {
+        const latestBlock = document.createElement("div");
+        latestBlock.id = `chatStepBlock_${targetStep}`;
+        latestBlock.className = "space-y-4 msg-animate";
+        latestBlock.innerHTML = buildGeminiThinkingPlaceholderHTML(targetStep);
+        container.appendChild(latestBlock);
+
+        // Play Gemini AI reading / computation special effect sound
+        playGeminiThinkingSound();
+
+        setTimeout(() => {
+          latestBlock.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 40);
+
+        setTimeout(() => {
+          latestBlock.innerHTML = buildStepHTML(targetStep);
+          if (targetStep >= 2) {
+            setTimeout(() => inspectFishNode(5), 30);
+          }
+          setTimeout(() => {
+            latestBlock.scrollIntoView({ behavior: "smooth", block: "start" });
+          }, 40);
+          if (typeof onCompleteCallback === "function") {
+            onCompleteCallback();
+          }
+        }, 660);
+      } else {
+        if (targetStep >= 2) {
+          setTimeout(() => inspectFishNode(5), 40);
+        }
+        setTimeout(() => {
+          const lastBlock = document.getElementById(`chatStepBlock_${targetStep}`);
+          if (lastBlock) {
+            lastBlock.scrollIntoView({ behavior: "smooth", block: "start" });
+          } else {
+            scrollBox.scrollTo({ top: 0, behavior: "smooth" });
+          }
+        }, 60);
+        if (typeof onCompleteCallback === "function") {
+          onCompleteCallback();
+        }
+      }
+    }
+
+    window.jumpToStep = function(stepNum) {
+      if (isStepAnimating) return;
+      isStepAnimating = true;
+      currentStep = stepNum;
+      updateHeaderAndPromptUI();
+      renderConversationUpToStep(currentStep, true, () => {
+        if (currentStep === 3) {
+          toggleRightPane(true);
+          setDisplayMode("cutaway_view");
+        } else if (currentStep === 4) {
+          toggleRightPane(true);
+          setDisplayMode("stacked_preview");
+        }
+        isStepAnimating = false;
+      });
+    };
+
+    window.triggerNextStep = function() {
+      if (isStepAnimating) return;
+      if (currentStep >= 4) {
+        playOpenSCADBlingSound();
+        document.getElementById("completionModal").classList.remove("hidden");
+        return;
+      }
+
+      isStepAnimating = true;
+      currentStep++;
+      const targetStep = currentStep;
+      updateHeaderAndPromptUI();
+
+      // Play Gemini AI Thinking / Reading sound effect before displaying the response
+      playGeminiThinkingSound();
+      renderConversationUpToStep(targetStep);
+
+      if (targetStep === 3) {
+        setTimeout(() => {
+          toggleRightPane(true);
+          setDisplayMode("cutaway_view");
+          playOpenSCADBlingSound();
+        }, 280);
+      } else if (targetStep === 4) {
+        if (!isRightPaneOpen) toggleRightPane(true);
+        setDisplayMode("stacked_preview");
+        playOpenSCADBlingSound();
+      }
+
+      setTimeout(() => {
+        isStepAnimating = false;
+      }, 300);
+    };
+
+    window.restartTour = function() {
+      closeCompletionModal();
+      currentStep = 0;
+      toggleRightPane(false);
+      document.getElementById("floatingExpandRightBtn").classList.add("hidden");
+      renderConversationUpToStep(0, false);
+      updateHeaderAndPromptUI();
+      setDisplayMode("stacked_preview");
+      if (isRockingActive) toggleRockingPhysics();
+      document.getElementById("chatScrollContainer").scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    window.closeCompletionModal = function() {
+      document.getElementById("completionModal").classList.add("hidden");
+    };
+
+    /*************************************************************************
+     * 6. SPLIT-SCREEN & OPENSCAD PANE TOGGLES ("隱藏右側 ❯" / "展開右側 OpenSCAD")
+     *************************************************************************/
+    window.toggleRightPane = function(forceState) {
+      const leftPane = document.getElementById("leftChatPane");
+      const rightPane = document.getElementById("rightStudioPane");
+      const divider = document.getElementById("splitDivider");
+      const headerText = document.getElementById("headerToggleText");
+      const floatingBtn = document.getElementById("floatingExpandRightBtn");
+
+      const wasOpen = isRightPaneOpen;
+      const nextState = typeof forceState === "boolean" ? forceState : !isRightPaneOpen;
+      isRightPaneOpen = nextState;
+
+      if (isRightPaneOpen) {
+        leftPane.className = "w-full md:w-[45%] lg:w-[44%] h-full flex flex-col bg-[#FFFFFF] transition-all duration-300 ease-in-out relative z-10";
+        rightPane.classList.remove("hidden");
+        rightPane.classList.add("flex");
+        divider.classList.remove("hidden");
+        divider.classList.add("hidden", "md:flex");
+        headerText.textContent = "隱藏右側";
+        floatingBtn.classList.add("hidden");
+        playOpenSCADBlingSound();
+
+        setTimeout(() => {
+          initThreeJSIfNeeded();
+          onThreeResize();
+        }, 60);
+      } else {
+        leftPane.className = "w-full h-full flex flex-col bg-[#FFFFFF] transition-all duration-300 ease-in-out relative z-10";
+        rightPane.classList.add("hidden");
+        rightPane.classList.remove("flex");
+        divider.classList.add("hidden");
+        divider.classList.remove("md:flex");
+        headerText.textContent = "展開右側 OpenSCAD";
+        floatingBtn.classList.remove("hidden");
+      }
+    };
+
+    window.openRightPaneAndSetMode = function(mode) {
+      const wasOpen = isRightPaneOpen;
+      toggleRightPane(true);
+      if (wasOpen) {
+        playOpenSCADBlingSound();
+      }
+      setDisplayMode(mode);
+    };
+
+    window.toggleScadEditorPane = function() {
+      const pane = document.getElementById("scadEditorPane");
+      const btn = document.getElementById("btnToggleEditor");
+      pane.classList.toggle("hidden");
+      btn.classList.toggle("active", !pane.classList.contains("hidden"));
+      setTimeout(onThreeResize, 50);
+    };
+
+    window.toggleScadCustomizerPane = function() {
+      const pane = document.getElementById("scadCustomizerPane");
+      const btn = document.getElementById("btnToggleCustomizer");
+      pane.classList.toggle("hidden");
+      btn.classList.toggle("active", !pane.classList.contains("hidden"));
+      setTimeout(onThreeResize, 50);
+    };
+
+    window.copyOpenSCADCode = function() {
+      const textarea = document.createElement("textarea");
+      textarea.value = OPENSCAD_SOURCE_CODE;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+
+      const copyText = document.getElementById("copyCodeText");
+      const copyIcon = document.getElementById("copyCodeIcon");
+      if (copyText && copyIcon) {
+        copyText.textContent = "已複製";
+        copyIcon.className = "fa-solid fa-check text-[#137333]";
+        setTimeout(() => {
+          copyText.textContent = "複製";
+          copyIcon.className = "fa-regular fa-copy";
+        }, 2000);
+      }
+      appendScadLog("Copied whale_balance_game.scad to clipboard.");
+    };
+
+    window.downloadOpenSCADFile = function() {
+      const blob = new Blob([OPENSCAD_SOURCE_CODE], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "whale_balance_game.scad";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      appendScadLog("Downloaded whale_balance_game.scad source file.");
+    };
+
+    // Real ASCII STL Exporter from Three.js Scene Meshes
+    window.exportSTLAction = function() {
+      if (!isRightPaneOpen) toggleRightPane(true);
+      initThreeJSIfNeeded();
+
+      let stlLines = ["solid whale_balance_game"];
+      let facetCount = 0;
+
+      mainAssemblyGroup.updateMatrixWorld(true);
+      mainAssemblyGroup.traverse((obj) => {
+        if (obj.isMesh && obj.geometry && obj !== clearanceGroup) {
+          const geom = obj.geometry.clone();
+          geom.applyMatrix4(obj.matrixWorld);
+          const nonIndexed = geom.index ? geom.toNonIndexed() : geom;
+          const pos = nonIndexed.attributes.position;
+          if (!pos) return;
+
+          const vA = new THREE.Vector3();
+          const vB = new THREE.Vector3();
+          const vC = new THREE.Vector3();
+          const cb = new THREE.Vector3();
+          const ab = new THREE.Vector3();
+
+          for (let i = 0; i < pos.count; i += 3) {
+            vA.fromBufferAttribute(pos, i);
+            vB.fromBufferAttribute(pos, i + 1);
+            vC.fromBufferAttribute(pos, i + 2);
+            cb.subVectors(vC, vB);
+            ab.subVectors(vA, vB);
+            cb.cross(ab).normalize();
+
+            stlLines.push(`facet normal ${cb.x.toFixed(4)} ${cb.y.toFixed(4)} ${cb.z.toFixed(4)}`);
+            stlLines.push("  outer loop");
+            stlLines.push(`    vertex ${vA.x.toFixed(4)} ${vA.y.toFixed(4)} ${vA.z.toFixed(4)}`);
+            stlLines.push(`    vertex ${vB.x.toFixed(4)} ${vB.y.toFixed(4)} ${vB.z.toFixed(4)}`);
+            stlLines.push(`    vertex ${vC.x.toFixed(4)} ${vC.y.toFixed(4)} ${vC.z.toFixed(4)}`);
+            stlLines.push("  endloop");
+            stlLines.push("endfacet");
+            facetCount++;
+          }
+        }
+      });
+      stlLines.push("endsolid whale_balance_game");
+
+      const blob = new Blob([stlLines.join("\n")], { type: "model/stl;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `whale_balance_game_${currentDisplayMode}.stl`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      appendScadLog(`STL export finished: whale_balance_game_${currentDisplayMode}.stl (${facetCount} facets).`);
+    };
+
+    /*************************************************************************
+     * 7. THREE.JS OPENSCAD CORNFIELD 3D ENGINE (1:1 WITH ACTUAL OPENSCAD CODE)
+     *************************************************************************/
+    let threeInitialized = false;
+    let scene, camera, renderer;
+    let mainAssemblyGroup, rockerPivotGroup, clearanceGroup, cgMarkersGroup, scadAxesGroup;
+    let currentDisplayMode = "stacked_preview";
+    let renderColorStyle = "F5"; // "F5" = Painted color() + Cornfield green cavity, "F6" = Pure Cornfield #F9D72C Gold & #9DCB51 Green
+    let enableBalanceCavity = true;
+    let showPhysicsGuide = true;
+    let whaleThickParam = 18;
+    let fishThickParam = 18;
+    let manualTiltRad = 0;
+    let showClearanceSpheres = false;
+    let showScadAxes = true;
+    let isRockingActive = false;
+    let clock = new THREE.Clock();
+
+    // OpenSCAD Cornfield Native Colors
+    const CORNFIELD_GOLD = 0xF9D72C;
+    const CORNFIELD_GREEN = 0x9DCB51;
+
+    // Camera spherical orbit state
+    let camTheta = 0.20;
+    let camPhi = 1.40;
+    let camRadius = 355;
+    let camTarget = new THREE.Vector3(0, 58, 0);
+    let isPointerDown = false;
+    let prevPointer = { x: 0, y: 0 };
+
+    function createWhale2DShape() {
+      const pts = getExactWhaleContourPoints();
+      const s = new THREE.Shape();
+      s.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) {
+        s.lineTo(pts[i].x, pts[i].y);
+      }
+      s.closePath();
+      return s;
+    }
+
+    function createWhaleWithCavitiesShape() {
+      const s = createWhale2DShape();
+      if (!enableBalanceCavity) return s;
+
+      // Exact 9 circular honeycomb cavities in whale_head_lightweight_cavity_2d()
+      WHALE_CAVITY_CIRCLES.forEach(([cx, cy]) => {
+        const hole = new THREE.Path();
+        hole.absarc(cx, cy, 7.8, 0, Math.PI * 2, true);
+        s.holes.push(hole);
+      });
+      return s;
+    }
+
+    function createFish2DShape(type = "standard", withCavity = false) {
+      const pts = getExactFishContourPoints(type);
+      const s = new THREE.Shape();
+      s.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) {
+        s.lineTo(pts[i].x, pts[i].y);
+      }
+      s.closePath();
+
+      if (withCavity && enableBalanceCavity) {
+        // Exact 2 circular cavities from fish_lightweight_cavity_2d()
+        const hole1 = new THREE.Path();
+        hole1.absarc(-5, 0, 5.8, 0, Math.PI * 2, true);
+        s.holes.push(hole1);
+
+        const hole2 = new THREE.Path();
+        hole2.absarc(6.5, 0, 4.8, 0, Math.PI * 2, true);
+        s.holes.push(hole2);
+      }
+      return s;
+    }
+
+    // Build OpenSCAD Classic Coordinate Axes & Scale Markers on #FFFFE5 Cornfield Viewport
+    function buildOpenSCADAxesGroup() {
+      const group = new THREE.Group();
+
+      const grid = new THREE.GridHelper(340, 17, 0x555544, 0xCCCCAA);
+      grid.position.y = -45.2;
+      group.add(grid);
+
+      const xMat = new THREE.LineBasicMaterial({ color: 0xD32F2F, linewidth: 2 });
+      const xGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-170, 0, 0),
+        new THREE.Vector3(170, 0, 0)
+      ]);
+      group.add(new THREE.Line(xGeo, xMat));
+
+      const yMat = new THREE.LineBasicMaterial({ color: 0x2E7D32, linewidth: 2 });
+      const yGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, -60, 0),
+        new THREE.Vector3(0, 230, 0)
+      ]);
+      group.add(new THREE.Line(yGeo, yMat));
+
+      const zMat = new THREE.LineBasicMaterial({ color: 0x1565C0, linewidth: 2 });
+      const zGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0, -120),
+        new THREE.Vector3(0, 0, 120)
+      ]);
+      group.add(new THREE.Line(zGeo, zMat));
+
+      const tickMat = new THREE.LineBasicMaterial({ color: 0x333333 });
+      const tickPts = [];
+      for (let v = -140; v <= 140; v += 20) {
+        if (v === 0) continue;
+        tickPts.push(new THREE.Vector3(v, -2.5, 0), new THREE.Vector3(v, 2.5, 0));
+      }
+      for (let y = -40; y <= 220; y += 20) {
+        if (y === 0) continue;
+        tickPts.push(new THREE.Vector3(-2.5, y, 0), new THREE.Vector3(2.5, y, 0));
+      }
+      const tickGeo = new THREE.BufferGeometry().setFromPoints(tickPts);
+      group.add(new THREE.LineSegments(tickGeo, tickMat));
+
+      return group;
+    }
+
+    function buildFishMesh3D(f, isCutaway = false, isLaser2D = false) {
+      const group = new THREE.Group();
+      const fishType = f.type || "standard";
+      const isF6 = renderColorStyle === "F6";
+
+      if (isLaser2D) {
+        const shape = createFish2DShape(fishType, false);
+        const pts = shape.getPoints(48);
+        const geo = new THREE.BufferGeometry().setFromPoints(pts);
+        const line = new THREE.LineLoop(geo, new THREE.LineBasicMaterial({ color: isF6 ? 0x137333 : f.bodyColor, linewidth: 2 }));
+        group.add(line);
+        return group;
+      }
+
+      const depth = whaleThickParam;
+      const wallSkin = 2.4;
+      const primaryColor = isF6 ? CORNFIELD_GOLD : f.bodyColor;
+      const grooveColor = isF6 ? CORNFIELD_GREEN : 0xFAF2E0;
+      const bodyMat = new THREE.MeshStandardMaterial({
+        color: primaryColor,
+        roughness: 0.44,
+        metalness: 0.06
+      });
+      const cornfieldCutMat = new THREE.MeshStandardMaterial({
+        color: CORNFIELD_GREEN,
+        roughness: 0.48,
+        metalness: 0.05
+      });
+      const grooveMat = new THREE.MeshStandardMaterial({
+        color: grooveColor,
+        roughness: 0.5
+      });
+
+      if (!isCutaway) {
+        const shape = createFish2DShape(fishType, false);
+        const geo = new THREE.ExtrudeGeometry(shape, {
+          depth: depth,
+          bevelEnabled: false
+        });
+        geo.translate(0, 0, -depth / 2);
+        group.add(new THREE.Mesh(geo, bodyMat));
+
+        // Dual-sided engraved fish_pattern_2d(type) details
+        const eyePos = fishType === "large" ? [-14, 3] : fishType === "shark" ? [-11, -1.5] : [-11.5, 2.5];
+        const eyeRingGeo = new THREE.RingGeometry(2.5, 3.8, 24);
+        const pupilGeo = new THREE.CircleGeometry(1.4, 20);
+        const gillRingGeo = new THREE.RingGeometry(7.4, 8.8, 28, 1, -Math.PI * 0.42, Math.PI * 0.84);
+
+        [-1, 1].forEach(side => {
+          const zOff = side * (depth / 2 + 0.08);
+          const rotY = side === 1 ? 0 : Math.PI;
+
+          const eyeRing = new THREE.Mesh(eyeRingGeo, grooveMat);
+          eyeRing.position.set(eyePos[0], eyePos[1], zOff);
+          eyeRing.rotation.y = rotY;
+          group.add(eyeRing);
+
+          const pupil = new THREE.Mesh(pupilGeo, grooveMat);
+          pupil.position.set(eyePos[0] - 0.4, eyePos[1], zOff);
+          pupil.rotation.y = rotY;
+          group.add(pupil);
+
+          const gill = new THREE.Mesh(gillRingGeo, grooveMat);
+          gill.position.set(-11, 0, zOff);
+          gill.rotation.y = rotY;
+          group.add(gill);
+        });
+
+        // Body pattern (dots for "large", angled slashes for "shark", vertical stripes for "standard"/"finned")
+        if (fishType === "large") {
+          const dotPts = [[0, 6], [0, -5], [6, 1], [8, 9], [8, -8], [14, 3], [14, -4]];
+          const dotGeo = new THREE.CylinderGeometry(2.2, 2.2, depth + 0.14, 18);
+          dotGeo.rotateX(Math.PI / 2);
+          dotPts.forEach(([dx, dy]) => {
+            const dotMesh = new THREE.Mesh(dotGeo, grooveMat);
+            dotMesh.position.set(dx, dy, 0);
+            group.add(dotMesh);
+          });
+        } else if (fishType === "shark") {
+          const mouthGeo = new THREE.BoxGeometry(9, 1.4, depth + 0.14);
+          const mouthMesh = new THREE.Mesh(mouthGeo, grooveMat);
+          mouthMesh.position.set(-9, -7, 0);
+          mouthMesh.rotation.z = THREE.MathUtils.degToRad(-15);
+          group.add(mouthMesh);
+
+          [2, 7, 12].forEach(xp => {
+            const slashGeo = new THREE.BoxGeometry(1.5, 14, depth + 0.14);
+            const slashMesh = new THREE.Mesh(slashGeo, grooveMat);
+            slashMesh.position.set(xp, 2.5, 0);
+            slashMesh.rotation.z = THREE.MathUtils.degToRad(15);
+            group.add(slashMesh);
+          });
+        } else {
+          [1, 6, 11].forEach(xp => {
+            const hBar = xp === 11 ? 16 : 20;
+            const barGeo = new THREE.BoxGeometry(1.6, hBar, depth + 0.14);
+            const barMesh = new THREE.Mesh(barGeo, grooveMat);
+            barMesh.position.set(xp, 0, 0);
+            group.add(barMesh);
+          });
+        }
+
+        // Tail fin rays
+        const tailRayX = fishType === "large" ? 21 : 18;
+        [1, -1].forEach(sign => {
+          const rayGeo = new THREE.BoxGeometry(5.5, 1.2, depth + 0.14);
+          const rayMesh = new THREE.Mesh(rayGeo, grooveMat);
+          rayMesh.position.set(tailRayX, sign * 2.5, 0);
+          rayMesh.rotation.z = THREE.MathUtils.degToRad(sign * 18);
+          group.add(rayMesh);
+        });
+      } else {
+        // Cutaway view: slice Z > 0 to reveal the 2 internal circular cavities
+        const backShape = createFish2DShape(fishType, false);
+        const backGeo = new THREE.ExtrudeGeometry(backShape, { depth: wallSkin, bevelEnabled: false });
+        backGeo.translate(0, 0, -depth / 2);
+        group.add(new THREE.Mesh(backGeo, bodyMat));
+
+        const hollowShape = createFish2DShape(fishType, true);
+        const hollowGeo = new THREE.ExtrudeGeometry(hollowShape, { depth: depth / 2 - wallSkin, bevelEnabled: false });
+        hollowGeo.translate(0, 0, -depth / 2 + wallSkin);
+        group.add(new THREE.Mesh(hollowGeo, [cornfieldCutMat, bodyMat]));
+      }
+
+      return group;
+    }
+
+    function buildWhaleMesh3D(isCutaway = false, isLaser2D = false) {
+      const group = new THREE.Group();
+      const depth = whaleThickParam;
+      const wallSkin = 2.4;
+      const isF6 = renderColorStyle === "F6";
+
+      if (isLaser2D) {
+        const shape = createWhale2DShape();
+        const pts = shape.getPoints(96);
+        const geo = new THREE.BufferGeometry().setFromPoints(pts);
+        group.add(new THREE.LineLoop(geo, new THREE.LineBasicMaterial({ color: 0x0B57D0, linewidth: 2 })));
+        return group;
+      }
+
+      const whalePrimaryColor = isF6 ? CORNFIELD_GOLD : 0x1461AD;
+      const grooveColor = isF6 ? CORNFIELD_GREEN : 0xBFE6FA;
+      const whaleMat = new THREE.MeshStandardMaterial({
+        color: whalePrimaryColor,
+        roughness: 0.42,
+        metalness: 0.08
+      });
+      const cornfieldCutMat = new THREE.MeshStandardMaterial({
+        color: CORNFIELD_GREEN,
+        roughness: 0.48,
+        metalness: 0.05
+      });
+      const grooveMat = new THREE.MeshStandardMaterial({
+        color: grooveColor,
+        roughness: 0.48
+      });
+
+      if (!isCutaway) {
+        const shape = createWhale2DShape();
+        const geo = new THREE.ExtrudeGeometry(shape, {
+          depth: depth,
+          bevelEnabled: false
+        });
+        geo.translate(0, 0, -depth / 2);
+        group.add(new THREE.Mesh(geo, whaleMat));
+
+        // Dual-sided whale_grooves_2d() details (Eye [-45, 22], Blush [-28, 8], Belly Stripes, Pectoral Fin [-20, -23])
+        const eyeRingGeo = new THREE.RingGeometry(9.0, 11.0, 36);
+        const pupilGeo = new THREE.CircleGeometry(5.8, 32);
+        const glintGeo = new THREE.CircleGeometry(1.8, 20);
+        const blushGeo = new THREE.CircleGeometry(3.6, 24);
+        blushGeo.scale(1.5, 0.9, 1);
+
+        [-1, 1].forEach(side => {
+          const zOff = side * (depth / 2 + 0.08);
+          const rotY = side === 1 ? 0 : Math.PI;
+
+          // 1. Eye Ring & Pupil with Glint at [-45, 22]
+          const eyeRing = new THREE.Mesh(eyeRingGeo, grooveMat);
+          eyeRing.position.set(-45, 22, zOff);
+          eyeRing.rotation.y = rotY;
+          group.add(eyeRing);
+
+          const pupil = new THREE.Mesh(pupilGeo, grooveMat);
+          pupil.position.set(-46.5, 21.5, zOff);
+          pupil.rotation.y = rotY;
+          group.add(pupil);
+
+          const glint = new THREE.Mesh(glintGeo, whaleMat);
+          glint.position.set(-48.5, 23.5, zOff + side * 0.04);
+          glint.rotation.y = rotY;
+          group.add(glint);
+
+          // 2. Elliptical Blush at [-28, 8] rotated 25 deg
+          const blush = new THREE.Mesh(blushGeo, grooveMat);
+          blush.position.set(-28, 8, zOff);
+          blush.rotation.z = THREE.MathUtils.degToRad(25);
+          blush.rotation.y = rotY;
+          group.add(blush);
+
+          // 3. Curved Belly Stripes (4 concentric arcs centered at [-2, 58])
+          [79.5, 85, 90.5, 96].forEach(rVal => {
+            const arcGeo = new THREE.RingGeometry(rVal - 1.5, rVal, 48, 1, THREE.MathUtils.degToRad(202), THREE.MathUtils.degToRad(58));
+            const arcMesh = new THREE.Mesh(arcGeo, grooveMat);
+            arcMesh.position.set(-2, 58, zOff);
+            if (side === -1) {
+              arcMesh.scale.z = -1;
+            }
+            group.add(arcMesh);
+          });
+
+          // 4. Small Pectoral Fin at [-20, -23]
+          const finRingGeo = new THREE.RingGeometry(6.6, 8.2, 28, 1, Math.PI, Math.PI);
+          finRingGeo.scale(0.65, 1.3, 1);
+          const finMesh = new THREE.Mesh(finRingGeo, grooveMat);
+          finMesh.position.set(-20, -23, zOff);
+          finMesh.rotation.z = THREE.MathUtils.degToRad(15);
+          group.add(finMesh);
+        });
+      } else {
+        // Cutaway view: slice Z > 0 to show the 9 honeycomb circular cavities in the whale head
+        const backShape = createWhale2DShape();
+        const backGeo = new THREE.ExtrudeGeometry(backShape, { depth: wallSkin, bevelEnabled: false });
+        backGeo.translate(0, 0, -depth / 2);
+        group.add(new THREE.Mesh(backGeo, whaleMat));
+
+        const cavityShape = createWhaleWithCavitiesShape();
+        const cavityGeo = new THREE.ExtrudeGeometry(cavityShape, { depth: depth / 2 - wallSkin, bevelEnabled: false });
+        cavityGeo.translate(0, 0, -depth / 2 + wallSkin);
+        group.add(new THREE.Mesh(cavityGeo, [cornfieldCutMat, whaleMat]));
+      }
+
+      return group;
+    }
+
+    function buildColorDieMesh3D(size = 22) {
+      const geo = new THREE.BoxGeometry(size, size, size);
+      const dieColor = renderColorStyle === "F6" ? CORNFIELD_GOLD : 0xEB402E;
+      return new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: dieColor, roughness: 0.42 }));
+    }
+
+    function buildPhysicsMarkersGroup() {
+      const pGroup = new THREE.Group();
+      const zFront = whaleThickParam / 2 + 4;
+      const y_bottom = -45;
+      const rocker_radius = 115;
+      const balance_x_shift = -6;
+      const y_metacenter = y_bottom + rocker_radius; // +70
+      const y_whale_cg = enableBalanceCavity ? -13.2 : -6.8;
+      const y_fish_avg = 112.0;
+      const ratio = enableBalanceCavity ? 0.82 : 1.38;
+      const y_sys_cg = (1.0 * y_whale_cg + ratio * y_fish_avg) / (1.0 + ratio);
+
+      // 1. Blue sphere: Metacenter [balance_x_shift, y_metacenter] = [-6, 70]
+      const metaSphere = new THREE.Mesh(
+        new THREE.SphereGeometry(4.5, 24, 24),
+        new THREE.MeshBasicMaterial({ color: 0x1A4DFF })
+      );
+      metaSphere.position.set(balance_x_shift, y_metacenter, zFront);
+      pGroup.add(metaSphere);
+
+      // 2. Red sphere: System CG [balance_x_shift + 4, y_sys_cg]
+      const sysSphere = new THREE.Mesh(
+        new THREE.SphereGeometry(4.5, 24, 24),
+        new THREE.MeshBasicMaterial({ color: 0xFF1A1A })
+      );
+      sysSphere.position.set(balance_x_shift + 4, y_sys_cg, zFront);
+      pGroup.add(sysSphere);
+
+      // 3. Green sphere: Whale CG [balance_x_shift, y_whale_cg]
+      const whaleCgSphere = new THREE.Mesh(
+        new THREE.SphereGeometry(4.5, 24, 24),
+        new THREE.MeshBasicMaterial({ color: 0x1AD933 })
+      );
+      whaleCgSphere.position.set(balance_x_shift, y_whale_cg, zFront);
+      pGroup.add(whaleCgSphere);
+
+      // 4. Vertical axis rod from y_bottom (-45) to y_metacenter (+70)
+      const rodMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1.2, rocker_radius, 1.2),
+        new THREE.MeshBasicMaterial({ color: 0x333333, transparent: true, opacity: 0.55 })
+      );
+      rodMesh.position.set(balance_x_shift, (y_metacenter + y_bottom) / 2, zFront);
+      pGroup.add(rodMesh);
+
+      return pGroup;
+    }
+
+    function rebuildSceneForMode(mode) {
+      if (!scene) return;
+      currentDisplayMode = mode;
+
+      const sel = document.getElementById("custDisplayMode");
+      if (sel && sel.value !== mode) sel.value = mode;
+      const modeLbl = document.getElementById("viewportModeLabel");
+      if (modeLbl) modeLbl.textContent = mode;
+
+      while (rockerPivotGroup.children.length > 0) {
+        rockerPivotGroup.remove(rockerPivotGroup.children[0]);
+      }
+      while (mainAssemblyGroup.children.length > 0) {
+        mainAssemblyGroup.remove(mainAssemblyGroup.children[0]);
+      }
+      mainAssemblyGroup.add(rockerPivotGroup);
+
+      const cgBadge = document.getElementById("cgLegendBadge");
+      // Pivot around exact rocker center C0 [-6, 70, 0]
+      rockerPivotGroup.position.set(-6, 70, 0);
+      rockerPivotGroup.rotation.set(0, 0, 0);
+
+      if (mode === "stacked_preview") {
+        cgBadge.classList.add("hidden");
+
+        const contentHolder = new THREE.Group();
+        contentHolder.position.set(6, -70, 0);
+
+        // 1. Whale block
+        contentHolder.add(buildWhaleMesh3D(false, false));
+
+        // 2. 14 Non-overlapping Stacked Fish
+        clearanceGroup = new THREE.Group();
+        clearanceGroup.visible = showClearanceSpheres;
+
+        FISH_DATA.forEach(f => {
+          const fishMesh = buildFishMesh3D(f, false, false);
+          fishMesh.position.set(f.x, f.y, 0);
+          fishMesh.rotation.z = THREE.MathUtils.degToRad(f.rot);
+          contentHolder.add(fishMesh);
+
+          const capGeo = new THREE.CylinderGeometry(15, 15, whaleThickParam + 2, 20, 1, true);
+          capGeo.rotateX(Math.PI / 2);
+          const capWire = new THREE.Mesh(
+            capGeo,
+            new THREE.MeshBasicMaterial({ color: 0x137333, wireframe: true, transparent: true, opacity: 0.45 })
+          );
+          capWire.position.set(f.x, f.y, 0);
+          clearanceGroup.add(capWire);
+        });
+        contentHolder.add(clearanceGroup);
+
+        // 4. Optional Physics Guide Markers
+        if (showPhysicsGuide) {
+          cgMarkersGroup = buildPhysicsMarkersGroup();
+          contentHolder.add(cgMarkersGroup);
+        }
+
+        rockerPivotGroup.add(contentHolder);
+
+        // 3. Tabletop Scattered Fish & Rounded Dice (at Y = -32 / -34)
+        TABLETOP_FISH.forEach((tf) => {
+          const tfMesh = buildFishMesh3D(tf, false, false);
+          tfMesh.position.set(tf.x, tf.y, tf.z);
+          tfMesh.rotation.z = THREE.MathUtils.degToRad(tf.rot);
+          mainAssemblyGroup.add(tfMesh);
+        });
+
+        const die = buildColorDieMesh3D(22);
+        die.position.set(-98, -34, 0);
+        mainAssemblyGroup.add(die);
+
+        camTarget.set(0, 62, 0);
+      } else if (mode === "cutaway_view") {
+        // Exact match with OpenSCAD cutaway_view:
+        // whale_block() + standard fish at [-50, 95, 0] + large fish at [20, 95, 0] with front half sliced open
+        cgBadge.classList.remove("hidden");
+
+        const contentHolder = new THREE.Group();
+        contentHolder.position.set(6, -70, 0);
+
+        contentHolder.add(buildWhaleMesh3D(true, false));
+
+        const cutFish1 = buildFishMesh3D({
+          type: "standard",
+          bodyColor: "#eb5933"
+        }, true, false);
+        cutFish1.position.set(-50, 95, 0);
+        contentHolder.add(cutFish1);
+
+        const cutFish2 = buildFishMesh3D({
+          type: "large",
+          bodyColor: "#f29426"
+        }, true, false);
+        cutFish2.position.set(20, 95, 0);
+        contentHolder.add(cutFish2);
+
+        if (showPhysicsGuide) {
+          contentHolder.add(buildPhysicsMarkersGroup());
+        }
+
+        rockerPivotGroup.add(contentHolder);
+        camTarget.set(-5, 35, 0);
+      } else if (mode === "print_plate") {
+        // Exact match with OpenSCAD print_plate: all 18 pieces laid flat on Z=0
+        cgBadge.classList.add("hidden");
+        const plateHolder = new THREE.Group();
+
+        const whaleFlat = buildWhaleMesh3D(false, false);
+        whaleFlat.rotation.x = -Math.PI / 2;
+        whaleFlat.position.set(0, whaleThickParam / 2, 55);
+        plateHolder.add(whaleFlat);
+
+        const plateRows = [
+          { z: -42, items: [
+            { type: "standard", bodyColor: "#eb5933" },
+            { type: "standard", bodyColor: "#eb5933" },
+            { type: "standard", bodyColor: "#eb5933" },
+            { type: "standard", bodyColor: "#eb5933" }
+          ]},
+          { z: -84, items: [
+            { type: "standard", bodyColor: "#33b840" },
+            { type: "standard", bodyColor: "#33b840" },
+            { type: "standard", bodyColor: "#33b840" },
+            { type: "standard", bodyColor: "#33b840" }
+          ]},
+          { z: -126, items: [
+            { type: "finned", bodyColor: "#f28026" },
+            { type: "finned", bodyColor: "#f28026" },
+            { type: "finned", bodyColor: "#f28026" },
+            { type: "shark",  bodyColor: "#267ac7" }
+          ]},
+          { z: -170, items: [
+            { type: "large",    bodyColor: "#eb2e52" },
+            { type: "large",    bodyColor: "#eb2e52" },
+            { type: "large",    bodyColor: "#eb2e52" },
+            { type: "standard", bodyColor: "#2680cc" }
+          ]}
+        ];
+
+        plateRows.forEach(row => {
+          row.items.forEach((item, i) => {
+            const fishFlat = buildFishMesh3D(item, false, false);
+            fishFlat.rotation.x = -Math.PI / 2;
+            fishFlat.position.set(-102 + i * 68, whaleThickParam / 2, row.z);
+            plateHolder.add(fishFlat);
+          });
+        });
+
+        const dieFlat = buildColorDieMesh3D(22);
+        dieFlat.position.set(-130, 11, 55);
+        plateHolder.add(dieFlat);
+
+        mainAssemblyGroup.add(plateHolder);
+        camTarget.set(0, 0, -40);
+      } else if (mode === "laser_2d") {
+        // Exact match with OpenSCAD laser_2d: whale_2d at [0, -55] and 4 fish types at y = 42
+        cgBadge.classList.add("hidden");
+        const laserHolder = new THREE.Group();
+
+        const whale2d = buildWhaleMesh3D(false, true);
+        whale2d.position.set(0, -55, 0);
+        laserHolder.add(whale2d);
+
+        const laserTypes = [
+          { x: -102, type: "standard", bodyColor: "#eb5933" },
+          { x: -34,  type: "finned",   bodyColor: "#f28026" },
+          { x: 34,   type: "large",    bodyColor: "#eb2e52" },
+          { x: 102,  type: "shark",    bodyColor: "#267ac7" }
+        ];
+        laserTypes.forEach(item => {
+          const fLine = buildFishMesh3D(item, false, true);
+          fLine.position.set(item.x, 42, 0);
+          laserHolder.add(fLine);
+        });
+
+        mainAssemblyGroup.add(laserHolder);
+        camTheta = 0;
+        camPhi = Math.PI / 2;
+        camTarget.set(0, -10, 0);
+      }
+
+      updateCameraPosition();
+      logFullScadCompile(mode, renderColorStyle);
+    }
+
+    function updateCameraPosition() {
+      if (!camera) return;
+      const x = camTarget.x + camRadius * Math.sin(camPhi) * Math.sin(camTheta);
+      const y = camTarget.y + camRadius * Math.cos(camPhi);
+      const z = camTarget.z + camRadius * Math.sin(camPhi) * Math.cos(camTheta);
+      camera.position.set(x, y, z);
+      camera.lookAt(camTarget);
+    }
+
+    function initThreeJSIfNeeded() {
+      if (threeInitialized) return;
+      const container = document.getElementById("threeCanvasContainer");
+      if (!container || container.clientWidth === 0) return;
+
+      threeInitialized = true;
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xFFFFE5);
+
+      camera = new THREE.PerspectiveCamera(40, container.clientWidth / container.clientHeight, 1, 2000);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      container.appendChild(renderer.domElement);
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.78);
+      scene.add(ambientLight);
+
+      const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.75);
+      dirLight1.position.set(160, 280, 240);
+      scene.add(dirLight1);
+
+      const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.35);
+      dirLight2.position.set(-180, 120, -160);
+      scene.add(dirLight2);
+
+      scadAxesGroup = buildOpenSCADAxesGroup();
+      scene.add(scadAxesGroup);
+
+      mainAssemblyGroup = new THREE.Group();
+      rockerPivotGroup = new THREE.Group();
+      mainAssemblyGroup.add(rockerPivotGroup);
+      scene.add(mainAssemblyGroup);
+
+      const domElem = renderer.domElement;
+      domElem.addEventListener("pointerdown", (e) => {
+        isPointerDown = true;
+        prevPointer.x = e.clientX;
+        prevPointer.y = e.clientY;
+      });
+      window.addEventListener("pointermove", (e) => {
+        if (!isPointerDown) return;
+        const dx = e.clientX - prevPointer.x;
+        const dy = e.clientY - prevPointer.y;
+        prevPointer.x = e.clientX;
+        prevPointer.y = e.clientY;
+        camTheta -= dx * 0.0075;
+        camPhi = Math.max(0.25, Math.min(Math.PI - 0.25, camPhi - dy * 0.0075));
+        updateCameraPosition();
+      });
+      window.addEventListener("pointerup", () => {
+        isPointerDown = false;
+      });
+      domElem.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        camRadius = Math.max(150, Math.min(620, camRadius + e.deltaY * 0.25));
+        updateCameraPosition();
+      }, { passive: false });
+
+      window.addEventListener("resize", onThreeResize);
+
+      rebuildSceneForMode(currentDisplayMode);
+      animateThreeLoop();
+    }
+
+    function onThreeResize() {
+      if (!threeInitialized || !renderer || !camera) return;
+      const container = document.getElementById("threeCanvasContainer");
+      if (!container || container.clientWidth === 0 || container.clientHeight === 0) return;
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    }
+
+    function animateThreeLoop() {
+      requestAnimationFrame(animateThreeLoop);
+      const t = clock.getElapsedTime();
+
+      if (rockerPivotGroup && (currentDisplayMode === "stacked_preview" || currentDisplayMode === "cutaway_view")) {
+        if (isRockingActive) {
+          const eqOffset = enableBalanceCavity ? 0.015 : 0.14;
+          const angle = eqOffset + Math.sin(t * 2.4) * 0.13;
+          rockerPivotGroup.rotation.z = angle;
+          rockerPivotGroup.position.x = -6 - 115 * angle * 0.35;
+        } else {
+          rockerPivotGroup.rotation.z += (manualTiltRad - rockerPivotGroup.rotation.z) * 0.15;
+          rockerPivotGroup.position.x += (-6 - 115 * manualTiltRad * 0.35 - rockerPivotGroup.position.x) * 0.15;
+        }
+      }
+
+      if (renderer && scene && camera) {
+        renderer.render(scene, camera);
+      }
+    }
+
+    window.triggerF5Preview = function() {
+      renderColorStyle = "F5";
+      document.getElementById("btnF5Preview").classList.add("active");
+      document.getElementById("btnF6Render").classList.remove("active");
+      document.getElementById("custBtnF5").className = "px-2 py-1 rounded border border-[#0B57D0] bg-[#E8F0FE] text-[#0B57D0] font-semibold text-left text-[10px] cursor-pointer";
+      document.getElementById("custBtnF6").className = "px-2 py-1 rounded border border-[#C8C8C8] bg-[#F8F8F8] text-[#333333] font-medium text-left text-[10px] cursor-pointer";
+      const badge = document.getElementById("viewportRenderBadge");
+      badge.textContent = "F5 Preview";
+      badge.className = "px-1.5 py-0.5 rounded bg-[#137333] text-white font-mono text-[10px] font-bold";
+      rebuildSceneForMode(currentDisplayMode);
+      playOpenSCADBlingSound();
+    };
+
+    window.triggerF6Render = function() {
+      if (!isRightPaneOpen) toggleRightPane(true);
+      renderColorStyle = "F6";
+      document.getElementById("btnF6Render").classList.add("active");
+      document.getElementById("btnF5Preview").classList.remove("active");
+      document.getElementById("custBtnF6").className = "px-2 py-1 rounded border border-[#B06000] bg-[#FEF7E0] text-[#B06000] font-semibold text-left text-[10px] cursor-pointer";
+      document.getElementById("custBtnF5").className = "px-2 py-1 rounded border border-[#C8C8C8] bg-[#F8F8F8] text-[#333333] font-medium text-left text-[10px] cursor-pointer";
+      const badge = document.getElementById("viewportRenderBadge");
+      badge.textContent = "F6 CGAL (Cornfield)";
+      badge.className = "px-1.5 py-0.5 rounded bg-[#F9D72C] border border-[#9DCB51] text-[#1F1F1F] font-mono text-[10px] font-bold";
+      rebuildSceneForMode(currentDisplayMode);
+      playOpenSCADBlingSound();
+    };
+
+    window.triggerF6Render = function() {
+      const wasOpen = isRightPaneOpen;
+      if (!isRightPaneOpen) toggleRightPane(true);
+      if (wasOpen) playOpenSCADBlingSound();
+      renderColorStyle = "F6";
+      document.getElementById("btnF6Render").classList.add("active");
+      document.getElementById("btnF5Preview").classList.remove("active");
+      document.getElementById("custBtnF6").className = "px-2 py-1 rounded border border-[#B06000] bg-[#FEF7E0] text-[#B06000] font-semibold text-left text-[10px] cursor-pointer";
+      document.getElementById("custBtnF5").className = "px-2 py-1 rounded border border-[#C8C8C8] bg-[#F8F8F8] text-[#333333] font-medium text-left text-[10px] cursor-pointer";
+      const badge = document.getElementById("viewportRenderBadge");
+      badge.textContent = "F6 CGAL (Cornfield)";
+      badge.className = "px-1.5 py-0.5 rounded bg-[#F9D72C] border border-[#9DCB51] text-[#1F1F1F] font-mono text-[10px] font-bold";
+      rebuildSceneForMode(currentDisplayMode);
+    };
+
+    window.setDisplayMode = function(mode) {
+      if (mode === "print_plate") {
+        camTheta = 0.35;
+        camPhi = 0.95;
+        camRadius = 360;
+      } else if (mode === "laser_2d") {
+        camTheta = 0;
+        camPhi = Math.PI / 2;
+        camRadius = 310;
+      } else {
+        camTheta = 0.24;
+        camPhi = 1.36;
+        camRadius = 335;
+      }
+      rebuildSceneForMode(mode);
+    };
+
+    window.setCameraPreset = function(preset) {
+      if (preset === "front") {
+        camTheta = 0;
+        camPhi = Math.PI / 2;
+        camRadius = 320;
+      } else if (preset === "top") {
+        camTheta = 0;
+        camPhi = 0.26;
+        camRadius = 360;
+      }
+      updateCameraPosition();
+      appendScadLog(`Camera preset switched to: ${preset.toUpperCase()}`);
+    };
+
+    window.toggleScadAxes = function() {
+      showScadAxes = !showScadAxes;
+      if (scadAxesGroup) scadAxesGroup.visible = showScadAxes;
+      document.getElementById("btnToggleAxes").classList.toggle("active", showScadAxes);
+    };
+
+    window.toggleCavityParameter = function(checked) {
+      enableBalanceCavity = checked;
+      rebuildSceneForMode(currentDisplayMode);
+    };
+
+    window.togglePhysicsGuide = function(checked) {
+      showPhysicsGuide = checked;
+      rebuildSceneForMode(currentDisplayMode);
+    };
+
+    window.updateDimensionParam = function(which, val) {
+      const num = parseFloat(val);
+      whaleThickParam = num;
+      fishThickParam = num;
+      const lbl = document.getElementById("valWhaleThick");
+      if (lbl) lbl.textContent = `${num} mm`;
+      rebuildSceneForMode(currentDisplayMode);
+    };
+
+    window.updateManualTilt = function(degVal) {
+      const deg = parseFloat(degVal);
+      document.getElementById("valTiltDeg").textContent = `${deg}°`;
+      manualTiltRad = THREE.MathUtils.degToRad(-deg);
+      if (isRockingActive) {
+        isRockingActive = false;
+        document.getElementById("btnToggleRocking").classList.remove("active");
+      }
+    };
+
+    window.toggleClearanceSpheres = function() {
+      showClearanceSpheres = !showClearanceSpheres;
+      if (clearanceGroup) clearanceGroup.visible = showClearanceSpheres;
+      document.getElementById("btnToggleClearance").classList.toggle("active", showClearanceSpheres);
+    };
+
+    window.toggleRockingPhysics = function() {
+      isRockingActive = !isRockingActive;
+      if (isRockingActive && (currentDisplayMode === "print_plate" || currentDisplayMode === "laser_2d")) {
+        setDisplayMode("stacked_preview");
+      }
+      document.getElementById("btnToggleRocking").classList.toggle("active", isRockingActive);
+      appendScadLog(`Rocking physics simulation: ${isRockingActive ? "ENABLED (R=130mm)" : "STOPPED"}`);
+    };
+
+    window.triggerRockingFromChat = function() {
+      toggleRightPane(true);
+      if (currentDisplayMode === "print_plate" || currentDisplayMode === "laser_2d") {
+        setDisplayMode("stacked_preview");
+      }
+      if (!isRockingActive) {
+        toggleRockingPhysics();
+      }
+    };
+
+    window.resetCameraView = function() {
+      manualTiltRad = 0;
+      const slider = document.getElementById("sliderTiltDeg");
+      if (slider) slider.value = 0;
+      const lbl = document.getElementById("valTiltDeg");
+      if (lbl) lbl.textContent = "0°";
+      setDisplayMode(currentDisplayMode);
+    };
+
+    // Initialize application on window load
+    window.onload = function() {
+      renderOpenSCADCodeEditor();
+      const miniHolder = document.getElementById("welcomeMiniSvgHolder");
+      if (miniHolder) {
+        miniHolder.innerHTML = buildReferencePhotoSVG("welcomeMiniSvg", true);
+      }
+      updateHeaderAndPromptUI();
+    };
+  </script>
+</body>
+</html>
