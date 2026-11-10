@@ -371,14 +371,30 @@
                             </button>
                         </div>
                     </div>
+                    <!-- Gemini Disclaimer Text -->
+                    <div class="text-center text-[11px] text-gray-500 mt-1.5 select-none">
+                        Gemini可能會顯示不準確的資訊，因此請查證其回覆。
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- ================= CENTER DIVIDER BUTTON: 隱藏右側 ================= -->
-        <button id="divider-hide-btn" onclick="toggleRightPanel(false)" class="hidden absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 bg-[#1967D2] hover:bg-blue-700 text-white text-xs font-bold px-3 py-2 rounded-full shadow-xl border-2 border-white flex items-center gap-1 transition-transform active:scale-95 cursor-pointer">
-            <span>隱藏右側</span>
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+        <!-- ================= CENTER DIVIDER BUTTONS: 右側全螢幕 & 隱藏右側 ================= -->
+        <div id="divider-hide-btn" class="hidden absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-2">
+            <button onclick="toggleRightFullscreen(true)" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-full shadow-xl border-2 border-white flex items-center gap-1 transition-transform active:scale-95 cursor-pointer whitespace-nowrap">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
+                <span>右側全螢幕</span>
+            </button>
+            <button onclick="toggleRightPanel(false)" class="bg-[#1967D2] hover:bg-blue-700 text-white text-xs font-bold px-3 py-2 rounded-full shadow-xl border-2 border-white flex items-center gap-1 transition-transform active:scale-95 cursor-pointer whitespace-nowrap">
+                <span>隱藏右側</span>
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+            </button>
+        </div>
+
+        <!-- ================= RESTORE SPLIT VIEW FLOATING BUTTON (Visible when Right Side is Fullscreen) ================= -->
+        <button id="restore-split-btn" onclick="toggleRightFullscreen(false)" class="hidden absolute left-3 top-1/2 -translate-y-1/2 z-30 bg-[#1967D2] hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-2.5 rounded-full shadow-2xl border-2 border-white flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+            <span>切回左右雙欄</span>
         </button>
 
         <!-- ================= RIGHT PANEL: OPENSCAD 2021.01 CLASSIC SIMULATOR ================= -->
@@ -391,7 +407,10 @@
                     <span id="scad-window-title" class="font-semibold text-gray-800">tictactoe_3d_parametric.scad - OpenSCAD 2021.01 (Manifold Accelerated)</span>
                 </div>
                 <div class="flex items-center gap-1.5">
-                    <button onclick="toggleRightPanel(false)" class="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] font-semibold flex items-center gap-1 shadow-sm">
+                    <button id="scad-top-fullscreen-btn" onclick="toggleRightFullscreen(!isRightFullscreen)" class="px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-[11px] font-semibold flex items-center gap-1 shadow-sm cursor-pointer">
+                        <span id="scad-top-fullscreen-text">右側全螢幕</span>
+                    </button>
+                    <button onclick="toggleRightPanel(false)" class="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] font-semibold flex items-center gap-1 shadow-sm cursor-pointer">
                         <span>隱藏右側</span>
                     </button>
                 </div>
@@ -1043,6 +1062,7 @@ translate([0, 0, board_t / 2]) board_block(3, 3);
         let currentStep = 0; // 0 = initial blank state, 1..4 = steps
         let isThinking = false;
         let isRightPanelOpen = false;
+        let isRightFullscreen = false;
         let scadHighlightEnabled = true;
         let currentScadFile = 'pieces_ox';
         let currentPartMode = 'crosshair_section';
@@ -1427,35 +1447,74 @@ translate([0, 0, board_t / 2]) board_block(3, 3);
         function toggleRightPanel(show) {
             const wasOpen = isRightPanelOpen;
             isRightPanelOpen = show;
+            isRightFullscreen = false;
             const geminiPanel = document.getElementById('gemini-panel');
             const scadPanel = document.getElementById('openscad-panel');
             const dividerBtn = document.getElementById('divider-hide-btn');
+            const restoreSplitBtn = document.getElementById('restore-split-btn');
             const reopenBtn = document.getElementById('reopen-scad-btn');
+            const topFsText = document.getElementById('scad-top-fullscreen-text');
+
+            if (topFsText) topFsText.textContent = '右側全螢幕';
+            if (restoreSplitBtn) restoreSplitBtn.classList.add('hidden');
 
             if (show) {
                 if (!wasOpen) {
                     playOpenScadBling();
                 }
-                geminiPanel.classList.remove('w-full');
-                geminiPanel.classList.add('w-1/2');
-                scadPanel.classList.remove('hidden');
-                scadPanel.classList.add('flex');
+                geminiPanel.classList.remove('hidden', 'w-full');
+                geminiPanel.classList.add('w-1/2', 'flex');
+                scadPanel.classList.remove('hidden', 'w-full');
+                scadPanel.classList.add('w-1/2', 'flex');
                 dividerBtn.classList.remove('hidden');
                 reopenBtn.classList.add('hidden');
                 setTimeout(() => {
                     resizeScadCanvas();
                 }, 60);
             } else {
-                geminiPanel.classList.remove('w-1/2');
-                geminiPanel.classList.add('w-full');
+                geminiPanel.classList.remove('hidden', 'w-1/2');
+                geminiPanel.classList.add('w-full', 'flex');
                 scadPanel.classList.add('hidden');
-                scadPanel.classList.remove('flex');
+                scadPanel.classList.remove('flex', 'w-full');
                 dividerBtn.classList.add('hidden');
                 if (currentStep >= 3) {
                     reopenBtn.classList.remove('hidden');
                 }
             }
             setTimeout(resizeRefCanvases, 100);
+        }
+
+        function toggleRightFullscreen(fullscreen) {
+            if (!isRightPanelOpen) return;
+            isRightFullscreen = fullscreen;
+            const geminiPanel = document.getElementById('gemini-panel');
+            const scadPanel = document.getElementById('openscad-panel');
+            const dividerBtn = document.getElementById('divider-hide-btn');
+            const restoreSplitBtn = document.getElementById('restore-split-btn');
+            const topFsText = document.getElementById('scad-top-fullscreen-text');
+
+            if (fullscreen) {
+                geminiPanel.classList.add('hidden');
+                geminiPanel.classList.remove('flex', 'w-1/2', 'w-full');
+                scadPanel.classList.remove('w-1/2');
+                scadPanel.classList.add('w-full');
+                dividerBtn.classList.add('hidden');
+                restoreSplitBtn.classList.remove('hidden');
+                if (topFsText) topFsText.textContent = '切回雙欄版面';
+            } else {
+                geminiPanel.classList.remove('hidden', 'w-full');
+                geminiPanel.classList.add('w-1/2', 'flex');
+                scadPanel.classList.remove('w-full');
+                scadPanel.classList.add('w-1/2');
+                dividerBtn.classList.remove('hidden');
+                restoreSplitBtn.classList.add('hidden');
+                if (topFsText) topFsText.textContent = '右側全螢幕';
+            }
+
+            setTimeout(() => {
+                resizeScadCanvas();
+                resizeRefCanvases();
+            }, 60);
         }
 
         function openScadFromStep3() {
