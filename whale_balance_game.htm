@@ -93,11 +93,17 @@
                     <span class="font-black text-emerald-400 mono text-sm" id="statMargin">+83.2<span class="text-[9px]">mm</span></span>
                 </div>
                 <div class="h-6 w-px bg-slate-700"></div>
+                <button id="btnToggleSound" class="touch-btn px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-xs font-bold text-emerald-200 transition active:scale-95" title="開啟/關閉音效">
+                    🔊 音效
+                </button>
                 <button id="btnQuickMaterial" class="touch-btn px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-xs font-bold text-amber-200 transition active:scale-95" title="點擊切換：實心原木 / 3D列印PLA">
                     🪵 實心原木
                 </button>
                 <button id="btnToggleSettings" class="touch-btn px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-sky-300 transition active:scale-95">
                     ⚙️ 物理參數
+                </button>
+                <button id="btnAiDemo" class="touch-btn px-3 py-1.5 rounded-xl bg-indigo-500/25 hover:bg-indigo-500/35 border border-indigo-400/50 text-xs font-bold text-indigo-200 transition active:scale-95" title="由 AI 自動擲骰並計算重心平衡逐一擺放所有小魚">
+                    🤖 AI 自動示範
                 </button>
                 <button id="btnResetTray" class="touch-btn px-3 py-1.5 rounded-xl bg-amber-600/85 hover:bg-amber-500 border border-amber-400/50 text-xs font-bold text-white shadow transition active:scale-95">
                     🔄 重新開始
@@ -418,6 +424,363 @@
         let diceSpinCount = 0;
         // 記錄開局點擊鯨魚測試搖擺的水波紋特效
         let whaleTapRipples = [];
+
+        // AI 自動示範狀態機與軌跡規劃參數
+        let aiDemoState = {
+            enabled: false,
+            phase: 'IDLE', // 'IDLE' | 'WAIT_TO_ROLL' | 'ROLLING_DICE' | 'PLANNING' | 'ROTATING' | 'PAUSE_AFTER_ROTATE' | 'MOVING' | 'RELEASING' | 'SETTLING'
+            phaseStartTime: 0,
+            startAngle: 0,
+            targetAngle: 0,
+            startPos: { x: 0, y: 0 },
+            targetPos: { x: 0, y: 0 },
+            cursorPos: { x: 0, y: 0 },
+            cursorLabel: ''
+        };
+
+        // =========================================================================
+        // 1.5 Web Audio API 即時物理音效合成引擎 (電玩按鍵、骰子滾動、原木/PLA碰撞、鯨魚搖擺滑動)
+        // =========================================================================
+        const SoundFX = {
+            ctx: null,
+            enabled: true,
+            noiseBuffer: null,
+            rockingNodes: null,
+            lastCollisionTimeMap: new Map(),
+
+            init() {
+                if (this.ctx) {
+                    if (this.ctx.state === 'suspended') {
+                        this.ctx.resume();
+                    }
+                    return;
+                }
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                this.ctx = new AudioCtx();
+
+                // 建立 2 秒粉紅/木紋雜訊緩衝區，供木頭滑動摩擦與碰撞瞬態使用
+                const sr = this.ctx.sampleRate;
+                const bufferSize = sr * 2;
+                this.noiseBuffer = this.ctx.createBuffer(1, bufferSize, sr);
+                const data = this.noiseBuffer.getChannelData(0);
+                let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+                for (let i = 0; i < bufferSize; i++) {
+                    const white = Math.random() * 2 - 1;
+                    b0 = 0.99886 * b0 + white * 0.0555179;
+                    b1 = 0.99332 * b1 + white * 0.0750759;
+                    b2 = 0.96900 * b2 + white * 0.1538520;
+                    b3 = 0.86650 * b3 + white * 0.3104856;
+                    b4 = 0.55000 * b4 + white * 0.5329522;
+                    b5 = -0.7616 * b5 - white * 0.0168980;
+                    data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.04;
+                    b6 = white * 0.115926;
+                }
+
+                this.setupWhaleRockingLoop();
+            },
+
+            // 1. 電動遊戲按鍵音效 (清脆雙音階街機按鈕聲)
+            playArcadeButton(variant = 'click') {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                if (variant === 'reset') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(660, now);
+                    osc.frequency.setValueAtTime(880, now + 0.045);
+                    osc.frequency.setValueAtTime(1174, now + 0.09);
+                    gain.gain.setValueAtTime(0.18, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.19);
+                } else if (variant === 'switch') {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.setValueAtTime(660, now + 0.035);
+                    gain.gain.setValueAtTime(0.10, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.095);
+                } else {
+                    // 標準街機按鍵音
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(587.33, now); // D5
+                    osc.frequency.setValueAtTime(880.0, now + 0.03); // A5
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.075);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                }
+            },
+
+            // 錯誤或重疊禁放提示音
+            playWarningBuzz() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(190, now);
+                osc.frequency.setValueAtTime(145, now + 0.08);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.23);
+            },
+
+            // 2. 3D 骰子滾動音效 (多段漸慢木頭翻滾撞擊聲 + 落定清脆提示音)
+            playDiceRollSequence() {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+
+                // 模擬骰子拋起後在木盤上連續彈跳翻滾的時間點 (ms)
+                const tapOffsetsMs = [35, 95, 165, 245, 335, 435, 550, 680, 825];
+                tapOffsetsMs.forEach((ms, idx) => {
+                    setTimeout(() => {
+                        if (!this.enabled) return;
+                        const progress = idx / tapOffsetsMs.length;
+                        const energy = (1 - progress * 0.55) * (0.75 + Math.random() * 0.3);
+                        const pitchShift = 0.92 + Math.random() * 0.22;
+                        this.playSingleDiceClack(energy, pitchShift);
+                    }, ms);
+                });
+
+                // 920ms 骰子停定時發出抽中小魚的叮咚聲
+                setTimeout(() => {
+                    if (!this.enabled || !this.ctx) return;
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, now); // C5
+                    osc.frequency.setValueAtTime(659.25, now + 0.055); // E5
+                    osc.frequency.setValueAtTime(783.99, now + 0.11); // G5
+                    gain.gain.setValueAtTime(0.16, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.27);
+                }, 915);
+            },
+
+            playSingleDiceClack(energy = 0.8, pitchMul = 1.0) {
+                if (!this.ctx || !this.noiseBuffer) return;
+                const now = this.ctx.currentTime;
+
+                // 木頭骰子稜角敲擊共振
+                const osc = this.ctx.createOscillator();
+                const oscGain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(480 * pitchMul, now);
+                osc.frequency.exponentialRampToValueAtTime(195 * pitchMul, now + 0.045);
+
+                oscGain.gain.setValueAtTime(0.22 * energy, now);
+                oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+                osc.connect(oscGain);
+                oscGain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.055);
+
+                // 短促木頭表面接觸噪聲
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = this.noiseBuffer;
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(1350 * pitchMul, now);
+                filter.Q.setValueAtTime(3.2, now);
+
+                const nGain = this.ctx.createGain();
+                nGain.gain.setValueAtTime(0.28 * energy, now);
+                nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.032);
+
+                noise.connect(filter);
+                filter.connect(nGain);
+                nGain.connect(this.ctx.destination);
+                noise.start(now, Math.random() * 1.2, 0.04);
+            },
+
+            // 3. 積木碰撞音效：自動區分「實心原木 (溫潤厚實木頭聲)」與「3D列印 PLA (清脆高頻塑膠聲)」
+            playMaterialImpact(intensity = 0.6, massGrams = 15) {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx || !this.noiseBuffer) return;
+
+                const now = this.ctx.currentTime;
+                const clampedInt = Math.max(0.08, Math.min(1.0, intensity));
+                // 質量越大(如鯨魚底座或大魚)，共鳴基頻越低沉；小魚則較清脆
+                const massPitchFactor = Math.max(0.62, Math.min(1.35, Math.pow(16 / Math.max(8, massGrams), 0.25)));
+                const jitter = 0.95 + Math.random() * 0.1;
+                const isPLA = (SCAD_PARAMS.material_mode === 'bambu_pla');
+
+                if (isPLA) {
+                    // 【3D列印 PLA 塑膠撞擊聲】：高頻雙模態空心殼體共鳴 + 清脆塑膠瞬態
+                    const f1 = 980 * massPitchFactor * jitter;
+                    const f2 = 1760 * massPitchFactor * jitter;
+
+                    const osc1 = this.ctx.createOscillator();
+                    const osc2 = this.ctx.createOscillator();
+                    const oscGain = this.ctx.createGain();
+
+                    osc1.type = 'triangle';
+                    osc2.type = 'sine';
+                    osc1.frequency.setValueAtTime(f1, now);
+                    osc1.frequency.exponentialRampToValueAtTime(f1 * 0.68, now + 0.045);
+                    osc2.frequency.setValueAtTime(f2, now);
+                    osc2.frequency.exponentialRampToValueAtTime(f2 * 0.75, now + 0.035);
+
+                    oscGain.gain.setValueAtTime(0.20 * clampedInt, now);
+                    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+                    osc1.connect(oscGain);
+                    osc2.connect(oscGain);
+                    oscGain.connect(this.ctx.destination);
+                    osc1.start(now);
+                    osc2.start(now);
+                    osc1.stop(now + 0.055);
+                    osc2.stop(now + 0.055);
+
+                    // PLA 外殼高頻清脆「咔/啪」撞擊瞬態
+                    const noise = this.ctx.createBufferSource();
+                    noise.buffer = this.noiseBuffer;
+                    const bp = this.ctx.createBiquadFilter();
+                    bp.type = 'bandpass';
+                    bp.frequency.setValueAtTime(2650 * jitter, now);
+                    bp.Q.setValueAtTime(4.5, now);
+
+                    const nGain = this.ctx.createGain();
+                    nGain.gain.setValueAtTime(0.42 * clampedInt, now);
+                    nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
+
+                    noise.connect(bp);
+                    bp.connect(nGain);
+                    nGain.connect(this.ctx.destination);
+                    noise.start(now, Math.random() * 1.5, 0.03);
+                } else {
+                    // 【實心山毛櫸原木撞擊聲】：溫暖低中頻木腔共鳴 (叩/喀聲) + 厚實木紋敲擊瞬態
+                    const f1 = 310 * massPitchFactor * jitter;
+                    const f2 = 495 * massPitchFactor * jitter;
+
+                    const osc1 = this.ctx.createOscillator();
+                    const osc2 = this.ctx.createOscillator();
+                    const oscGain = this.ctx.createGain();
+
+                    osc1.type = 'sine';
+                    osc2.type = 'triangle';
+                    osc1.frequency.setValueAtTime(f1, now);
+                    osc1.frequency.exponentialRampToValueAtTime(f1 * 0.58, now + 0.065);
+                    osc2.frequency.setValueAtTime(f2, now);
+                    osc2.frequency.exponentialRampToValueAtTime(f2 * 0.62, now + 0.048);
+
+                    oscGain.gain.setValueAtTime(0.28 * clampedInt, now);
+                    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+
+                    osc1.connect(oscGain);
+                    osc2.connect(oscGain);
+                    oscGain.connect(this.ctx.destination);
+                    osc1.start(now);
+                    osc2.start(now);
+                    osc1.stop(now + 0.075);
+                    osc2.stop(now + 0.075);
+
+                    // 實木接觸瞬態濾波噪聲
+                    const noise = this.ctx.createBufferSource();
+                    noise.buffer = this.noiseBuffer;
+                    const bp = this.ctx.createBiquadFilter();
+                    bp.type = 'bandpass';
+                    bp.frequency.setValueAtTime(820 * massPitchFactor * jitter, now);
+                    bp.Q.setValueAtTime(2.8, now);
+
+                    const nGain = this.ctx.createGain();
+                    nGain.gain.setValueAtTime(0.35 * clampedInt, now);
+                    nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.038);
+
+                    noise.connect(bp);
+                    bp.connect(nGain);
+                    nGain.connect(this.ctx.destination);
+                    noise.start(now, Math.random() * 1.5, 0.045);
+                }
+            },
+
+            // 4. 鯨魚擺動時的連續木頭滑動摩擦聲合成器
+            setupWhaleRockingLoop() {
+                if (!this.ctx || !this.noiseBuffer || this.rockingNodes) return;
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = this.noiseBuffer;
+                noise.loop = true;
+
+                // 帶通濾波模擬弧形木底在木桌上滾動滑動的摩擦共鳴
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.value = 220;
+                filter.Q.value = 3.6;
+
+                // 低通濾波柔化刺耳高頻，保留溫潤木頭滑動質感
+                const lowpass = this.ctx.createBiquadFilter();
+                lowpass.type = 'lowpass';
+                lowpass.frequency.value = 580;
+
+                const gain = this.ctx.createGain();
+                gain.gain.value = 0;
+
+                noise.connect(filter);
+                filter.connect(lowpass);
+                lowpass.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start(0);
+
+                this.rockingNodes = { noise, filter, lowpass, gain };
+            },
+
+            updateWhaleRockingSound(angularSpeed) {
+                if (!this.ctx || !this.rockingNodes) return;
+                const now = this.ctx.currentTime;
+
+                if (!this.enabled || this.ctx.state !== 'running') {
+                    this.rockingNodes.gain.gain.setTargetAtTime(0, now, 0.04);
+                    return;
+                }
+
+                const speed = Math.abs(angularSpeed);
+                // 忽略極微小的靜止抖動，當鯨魚實際擺動時才發出木頭滑動摩擦聲
+                if (speed < 0.0012) {
+                    this.rockingNodes.gain.gain.setTargetAtTime(0, now, 0.05);
+                    return;
+                }
+
+                const normSpeed = Math.min(1.0, (speed - 0.0012) / 0.032);
+                const isPLA = (SCAD_PARAMS.material_mode === 'bambu_pla');
+
+                // 隨擺動速度動態調變滑動摩擦音高與音量
+                const baseFreq = isPLA ? 340 : 175;
+                const freqSpan = isPLA ? 380 : 230;
+                const targetFreq = baseFreq + normSpeed * freqSpan;
+                const targetGain = Math.min(0.24, Math.pow(normSpeed, 0.85) * 0.22);
+
+                this.rockingNodes.filter.frequency.setTargetAtTime(targetFreq, now, 0.03);
+                this.rockingNodes.lowpass.frequency.setTargetAtTime(isPLA ? 1200 : 540, now, 0.05);
+                this.rockingNodes.gain.gain.setTargetAtTime(targetGain, now, 0.035);
+            }
+        };
 
         // =========================================================================
         // 2. OpenSCAD 精確解析幾何計算器 (產生鯨魚與 4 種小魚的 2D 多邊形頂點)
@@ -771,6 +1134,45 @@
         });
         let world = engine.world;
         engine.gravity.y = 1.0;
+
+        // 監聽 Matter.js 剛體碰撞事件：當小魚與小魚、鯨魚或桌面碰撞時，依撞擊速度與材質發出原木或 PLA 撞擊聲
+        Events.on(engine, 'collisionStart', (event) => {
+            if (!SoundFX.enabled) return;
+            const nowMs = performance.now();
+
+            for (const pair of event.pairs) {
+                const rootA = pair.bodyA.parent || pair.bodyA;
+                const rootB = pair.bodyB.parent || pair.bodyB;
+
+                // 忽略幽靈預覽狀態或邊界牆
+                if (rootA === stagedFishBody || rootB === stagedFishBody) continue;
+                const isFishOrWhaleA = (rootA.label === 'fish' || rootA.label === 'whale');
+                const isFishOrWhaleB = (rootB.label === 'fish' || rootB.label === 'whale');
+                if (!isFishOrWhaleA && !isFishOrWhaleB) continue;
+
+                // 計算兩剛體在碰撞瞬間的相對速度
+                const relVx = (rootA.velocity?.x || 0) - (rootB.velocity?.x || 0);
+                const relVy = (rootA.velocity?.y || 0) - (rootB.velocity?.y || 0);
+                const relSpeed = Math.hypot(relVx, relVy);
+
+                // 過濾微小靜止接觸抖動
+                if (relSpeed < 0.55) continue;
+
+                const idA = rootA.id;
+                const idB = rootB.id;
+                const pairKey = idA < idB ? `${idA}_${idB}` : `${idB}_${idA}`;
+                const lastTime = SoundFX.lastCollisionTimeMap.get(pairKey) || 0;
+                if (nowMs - lastTime < 65) continue;
+                SoundFX.lastCollisionTimeMap.set(pairKey, nowMs);
+
+                const intensity = Math.min(1.0, (relSpeed - 0.45) / 7.5);
+                const massA = rootA.scadMeta?.woodProps?.massGrams || 25;
+                const massB = rootB.scadMeta?.woodProps?.massGrams || 25;
+                const effectiveMass = Math.min(massA, massB);
+
+                SoundFX.playMaterialImpact(intensity, effectiveMass);
+            }
+        });
 
         let SCALE = 2.2;
         let ORIGIN_X = 0;
@@ -1802,6 +2204,9 @@
                 const nextOmega = (whaleBody.angularVelocity + targetTorqueAccel) * damping;
                 Body.setAngularVelocity(whaleBody, Math.abs(nextOmega) < 0.00008 && Math.abs(leverArmPx) < 0.4 ? 0 : nextOmega);
             }
+
+            // 依據鯨魚即時搖擺角速度更新木頭滑動摩擦聲
+            SoundFX.updateWhaleRockingSound(whaleBody.angularVelocity);
         }
 
         function computeAndRenderPhysicsOverlay() {
@@ -2114,6 +2519,11 @@
         }
 
         function handlePointerDown(e) {
+            // 若玩家在 AI 示範期間主動點擊畫布操作，自動停止 AI 示範讓玩家接手
+            if (aiDemoState.enabled && e.isTrusted) {
+                stopAiDemo('👆 已切換為手動操作模式');
+            }
+            SoundFX.init();
             const pt = getCanvasPoint(e);
             if (isNaN(pt.x) || isNaN(pt.y)) return;
             pointerPos = pt;
@@ -2128,6 +2538,7 @@
                     const impulseScale = SCAD_PARAMS.material_mode === 'bambu_pla' ? 0.055 : 0.042;
                     Body.set(whaleBody, { isSleeping: false });
                     Body.setAngularVelocity(whaleBody, whaleBody.angularVelocity + normArm * impulseScale);
+                    SoundFX.playMaterialImpact(0.45, 95);
 
                     whaleTapRipples.push({
                         x: pt.x,
@@ -2160,6 +2571,7 @@
             const hitRotationRing = (!hitFishBody && distCenter >= 22 * SCALE && distCenter <= 56 * SCALE);
 
             if (hitRotationHandle || hitRotationRing) {
+                SoundFX.playArcadeButton('switch');
                 dragInteractionMode = 'rotate';
                 rotateStartPointerAngle = Math.atan2(pt.y - gizmo.center.y, pt.x - gizmo.center.x);
                 rotateStartFishAngle = stagedFishBody.angle || 0;
@@ -2168,6 +2580,7 @@
 
             // 判斷 2：若點擊在小魚本體內部，進入「固定角度平移擺放模式 ('move')」
             if (hitFishBody || distCenter < 24 * SCALE) {
+                SoundFX.playArcadeButton('click');
                 dragInteractionMode = 'move';
                 draggedBody = stagedFishBody;
                 dragGrabOffset = {
@@ -2240,6 +2653,7 @@
 
                 if (overlappingNow) {
                     // 禁止在接觸既有積木時放開：將小魚安全彈回鯨魚正上方待命位置，且保留玩家選好的角度！
+                    SoundFX.playWarningBuzz();
                     const spawnPos = releasingBody.scadMeta.spawnAnchor || {
                         x: whaleBody ? whaleBody.position.x : ORIGIN_X,
                         y: Math.max(125, Math.min(canvas.height * 0.23, scadToWorld(0, 125).y))
@@ -2425,31 +2839,35 @@
             diceRenderer.render(diceScene, diceCamera);
         }
 
-        document.getElementById('dice3DWrapper').addEventListener('click', () => {
-            if (isDiceRolling) return;
+        function triggerDiceRollAction() {
+            if (isDiceRolling) return false;
+            SoundFX.playArcadeButton('click');
 
             const titleEl = document.getElementById('diceStatusTitle');
             const subEl = document.getElementById('diceStatusSub');
 
             // 若鯨魚正上方還有剛骰出來、尚未擺放落下的小魚，提醒玩家先完成該隻小魚的擺放
             if (stagedFishBody && !stagedFishBody.scadMeta.isLockedAfterDrop) {
+                SoundFX.playWarningBuzz();
                 titleEl.textContent = '🐟 請先擺放上方的小魚！';
                 titleEl.className = 'text-xs sm:text-sm font-black text-amber-300 animate-bounce';
                 subEl.textContent = '將鯨魚正上方的小魚拖曳至理想位置放開後，即可擲下一次骰子。';
-                return;
+                return false;
             }
 
             const remainingAll = unplacedFishPool.filter(f => !f.placed);
 
             if (remainingAll.length === 0) {
+                SoundFX.playWarningBuzz();
                 titleEl.textContent = '🎉 16 隻小魚已全數出場！';
                 titleEl.className = 'text-xs sm:text-sm font-black text-emerald-400';
                 subEl.textContent = '請點擊右上角「重新開始」再玩一局。';
-                return;
+                return false;
             }
 
             isDiceRolling = true;
             diceSpinCount++;
+            SoundFX.playDiceRollSequence();
 
             // 隨機決定骰出的六種顏色之一
             const rolledColorObj = DICE_COLORS[Math.floor(Math.random() * DICE_COLORS.length)];
@@ -2470,7 +2888,7 @@
                 z: rolledColorObj.targetRot.z
             };
 
-            titleEl.textContent = '🎲 3D 骰子翻滾中...';
+            titleEl.textContent = aiDemoState.enabled ? '🤖 AI 擲骰子中...' : '🎲 3D 骰子翻滾中...';
             titleEl.className = 'text-xs sm:text-sm font-black text-amber-300 animate-pulse';
             subEl.textContent = '正在決定下一隻出場的小魚顏色...';
 
@@ -2478,7 +2896,10 @@
                 isDiceRolling = false;
 
                 // 檢查該顏色是否還有未擺放的小魚
-                const sameColorAvailable = remainingAll.filter(f => f.colorKey === rolledColorObj.key);
+                const currentRemaining = unplacedFishPool.filter(f => !f.placed);
+                if (currentRemaining.length === 0) return;
+
+                const sameColorAvailable = currentRemaining.filter(f => f.colorKey === rolledColorObj.key);
                 let chosenFish = null;
 
                 if (sameColorAvailable.length > 0) {
@@ -2487,9 +2908,9 @@
 
                     titleEl.innerHTML = `骰出：<span style="color:${rolledColorObj.hex}">【${rolledColorObj.name}】</span>`;
                     titleEl.className = 'text-xs sm:text-sm font-black text-white';
-                    subEl.textContent = `${rolledColorObj.name}${FISH_TYPE_NAMES[chosenFish.type]}已出現在鯨魚正上方，請拖曳擺放！`;
+                    subEl.textContent = `${rolledColorObj.name}${FISH_TYPE_NAMES[chosenFish.type]}已出現在鯨魚正上方，${aiDemoState.enabled ? 'AI 正準備擺放...' : '請拖曳擺放！'}`;
                 } else {
-                    chosenFish = remainingAll[Math.floor(Math.random() * remainingAll.length)];
+                    chosenFish = currentRemaining[Math.floor(Math.random() * currentRemaining.length)];
                     chosenFish.placed = true;
                     const fallbackColorObj = DICE_COLORS.find(c => c.key === chosenFish.colorKey);
 
@@ -2501,6 +2922,412 @@
                 renderUnplacedFishGallery();
                 spawnStagedFishAboveWhale(chosenFish);
             }, 930);
+
+            return true;
+        }
+
+        document.getElementById('dice3DWrapper').addEventListener('click', () => {
+            if (aiDemoState.enabled) {
+                stopAiDemo('👆 已切換為手動擲骰模式');
+            }
+            triggerDiceRollAction();
+        });
+
+        // =========================================================================
+        // 9.5 AI 自動示範引擎：自動擲骰、分析鯨魚力矩平衡、旋轉最佳角度並平穩放置
+        // =========================================================================
+        function syncAiDemoButtonUI() {
+            const btn = document.getElementById('btnAiDemo');
+            if (!btn) return;
+            if (aiDemoState.enabled) {
+                btn.innerHTML = '⏹️ 停止示範';
+                btn.className = 'touch-btn px-3 py-1.5 rounded-xl bg-rose-500/30 hover:bg-rose-500/40 border border-rose-400/60 text-xs font-extrabold text-rose-200 transition active:scale-95 animate-pulse shadow-lg';
+            } else {
+                btn.innerHTML = '🤖 AI 自動示範';
+                btn.className = 'touch-btn px-3 py-1.5 rounded-xl bg-indigo-500/25 hover:bg-indigo-500/35 border border-indigo-400/50 text-xs font-bold text-indigo-200 transition active:scale-95';
+            }
+        }
+
+        function stopAiDemo(reasonText = '') {
+            if (!aiDemoState.enabled) return;
+            aiDemoState.enabled = false;
+            aiDemoState.phase = 'IDLE';
+            dragInteractionMode = null;
+            draggedBody = null;
+            isDraggingOverlapping = false;
+            syncAiDemoButtonUI();
+
+            if (reasonText) {
+                const titleEl = document.getElementById('diceStatusTitle');
+                const subEl = document.getElementById('diceStatusSub');
+                titleEl.textContent = reasonText;
+                titleEl.className = 'text-xs sm:text-sm font-black text-sky-300';
+                subEl.textContent = stagedFishBody
+                    ? '您可以直接接手調整上方小魚的角度與擺放位置！'
+                    : '點擊左側 3D 骰子即可繼續抽小魚。';
+            }
+        }
+
+        function startAiDemo() {
+            SoundFX.playArcadeButton('click');
+            // 若 16 隻小魚已經全部出場且上方無待命小魚，自動重新開局示範完整 16 隻過程
+            const remaining = unplacedFishPool.filter(f => !f.placed).length;
+            if (remaining === 0 && !stagedFishBody) {
+                setupFreshGameScene();
+            }
+
+            aiDemoState.enabled = true;
+            syncAiDemoButtonUI();
+
+            const now = performance.now();
+            if (stagedFishBody && !stagedFishBody.scadMeta.isLockedAfterDrop) {
+                aiDemoState.phase = 'PLANNING';
+                aiDemoState.phaseStartTime = now;
+            } else if (isDiceRolling) {
+                aiDemoState.phase = 'ROLLING_DICE';
+                aiDemoState.phaseStartTime = now;
+            } else {
+                aiDemoState.phase = 'WAIT_TO_ROLL';
+                aiDemoState.phaseStartTime = now;
+            }
+        }
+
+        // 計算當前待命小魚的最佳平衡目標點 (targetX, targetY) 與擺放角度 (targetAngle)
+        function computeAiOptimalPlacement(fishBody) {
+            const origPos = { x: fishBody.position.x, y: fishBody.position.y };
+            const origAngle = fishBody.angle;
+
+            const wMeta = whaleBody.scadMeta;
+            const c0Scad = wMeta.geom.c0;
+            const localC0 = {
+                x: c0Scad.x * SCALE + wMeta.localOriginOffset.x,
+                y: -c0Scad.y * SCALE + wMeta.localOriginOffset.y
+            };
+            const cosA = Math.cos(whaleBody.angle);
+            const sinA = Math.sin(whaleBody.angle);
+            const metacenterWorldX = whaleBody.position.x + (localC0.x * cosA - localC0.y * sinA);
+
+            const { stackedList } = evaluateFishSupportStates();
+            let totalMass = wMeta.woodProps.massGrams;
+            let momentX = totalMass * whaleBody.position.x;
+            for (const fb of stackedList) {
+                const m = fb.scadMeta.woodProps.massGrams;
+                totalMass += m;
+                momentX += m * fb.position.x;
+            }
+            const fishMass = fishBody.scadMeta.woodProps.massGrams;
+
+            // 定義參考 OpenSCAD 背部三區（深U型背谷、左列大頭圓頂、右列尾柄雙尾鰭）的候選槽位與契合角度
+            const candidateSlots = [
+                { scadX: 20,  scadDeg: -16, zoneBias: -10 }, // 深 U 型背谷底（最穩定核心槽位）
+                { scadX: 10,  scadDeg: 5,   zoneBias: -8 },  // 背谷中左段
+                { scadX: 28,  scadDeg: -8,  zoneBias: -6 },  // 背谷中右段
+                { scadX: -40, scadDeg: 8,   zoneBias: 0 },   // 鯨魚圓潤頭頂中央
+                { scadX: -48, scadDeg: 10,  zoneBias: 2 },   // 鯨魚頭頂偏左
+                { scadX: -28, scadDeg: 4,   zoneBias: 0 },   // 鯨魚後腦圓頂
+                { scadX: 54,  scadDeg: -12, zoneBias: 0 },   // 尾柄與左尾鰭上方
+                { scadX: 68,  scadDeg: -4,  zoneBias: 2 },   // 雙尾鰭中央凹槽上方
+                { scadX: 15,  scadDeg: 0,   zoneBias: -4 },  // 中央平衡疊層
+                { scadX: -35, scadDeg: -4,  zoneBias: 3 },   // 左側高層平衡位
+                { scadX: 60,  scadDeg: 5,   zoneBias: 3 }    // 右側高層平衡位
+            ];
+
+            let bestPlan = null;
+            let bestScore = Infinity;
+            const floorY = scadToWorld(0, FLOOR_SCAD_Y).y;
+
+            for (const slot of candidateSlots) {
+                // 加入微幅隨機擾動避免完全重疊在同一點
+                const jitterMM = (Math.random() - 0.5) * 4.0;
+                const localScadX = slot.scadX + jitterMM;
+
+                // 將鯨魚本體座標轉換為當前世界 X 座標
+                const localPxX = localScadX * SCALE + wMeta.localOriginOffset.x;
+                const localPxY = -40 * SCALE + wMeta.localOriginOffset.y;
+                const candWorldX = whaleBody.position.x + (localPxX * cosA - localPxY * sinA);
+
+                // 順應鯨魚當前微傾角調整小魚擺放角度
+                const candAngle = (-slot.scadDeg * Math.PI / 180) + whaleBody.angle * 0.65;
+
+                Body.setAngle(fishBody, candAngle);
+
+                // 從上方安全高度往下掃描，找到剛好接觸鯨魚或已疊放小魚表面的臨界高度
+                const scanStartY = Math.max(95, scadToWorld(0, 215).y);
+                let safeDropY = scanStartY;
+                let foundSurface = false;
+
+                for (let testY = scanStartY; testY < floorY - 25 * SCALE; testY += 3.5) {
+                    Body.setPosition(fishBody, { x: candWorldX, y: testY });
+                    if (checkBodyOverlapWithPlaced(fishBody)) {
+                        // 往上退回 5.5mm 淨空處作為鬆手點，確保不觸發重疊警告且落下距離極短、不會彈飛
+                        safeDropY = Math.max(90, testY - 5.5 * SCALE);
+                        foundSurface = true;
+                        break;
+                    }
+                }
+
+                if (!foundSurface) continue;
+
+                // 再次確認 safeDropY 完全無重疊
+                Body.setPosition(fishBody, { x: candWorldX, y: safeDropY });
+                if (checkBodyOverlapWithPlaced(fishBody)) continue;
+
+                // 預測放上這隻小魚後的系統合成重心與穩心 M 的水平偏差 (mm)
+                const predictedSysCGX = (momentX + fishMass * candWorldX) / (totalMass + fishMass);
+                const predictedLeverArmMM = Math.abs(predictedSysCGX - metacenterWorldX) / SCALE;
+
+                // 計算此處的高度 (mm)，優先填滿較低的背谷與頭尾凹槽，再往上疊高
+                const dropHeightMM = worldToScad(candWorldX, safeDropY).y;
+
+                // 綜合評分：最重視平衡力臂最小化，其次偏好較低重心位置與核心槽位
+                const score = predictedLeverArmMM * 3.4 + dropHeightMM * 0.38 + slot.zoneBias;
+                if (score < bestScore) {
+                    bestScore = score;
+                    bestPlan = {
+                        targetX: candWorldX,
+                        targetY: safeDropY,
+                        targetAngle: candAngle
+                    };
+                }
+            }
+
+            // 還原待命小魚原始位置與角度，交由動畫階段平滑演繹
+            Body.setPosition(fishBody, origPos);
+            Body.setAngle(fishBody, origAngle);
+
+            if (!bestPlan) {
+                return {
+                    targetX: whaleBody ? whaleBody.position.x : ORIGIN_X,
+                    targetY: origPos.y + 15 * SCALE,
+                    targetAngle: 0
+                };
+            }
+            return bestPlan;
+        }
+
+        function updateAiDemoStep(now) {
+            if (!aiDemoState.enabled) return;
+
+            const titleEl = document.getElementById('diceStatusTitle');
+            const subEl = document.getElementById('diceStatusSub');
+
+            switch (aiDemoState.phase) {
+                case 'WAIT_TO_ROLL': {
+                    if (now - aiDemoState.phaseStartTime > 520) {
+                        const remaining = unplacedFishPool.filter(f => !f.placed).length;
+                        if (remaining === 0 && !stagedFishBody) {
+                            stopAiDemo('🎉 AI 自動示範完成！16 隻小魚已全數放畢');
+                            return;
+                        }
+                        const started = triggerDiceRollAction();
+                        if (started) {
+                            aiDemoState.phase = 'ROLLING_DICE';
+                            aiDemoState.phaseStartTime = now;
+                        }
+                    }
+                    break;
+                }
+
+                case 'ROLLING_DICE': {
+                    if (!isDiceRolling && stagedFishBody && !stagedFishBody.scadMeta.isLockedAfterDrop) {
+                        aiDemoState.phase = 'PLANNING';
+                        aiDemoState.phaseStartTime = now;
+                    }
+                    break;
+                }
+
+                case 'PLANNING': {
+                    if (!stagedFishBody) {
+                        aiDemoState.phase = 'WAIT_TO_ROLL';
+                        aiDemoState.phaseStartTime = now;
+                        break;
+                    }
+                    if (now - aiDemoState.phaseStartTime > 280) {
+                        const plan = computeAiOptimalPlacement(stagedFishBody);
+                        aiDemoState.startAngle = stagedFishBody.angle || 0;
+                        aiDemoState.targetAngle = plan.targetAngle;
+                        aiDemoState.startPos = { x: stagedFishBody.position.x, y: stagedFishBody.position.y };
+                        aiDemoState.targetPos = { x: plan.targetX, y: plan.targetY };
+
+                        dragInteractionMode = 'rotate';
+                        SoundFX.playArcadeButton('switch');
+                        aiDemoState.phase = 'ROTATING';
+                        aiDemoState.phaseStartTime = now;
+
+                        const deg = Math.round((-plan.targetAngle * 180) / Math.PI);
+                        titleEl.textContent = `🤖 AI 步驟 1：旋轉小魚角度 (${deg >= 0 ? '+' : ''}${deg}°)`;
+                        titleEl.className = 'text-xs sm:text-sm font-black text-indigo-300';
+                        subEl.textContent = '拉動外圈旋轉把手，調整至貼合鯨魚背部與重心的最佳角度...';
+                    }
+                    break;
+                }
+
+                case 'ROTATING': {
+                    if (!stagedFishBody) break;
+                    const dur = 520;
+                    const t = Math.min(1, (now - aiDemoState.phaseStartTime) / dur);
+                    const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+                    const curAngle = aiDemoState.startAngle + (aiDemoState.targetAngle - aiDemoState.startAngle) * ease;
+
+                    Body.setAngle(stagedFishBody, curAngle);
+                    stagedFishBody.anglePrev = curAngle;
+                    Body.setAngularVelocity(stagedFishBody, 0);
+
+                    const gizmo = getStagedRotationGizmoGeometry(stagedFishBody);
+                    aiDemoState.cursorPos = { x: gizmo.handleRight.x, y: gizmo.handleRight.y };
+                    aiDemoState.cursorLabel = '🤖 AI 旋轉角度';
+
+                    if (t >= 1) {
+                        dragInteractionMode = null;
+                        aiDemoState.phase = 'PAUSE_AFTER_ROTATE';
+                        aiDemoState.phaseStartTime = now;
+                    }
+                    break;
+                }
+
+                case 'PAUSE_AFTER_ROTATE': {
+                    if (!stagedFishBody) break;
+                    const gizmo = getStagedRotationGizmoGeometry(stagedFishBody);
+                    const t = Math.min(1, (now - aiDemoState.phaseStartTime) / 220);
+                    aiDemoState.cursorPos = {
+                        x: gizmo.handleRight.x + (stagedFishBody.position.x - gizmo.handleRight.x) * t,
+                        y: gizmo.handleRight.y + (stagedFishBody.position.y - gizmo.handleRight.y) * t
+                    };
+                    aiDemoState.cursorLabel = '🤖 準備抓魚身移動';
+
+                    if (t >= 1) {
+                        dragInteractionMode = 'move';
+                        draggedBody = stagedFishBody;
+                        dragGrabOffset = { x: 0, y: 0 };
+                        setBodyStaticSafe(draggedBody, true);
+                        setBodyCollisionMode(draggedBody, true);
+                        SoundFX.playArcadeButton('click');
+
+                        aiDemoState.phase = 'MOVING';
+                        aiDemoState.phaseStartTime = now;
+
+                        titleEl.textContent = '🤖 AI 步驟 2：平移至平衡位置';
+                        titleEl.className = 'text-xs sm:text-sm font-black text-sky-300';
+                        subEl.textContent = '依據系統重心與穩心力臂，將小魚移至目標落點上方...';
+                    }
+                    break;
+                }
+
+                case 'MOVING': {
+                    if (!draggedBody) break;
+                    const dur = 760;
+                    const t = Math.min(1, (now - aiDemoState.phaseStartTime) / dur);
+                    const ease = 1 - Math.pow(1 - t, 3);
+
+                    const curX = aiDemoState.startPos.x + (aiDemoState.targetPos.x - aiDemoState.startPos.x) * ease;
+                    // 加入平滑弧線軌跡：先水平移動再緩降到目標高度
+                    const curY = aiDemoState.startPos.y + (aiDemoState.targetPos.y - aiDemoState.startPos.y) * Math.pow(ease, 1.35);
+
+                    Body.setPosition(draggedBody, { x: curX, y: curY });
+                    Body.setAngle(draggedBody, aiDemoState.targetAngle);
+                    Body.setVelocity(draggedBody, { x: 0, y: 0 });
+                    Body.setAngularVelocity(draggedBody, 0);
+                    draggedBody.positionPrev.x = curX;
+                    draggedBody.positionPrev.y = curY;
+                    draggedBody.anglePrev = aiDemoState.targetAngle;
+
+                    isDraggingOverlapping = checkBodyOverlapWithPlaced(draggedBody);
+                    aiDemoState.cursorPos = { x: curX, y: curY };
+                    aiDemoState.cursorLabel = '🤖 AI 拖曳擺放中';
+
+                    if (t >= 1) {
+                        // 放手前安全校正：若鯨魚在移動期間微晃導致重疊，自動微幅上提確保 100% 合法放手
+                        let guardSteps = 0;
+                        while (checkBodyOverlapWithPlaced(draggedBody) && draggedBody.position.y > 70 && guardSteps < 35) {
+                            const liftedY = draggedBody.position.y - 3.5;
+                            Body.setPosition(draggedBody, { x: draggedBody.position.x, y: liftedY });
+                            draggedBody.positionPrev.y = liftedY;
+                            guardSteps++;
+                        }
+                        isDraggingOverlapping = false;
+                        aiDemoState.phase = 'RELEASING';
+                        aiDemoState.phaseStartTime = now;
+                    }
+                    break;
+                }
+
+                case 'RELEASING': {
+                    handlePointerUp();
+                    aiDemoState.phase = 'SETTLING';
+                    aiDemoState.phaseStartTime = now;
+                    break;
+                }
+
+                case 'SETTLING': {
+                    const elapsed = now - aiDemoState.phaseStartTime;
+                    const whaleCalm = whaleBody && Math.abs(whaleBody.angularVelocity) < 0.0045;
+                    if (elapsed > 1350 || (elapsed > 850 && whaleCalm)) {
+                        const remaining = unplacedFishPool.filter(f => !f.placed).length;
+                        if (remaining === 0 && !stagedFishBody) {
+                            stopAiDemo('🎉 AI 自動示範完成！16 隻小魚已全數擺放');
+                        } else {
+                            aiDemoState.phase = 'WAIT_TO_ROLL';
+                            aiDemoState.phaseStartTime = now;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        function renderAiVirtualCursor(now) {
+            if (!aiDemoState.enabled) return;
+            if (!['ROTATING', 'PAUSE_AFTER_ROTATE', 'MOVING'].includes(aiDemoState.phase)) return;
+
+            const { x, y } = aiDemoState.cursorPos;
+            if (!x && !y) return;
+
+            ctx.save();
+            const pulse = 1 + Math.sin(now * 0.012) * 0.12;
+
+            // 外圈 AI 科技感光環
+            ctx.beginPath();
+            ctx.arc(x, y, 16 * pulse, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(129, 140, 248, 0.9)';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+
+            // 中心準星點
+            ctx.beginPath();
+            ctx.arc(x, y, 5.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#38bdf8';
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.8;
+            ctx.stroke();
+
+            // AI 標籤膠囊
+            if (aiDemoState.cursorLabel) {
+                ctx.font = 'bold 11px "Noto Sans TC", sans-serif';
+                const textW = ctx.measureText(aiDemoState.cursorLabel).width + 14;
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+                ctx.strokeStyle = 'rgba(129, 140, 248, 0.8)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.roundRect(x + 14, y - 12, textW, 22, 8);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#e0e7ff';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(aiDemoState.cursorLabel, x + 21, y - 1);
+            }
+            ctx.restore();
+        }
+
+        document.getElementById('btnAiDemo').addEventListener('click', () => {
+            if (aiDemoState.enabled) {
+                stopAiDemo('⏹️ 已停止 AI 自動示範');
+                SoundFX.playArcadeButton('switch');
+            } else {
+                startAiDemo();
+            }
         });
 
         // 物理參數抽屜開關與材質模式切換UI同步
@@ -2538,7 +3365,26 @@
             document.getElementById('lblFriction').textContent = SCAD_PARAMS.surface_friction.toFixed(2);
             syncMaterialModeUI();
             refreshPhysicsParameters();
+            // 切換材質時立即播放一次該材質的代表敲擊聲與電玩切換音
+            SoundFX.playArcadeButton('switch');
+            setTimeout(() => SoundFX.playMaterialImpact(0.65, 18), 60);
         }
+
+        // 音效開關按鈕控制
+        document.getElementById('btnToggleSound').addEventListener('click', () => {
+            SoundFX.init();
+            SoundFX.enabled = !SoundFX.enabled;
+            const btn = document.getElementById('btnToggleSound');
+            if (SoundFX.enabled) {
+                btn.innerHTML = '🔊 音效';
+                btn.className = 'touch-btn px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-xs font-bold text-emerald-200 transition active:scale-95';
+                SoundFX.playArcadeButton('click');
+            } else {
+                btn.innerHTML = '🔇 靜音';
+                btn.className = 'touch-btn px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-slate-400 transition active:scale-95';
+                SoundFX.updateWhaleRockingSound(0);
+            }
+        });
 
         document.getElementById('btnQuickMaterial').addEventListener('click', () => {
             setMaterialMode(SCAD_PARAMS.material_mode === 'wood' ? 'bambu_pla' : 'wood');
@@ -2549,49 +3395,63 @@
         document.getElementById('rngInfillPct').addEventListener('input', (e) => {
             SCAD_PARAMS.pla_infill_percent = parseInt(e.target.value, 10);
             document.getElementById('lblInfillPct').textContent = SCAD_PARAMS.pla_infill_percent;
+            SoundFX.playArcadeButton('switch');
             syncMaterialModeUI();
             refreshPhysicsParameters();
         });
 
         document.getElementById('btnToggleSettings').addEventListener('click', () => {
+            SoundFX.playArcadeButton('click');
             document.getElementById('settingsPopover').classList.toggle('hidden');
         });
         document.getElementById('btnCloseSettings').addEventListener('click', () => {
+            SoundFX.playArcadeButton('click');
             document.getElementById('settingsPopover').classList.add('hidden');
         });
 
         // iPad 展場全螢幕與防手勢跳出設定步驟 彈窗開關控制
         const ipadGuideModal = document.getElementById('ipadGuideModal');
         document.getElementById('btnOpenIpadGuide').addEventListener('click', () => {
+            SoundFX.playArcadeButton('click');
             ipadGuideModal.classList.remove('hidden');
         });
         document.getElementById('btnCloseIpadGuideTop').addEventListener('click', () => {
+            SoundFX.playArcadeButton('click');
             ipadGuideModal.classList.add('hidden');
         });
         document.getElementById('btnCloseIpadGuideBottom').addEventListener('click', () => {
+            SoundFX.playArcadeButton('click');
             ipadGuideModal.classList.add('hidden');
         });
         ipadGuideModal.addEventListener('click', (e) => {
             if (e.target === ipadGuideModal) {
+                SoundFX.playArcadeButton('click');
                 ipadGuideModal.classList.add('hidden');
             }
         });
 
         document.getElementById('btnResetTray').addEventListener('click', () => {
+            if (aiDemoState.enabled) {
+                stopAiDemo();
+            }
+            SoundFX.playArcadeButton('reset');
             setupFreshGameScene();
         });
 
         // 綁定 OpenSCAD 物理參數控制項
         document.getElementById('chkCavity').addEventListener('change', (e) => {
+            SoundFX.playArcadeButton('switch');
             SCAD_PARAMS.enable_balance_cavity = e.target.checked;
             refreshPhysicsParameters();
         });
 
         document.getElementById('chkCutaway').addEventListener('change', (e) => {
+            SoundFX.playArcadeButton('switch');
             SCAD_PARAMS.cutaway_view = e.target.checked;
         });
 
         document.getElementById('chkPhysicsGuide').addEventListener('change', (e) => {
+            SoundFX.playArcadeButton('switch');
             SCAD_PARAMS.show_physics_guide = e.target.checked;
         });
 
@@ -2621,6 +3481,7 @@
         });
 
         document.getElementById('btnResetParams').addEventListener('click', () => {
+            SoundFX.playArcadeButton('reset');
             SCAD_PARAMS.material_mode = 'wood';
             SCAD_PARAMS.pla_infill_percent = 15;
             SCAD_PARAMS.enable_balance_cavity = true;
@@ -2729,7 +3590,8 @@
         }
 
         function animateLoop(now = performance.now()) {
-            // 執行鯨魚真圓弧底滾動平衡物理與 Matter.js 引擎步進
+            // 執行 AI 自動示範步驟、鯨魚真圓弧底滾動平衡物理與 Matter.js 引擎步進
+            updateAiDemoStep(now);
             applyWhaleTrueRockerPhysics();
             Engine.update(engine, 1000 / 60);
             updateThreeDiceAnimation(now);
@@ -2812,6 +3674,7 @@
             }
 
             computeAndRenderPhysicsOverlay();
+            renderAiVirtualCursor(now);
 
             requestAnimationFrame(animateLoop);
         }
