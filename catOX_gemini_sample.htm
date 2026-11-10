@@ -363,12 +363,30 @@
         </section>
 
         <!-- ================================================================== -->
-        <!-- CENTER SPLIT DIVIDER WITH COLLAPSE RIGHT PANEL BUTTON              -->
+        <!-- CENTER SPLIT DIVIDER WITH FULLSCREEN & HIDE RIGHT PANEL BUTTONS    -->
         <!-- ================================================================== -->
         <div id="split-divider-control" class="hidden w-3 bg-[#E0E2E0] hover:bg-[#D3E3FD] relative z-30 items-center justify-center shrink-0 transition-colors">
-            <button onclick="setSplitScreenLayout(false)" class="absolute left-1/2 -translate-x-1/2 px-2 py-3 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] active:scale-95 text-white font-bold text-[11px] shadow-xl border-2 border-white flex flex-col items-center gap-1 cursor-pointer whitespace-nowrap" title="隱藏右側 OpenSCAD 畫面，恢復左側滿版">
+            <div class="absolute left-1/2 -translate-x-1/2 flex flex-col items-center gap-2.5">
+                <!-- Top Button: Expand Right Side to Fullscreen -->
+                <button onclick="setOpenSCADFullscreen(true)" class="px-2 py-3 rounded-full bg-[#059669] hover:bg-[#047857] active:scale-95 text-white font-bold text-[11px] shadow-xl border-2 border-white flex flex-col items-center gap-1 cursor-pointer whitespace-nowrap" title="將右側 OpenSCAD 放大為全螢幕">
+                    <i class="fa-solid fa-angles-left text-xs"></i>
+                    <span style="writing-mode: vertical-rl; letter-spacing: 1px;">右側全螢幕</span>
+                </button>
+                <!-- Bottom Button: Hide Right Side -->
+                <button onclick="setSplitScreenLayout(false)" class="px-2 py-3 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] active:scale-95 text-white font-bold text-[11px] shadow-xl border-2 border-white flex flex-col items-center gap-1 cursor-pointer whitespace-nowrap" title="隱藏右側 OpenSCAD 畫面，恢復左側滿版">
+                    <i class="fa-solid fa-angles-right text-xs"></i>
+                    <span style="writing-mode: vertical-rl; letter-spacing: 1px;">隱藏右側</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ================================================================== -->
+        <!-- LEFT EDGE FLOATING RESTORE BUTTON (Visible when Right is Fullscreen) -->
+        <!-- ================================================================== -->
+        <div id="fullscreen-restore-tab" class="hidden w-3 bg-[#D3E3FD] hover:bg-[#B3D1FC] relative z-30 items-center justify-center shrink-0 transition-colors">
+            <button onclick="setOpenSCADFullscreen(false)" class="absolute left-2 px-2 py-3.5 rounded-full bg-[#0B57D0] hover:bg-[#0842A0] active:scale-95 text-white font-bold text-[11px] shadow-2xl border-2 border-white flex flex-col items-center gap-1.5 cursor-pointer whitespace-nowrap" title="切回左側 Gemini 對話、右側 OpenSCAD 的雙欄版面">
                 <i class="fa-solid fa-angles-right text-xs"></i>
-                <span style="writing-mode: vertical-rl; letter-spacing: 1px;">隱藏右側</span>
+                <span style="writing-mode: vertical-rl; letter-spacing: 1px;">切回雙欄畫面</span>
             </button>
         </div>
 
@@ -391,13 +409,13 @@
 
                 <!-- Right Side Helper Buttons for iPad Exhibition -->
                 <div class="flex items-center gap-1.5">
+                    <button id="btn-toggle-split" onclick="toggleMaximizeOpenSCAD()" class="px-2 py-0.5 bg-[#D1FAE5] hover:bg-[#A7F3D0] border border-[#059669] text-[11px] font-bold text-[#065F46] flex items-center gap-1" title="切換右側全螢幕或左右雙欄版面">
+                        <i id="split-toggle-icon" class="fa-solid fa-expand text-[10px]"></i>
+                        <span id="split-toggle-label">右側全螢幕</span>
+                    </button>
                     <button onclick="setSplitScreenLayout(false)" class="px-2 py-0.5 bg-[#FEE2E2] hover:bg-[#FECACA] border border-[#F87171] text-[11px] font-bold text-[#991B1B] flex items-center gap-1" title="隱藏右側 OpenSCAD 畫面">
                         <i class="fa-solid fa-angles-right text-[10px]"></i>
                         <span>隱藏右側</span>
-                    </button>
-                    <button id="btn-toggle-split" onclick="toggleMaximizeOpenSCAD()" class="px-2 py-0.5 bg-[#E1E1E1] hover:bg-[#D5E8F7] border border-[#ADADAD] text-[11px] text-black flex items-center gap-1">
-                        <i class="fa-solid fa-maximize text-[10px]"></i>
-                        <span id="split-toggle-label">放大 OpenSCAD</span>
                     </button>
                     <button id="btn-open-ipad-guide" class="px-2 py-0.5 bg-[#D9F2E6] hover:bg-[#BFE8D5] border border-[#55B688] text-[11px] font-bold text-[#064E3B] flex items-center gap-1">
                         <span>🔒 iPad鎖定教學</span>
@@ -1755,13 +1773,37 @@ STL export finished: C:/Users/user/Downloads/${fileName}`;
         let isOpenSCADMaximized = false;
         let isSplitScreenVisible = false;
 
+        function updateFullscreenToggleUI() {
+            const btn = document.getElementById('btn-toggle-split');
+            const icon = document.getElementById('split-toggle-icon');
+            const label = document.getElementById('split-toggle-label');
+            const restoreTab = document.getElementById('fullscreen-restore-tab');
+
+            if (isOpenSCADMaximized) {
+                btn.className = 'px-2.5 py-0.5 bg-[#0B57D0] hover:bg-[#0842A0] border border-[#041E49] text-[11px] font-bold text-white flex items-center gap-1 shadow-xs';
+                icon.className = 'fa-solid fa-columns text-[10px]';
+                label.textContent = '切回左對話 / 右OpenSCAD';
+                restoreTab.classList.remove('hidden');
+                restoreTab.classList.add('flex');
+            } else {
+                btn.className = 'px-2 py-0.5 bg-[#D1FAE5] hover:bg-[#A7F3D0] border border-[#059669] text-[11px] font-bold text-[#065F46] flex items-center gap-1';
+                icon.className = 'fa-solid fa-expand text-[10px]';
+                label.textContent = '右側全螢幕';
+                restoreTab.classList.add('hidden');
+                restoreTab.classList.remove('flex');
+            }
+        }
+
         function setSplitScreenLayout(showSplit) {
             isSplitScreenVisible = showSplit;
+            isOpenSCADMaximized = false;
             const geminiPanel = document.getElementById('gemini-panel');
             const dividerControl = document.getElementById('split-divider-control');
             const scadPanel = document.getElementById('openscad-panel');
             const innerContainer = document.getElementById('gemini-inner-container');
             const inputWrapper = document.getElementById('gemini-input-wrapper');
+
+            updateFullscreenToggleUI();
 
             if (showSplit) {
                 geminiPanel.className = 'w-[42%] min-w-[330px] max-w-[480px] h-full flex flex-col bg-[#FFFFFF] z-20 transition-all duration-300';
@@ -1781,15 +1823,13 @@ STL export finished: C:/Users/user/Downloads/${fileName}`;
                 scadPanel.classList.remove('flex');
                 innerContainer.className = 'max-w-3xl mx-auto w-full h-full flex flex-col';
                 inputWrapper.className = 'max-w-3xl mx-auto w-full relative';
-                isOpenSCADMaximized = false;
-                document.getElementById('split-toggle-label').textContent = '放大 OpenSCAD';
             }
             setTimeout(handleWindowResize, 60);
         }
 
         // Triggered when clicking "✂️ 檢視三層套疊剖面" (or sibling buttons) in Step 3/4 or 4/4
         function revealSplitScreenAndInspect(targetMode, edition = 'maneki') {
-            if (!isSplitScreenVisible) {
+            if (!isSplitScreenVisible || isOpenSCADMaximized) {
                 setSplitScreenLayout(true);
             }
             currentModelEdition = edition;
@@ -1813,23 +1853,27 @@ STL export finished: C:/Users/user/Downloads/${fileName}`;
             }, 80);
         }
 
-        function toggleMaximizeOpenSCAD() {
-            isOpenSCADMaximized = !isOpenSCADMaximized;
+        function setOpenSCADFullscreen(maximize) {
+            playSoundEffect('click');
+            isOpenSCADMaximized = maximize;
             const geminiPanel = document.getElementById('gemini-panel');
             const dividerControl = document.getElementById('split-divider-control');
-            const label = document.getElementById('split-toggle-label');
+
             if (isOpenSCADMaximized) {
                 geminiPanel.classList.add('hidden');
                 dividerControl.classList.add('hidden');
                 dividerControl.classList.remove('flex');
-                label.textContent = '顯示 Gemini 對話';
             } else {
                 geminiPanel.classList.remove('hidden');
                 dividerControl.classList.remove('hidden');
                 dividerControl.classList.add('flex');
-                label.textContent = '放大 OpenSCAD';
             }
+            updateFullscreenToggleUI();
             setTimeout(handleWindowResize, 50);
+        }
+
+        function toggleMaximizeOpenSCAD() {
+            setOpenSCADFullscreen(!isOpenSCADMaximized);
         }
 
         // ============================================================================
