@@ -148,15 +148,21 @@
                 </div>
             </div>
 
-            <!-- 動作按鈕列：悔棋 & 重新開始 -->
-            <div class="grid grid-cols-2 gap-2 lg:gap-3 shrink-0">
-                <button onclick="simApp.undoMove()" id="btn-undo" class="py-2.5 lg:py-3 px-3 rounded-xl font-bold text-xs lg:text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
-                    <span>悔棋一步</span>
-                </button>
-                <button onclick="simApp.initGame()" class="py-2.5 lg:py-3 px-3 rounded-xl font-bold text-xs lg:text-sm bg-blue-600 hover:bg-blue-500 text-white shadow-lg transition flex items-center justify-center gap-1.5 cursor-pointer">
-                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                    <span>重新開始</span>
+            <!-- 動作按鈕列：悔棋 & 重新開始 & AI 自動示範對戰 -->
+            <div class="space-y-2 shrink-0">
+                <div class="grid grid-cols-2 gap-2 lg:gap-3">
+                    <button onclick="simApp.undoMove()" id="btn-undo" class="py-2.5 lg:py-3 px-3 rounded-xl font-bold text-xs lg:text-sm bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                        <span>悔棋一步</span>
+                    </button>
+                    <button onclick="simApp.initGame(false)" class="py-2.5 lg:py-3 px-3 rounded-xl font-bold text-xs lg:text-sm bg-blue-600 hover:bg-blue-500 text-white shadow-lg transition flex items-center justify-center gap-1.5 cursor-pointer">
+                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        <span>重新開始</span>
+                    </button>
+                </div>
+                <button onclick="simApp.toggleDemoMode()" id="btn-auto-demo" class="w-full py-2.5 lg:py-3 px-3 rounded-xl font-black text-xs lg:text-sm bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border border-purple-400/50 shadow-lg transition flex items-center justify-center gap-2 cursor-pointer">
+                    <span id="auto-demo-icon">🎬</span>
+                    <span id="auto-demo-label">AI 自動對戰示範 (展場自動輪播)</span>
                 </button>
             </div>
 
@@ -1409,6 +1415,12 @@
                 this.isAIThinking = false;
                 this.aiTimers = [];
 
+                // 自動示範模式 (Auto-Demo) 與完成後 30 秒待機重播計時器
+                this.isDemoMode = false;
+                this.savedConfigBeforeDemo = null;
+                this.demoIdleInterval = null;
+                this.demoRemainingSec = 30;
+
                 // 預設 2 人為：藍色 O vs 黃色 X；3~4 人依序加入：橘色 O、白色 X
                 this.allPlayers = [
                     { id: 0, name: '寶藍方 O', symbol: 'O', color: '#3b82f6', hex: 0x2563eb },
@@ -1443,15 +1455,141 @@
                 this.isAIThinking = false;
             }
 
+            // 清除示範完成後的 30 秒倒數計時器
+            clearDemoIdleTimer() {
+                if (this.demoIdleInterval) {
+                    clearInterval(this.demoIdleInterval);
+                    this.demoIdleInterval = null;
+                }
+            }
+
+            // 當使用者在示範完成後的 30 秒待機期間有任何畫面操作（例如旋轉視角檢視連線），自動將倒數重置為 30 秒
+            notifyUserActivity() {
+                if (this.isDemoMode && this.gameOver && this.demoIdleInterval) {
+                    this.demoRemainingSec = 30;
+                    const el = document.getElementById('demo-idle-countdown');
+                    if (el) el.textContent = '30';
+                }
+            }
+
+            // 啟動或停止「AI 自動對戰示範模式」
+            toggleDemoMode() {
+                if (this.sfx) this.sfx.playUiButton();
+                if (!this.isDemoMode) {
+                    this.isDemoMode = true;
+                    // 備份使用者原本的 AI 設定，方便結束示範時還原
+                    this.savedConfigBeforeDemo = {
+                        aiDifficulty: this.aiDifficulty,
+                        aiSlots: [...this.aiSlots]
+                    };
+                    if (this.aiDifficulty === 'off') {
+                        this.aiDifficulty = 'medium';
+                    }
+                    this.aiSlots = [true, true, true, true];
+                    if (this.isInspectMode) this.toggleInspectMode();
+                    this.updateDemoButtonUI();
+                    this.initGame(true);
+                } else {
+                    this.stopDemoMode();
+                    this.initGame(false);
+                }
+            }
+
+            // 退出自動示範模式並還原玩家設定
+            stopDemoMode() {
+                this.clearDemoIdleTimer();
+                this.clearAITimers();
+                if (this.isDemoMode) {
+                    this.isDemoMode = false;
+                    if (this.savedConfigBeforeDemo) {
+                        this.aiDifficulty = this.savedConfigBeforeDemo.aiDifficulty;
+                        this.aiSlots = [...this.savedConfigBeforeDemo.aiSlots];
+                        this.savedConfigBeforeDemo = null;
+                    } else {
+                        this.aiSlots = [false, true, true, true];
+                    }
+                }
+                this.updateDemoButtonUI();
+            }
+
+            // 更新左側「AI 自動對戰示範」按鈕外觀
+            updateDemoButtonUI() {
+                const btn = document.getElementById('btn-auto-demo');
+                const icon = document.getElementById('auto-demo-icon');
+                const label = document.getElementById('auto-demo-label');
+                if (!btn || !icon || !label) return;
+
+                if (this.isDemoMode) {
+                    btn.className = "w-full py-2.5 lg:py-3 px-3 rounded-xl font-black text-xs lg:text-sm bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 border-2 border-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.4)] transition flex items-center justify-center gap-2 cursor-pointer";
+                    icon.textContent = "⏹️";
+                    label.textContent = "停止自動示範 (返回手動對戰)";
+                } else {
+                    btn.className = "w-full py-2.5 lg:py-3 px-3 rounded-xl font-black text-xs lg:text-sm bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border border-purple-400/50 shadow-lg transition flex items-center justify-center gap-2 cursor-pointer";
+                    icon.textContent = "🎬";
+                    label.textContent = "AI 自動對戰示範 (展場自動輪播)";
+                }
+            }
+
+            // 示範對局完成後，啟動 30 秒無動作自動重新展示倒數
+            startPostDemoIdleCountdown(winnerName = null, winnerColor = '#facc15', isSelfDestruct = false) {
+                this.clearDemoIdleTimer();
+                if (!this.isDemoMode) return;
+
+                this.demoRemainingSec = 30;
+                const renderCountdownBanner = () => {
+                    let titleHtml = '';
+                    if (winnerName) {
+                        titleHtml = isSelfDestruct
+                            ? `<div class="text-base sm:text-lg font-black text-amber-300">💥 示範對局：抽子自爆！${winnerName} 獲勝！</div>`
+                            : `<div class="text-base sm:text-lg font-black" style="color:${winnerColor}">🎉 示範完成！${winnerName} 達成 ${this.winLen} 子立體連線獲勝！</div>`;
+                    } else {
+                        titleHtml = `<div class="text-base sm:text-lg font-black text-sky-300">🎬 本局 AI 自動對戰示範結束！</div>`;
+                    }
+
+                    this.updateStatusBanner(
+                        `${titleHtml}
+                         <div class="text-xs text-purple-200 mt-1 font-semibold">
+                            ⏳ 若無任何動作，將於 <span id="demo-idle-countdown" class="font-mono font-black text-amber-300 text-sm px-1">${this.demoRemainingSec}</span> 秒後自動重新展示示範（點擊「停止自動示範」可隨時親自遊玩）
+                         </div>`,
+                        winnerColor
+                    );
+                };
+
+                renderCountdownBanner();
+
+                this.demoIdleInterval = setInterval(() => {
+                    if (!this.isDemoMode || !this.gameOver) {
+                        this.clearDemoIdleTimer();
+                        return;
+                    }
+                    this.demoRemainingSec--;
+                    const el = document.getElementById('demo-idle-countdown');
+                    if (el) el.textContent = String(Math.max(0, this.demoRemainingSec));
+
+                    if (this.demoRemainingSec <= 0) {
+                        this.clearDemoIdleTimer();
+                        // 滿 30 秒無操作，自動重新開始新一局 AI 示範對戰
+                        this.initGame(true);
+                    }
+                }, 1000);
+            }
+
             // 判斷指定玩家目前是否由 AI 操控
             isPlayerAI(pid) {
+                if (this.isDemoMode) return true;
                 return this.aiDifficulty !== 'off' && Boolean(this.aiSlots[pid]);
             }
 
             // 切換 AI 難度等級 ('off' | 'weak' | 'medium' | 'strong')
             setAIDifficulty(level) {
                 if (this.sfx) this.sfx.playUiButton();
+                this.clearDemoIdleTimer();
                 this.clearAITimers();
+
+                // 若在自動示範模式中點選「全真人」，則退出示範模式；若點選弱/中/強，則即時切換示範 AI 的強度
+                if (this.isDemoMode && level === 'off') {
+                    this.stopDemoMode();
+                }
                 this.aiDifficulty = level;
 
                 // 若從「全真人」切換到任一 AI 難度，且所有玩家都是真人，自動將 P2~P4 設為 AI
@@ -1469,6 +1607,9 @@
             // 單獨切換某位玩家是「👤真人」還是「🤖AI」
             togglePlayerAI(pid) {
                 if (this.sfx) this.sfx.playUiButton();
+                if (this.isDemoMode) {
+                    this.stopDemoMode();
+                }
                 this.clearAITimers();
 
                 if (this.aiDifficulty === 'off') {
@@ -1607,6 +1748,11 @@
 
                 // 停用預設右鍵選單，讓滑鼠右鍵拖曳可自由旋轉 3D 視角
                 dom.addEventListener('contextmenu', e => e.preventDefault());
+
+                // 偵測全頁面的使用者互動：若在示範結束後的 30 秒倒數期間操作畫面，自動重置 30 秒待機倒數
+                ['mousedown', 'touchstart', 'wheel', 'keydown'].forEach(evtName => {
+                    window.addEventListener(evtName, () => this.notifyUserActivity(), { passive: true });
+                });
 
                 dom.addEventListener('mousedown', e => {
                     // 若剛發生過觸控事件 (800ms 內)，忽略 iOS Safari 自動合成的 mousedown
@@ -1826,7 +1972,7 @@
                 if (newSize !== null) this.gridSize = newSize;
                 if (newPCount !== null) this.playerCount = newPCount;
                 if (this.isInspectMode) this.toggleInspectMode();
-                this.initGame();
+                this.initGame(this.isDemoMode);
             }
 
             updateConfigButtons() {
@@ -1869,9 +2015,14 @@
                     };
                     algoBadge.textContent = descMap[this.aiDifficulty] || '';
                 }
+                this.updateDemoButtonUI();
             }
 
-            initGame() {
+            initGame(keepDemoMode = false) {
+                if (!keepDemoMode && this.isDemoMode) {
+                    this.stopDemoMode();
+                }
+                this.clearDemoIdleTimer();
                 this.clearAITimers();
                 const specs = this.getSpecs(this.gridSize, this.playerCount);
                 this.maxH = specs.maxH;
@@ -2114,13 +2265,19 @@
                 const diffNameMap = { weak: '弱 AI', medium: '中 AI', strong: '強 AI' };
 
                 if (isAI) {
-                    const aiTag = `<span class="text-xs bg-emerald-500 text-slate-950 font-black px-2.5 py-0.5 rounded-full ml-1.5">🤖 ${diffNameMap[this.aiDifficulty]} 演算思考中...</span>`;
+                    const modeTitle = this.isDemoMode
+                        ? `🎬 自動對戰示範中 (${diffNameMap[this.aiDifficulty] || '中 AI'})`
+                        : `🤖 ${diffNameMap[this.aiDifficulty] || 'AI'} 演算思考中...`;
+                    const aiTag = `<span class="text-xs ${this.isDemoMode ? 'bg-purple-500 text-white' : 'bg-emerald-500 text-slate-950'} font-black px-2.5 py-0.5 rounded-full ml-1.5">${modeTitle}</span>`;
+                    const stepDesc = this.pendingTargetCell !== null
+                        ? `✨ 已鎖定預覽第 ${this.pendingTargetCell + 1} 格，即將組裝落子...`
+                        : `正在窮舉模擬 3D 空間連線權重與 Minimax 攻防推演...`;
                     banner.innerHTML = `
                         <div class="text-base sm:text-lg font-bold flex items-center justify-center flex-wrap gap-1">
                             <span>當前輪替：<span style="color:${p.color}">${p.name}</span></span>
                             ${aiTag}
                         </div>
-                        <div class="text-xs text-emerald-300 mt-1">正在窮舉模擬 3D 空間連線權重與 Minimax 攻防推演...</div>
+                        <div class="text-xs ${this.isDemoMode ? 'text-purple-300' : 'text-emerald-300'} mt-1">${stepDesc}</div>
                     `;
                     return;
                 }
@@ -2244,6 +2401,9 @@
 
             undoMove() {
                 if (this.history.length === 0) return;
+                if (this.isDemoMode) {
+                    this.stopDemoMode();
+                }
                 this.clearAITimers();
 
                 // 若對戰中有 AI，且上一步是 AI 下的，自動連退到「真人玩家」的決策點，避免一按悔棋 AI 馬上又下回去
@@ -2371,10 +2531,14 @@
                             this.winnerId = otherPid;
                             const winner = this.allPlayers[otherPid];
                             this.renderAll();
-                            this.updateStatusBanner(
-                                `<div class="text-lg font-black text-amber-300">💥 抽子自爆！${winner.name} 暴露並達成連線獲勝！</div>`,
-                                winner.color
-                            );
+                            if (this.isDemoMode) {
+                                this.startPostDemoIdleCountdown(winner.name, winner.color, true);
+                            } else {
+                                this.updateStatusBanner(
+                                    `<div class="text-lg font-black text-amber-300">💥 抽子自爆！${winner.name} 暴露並達成連線獲勝！</div>`,
+                                    winner.color
+                                );
+                            }
                             this.fireConfetti();
                             return;
                         }
@@ -2396,10 +2560,14 @@
                     this.winnerId = this.currentPlayer;
                     const winner = this.allPlayers[this.winnerId];
                     this.renderAll();
-                    this.updateStatusBanner(
-                        `<div class="text-lg sm:text-xl font-black" style="color:${winner.color}">🎉 3D CONNECT！${winner.name} 達成 ${this.winLen} 子立體連線獲勝！</div>`,
-                        winner.color
-                    );
+                    if (this.isDemoMode) {
+                        this.startPostDemoIdleCountdown(winner.name, winner.color, false);
+                    } else {
+                        this.updateStatusBanner(
+                            `<div class="text-lg sm:text-xl font-black" style="color:${winner.color}">🎉 3D CONNECT！${winner.name} 達成 ${this.winLen} 子立體連線獲勝！</div>`,
+                            winner.color
+                        );
+                    }
                     this.fireConfetti();
                     return;
                 }
@@ -2420,13 +2588,18 @@
                 this.updateStatusBanner();
 
                 // 第一階段：給予短暫思考時間後計算最佳步並顯示半透明預覽
-                const thinkDelay = this.aiDifficulty === 'strong' ? 480 : 380;
+                const thinkDelay = this.isDemoMode ? 550 : (this.aiDifficulty === 'strong' ? 480 : 380);
                 const t1 = setTimeout(() => {
                     if (this.gameOver || !this.isPlayerAI(this.currentPlayer)) return;
 
                     const bestMove = this.aiEngine.chooseBestMove(this.aiDifficulty);
                     if (!bestMove) {
                         this.isAIThinking = false;
+                        // 若在示範模式中出現無子可動的僵局，同樣進入 30 秒倒數重新示範
+                        if (this.isDemoMode) {
+                            this.gameOver = true;
+                            this.startPostDemoIdleCountdown(null, '#38bdf8', false);
+                        }
                         return;
                     }
 
@@ -2439,13 +2612,15 @@
                     if (this.sfx) this.sfx.playSelectCell();
                     this.pendingTargetCell = bestMove.toCell;
                     this.updateGhostPreview();
+                    this.updateStatusBanner();
 
-                    // 第二階段：展示半透明預覽 450ms 後，自動觸發「喀－拉！」積木組裝聲完成落子
+                    // 第二階段：展示半透明預覽後，自動觸發「喀－拉！」積木組裝聲完成落子
+                    const previewDuration = this.isDemoMode ? 580 : 450;
                     const t2 = setTimeout(() => {
                         if (this.gameOver || !this.isPlayerAI(this.currentPlayer)) return;
                         this.isAIThinking = false;
                         this.confirmPendingMove();
-                    }, 450);
+                    }, previewDuration);
 
                     this.aiTimers.push(t2);
                 }, thinkDelay);
