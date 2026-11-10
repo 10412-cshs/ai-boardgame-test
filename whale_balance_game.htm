@@ -428,8 +428,9 @@
         // AI 自動示範狀態機與軌跡規劃參數
         let aiDemoState = {
             enabled: false,
-            phase: 'IDLE', // 'IDLE' | 'WAIT_TO_ROLL' | 'ROLLING_DICE' | 'PLANNING' | 'ROTATING' | 'PAUSE_AFTER_ROTATE' | 'MOVING' | 'RELEASING' | 'SETTLING'
+            phase: 'IDLE', // 'IDLE' | 'WAIT_TO_ROLL' | 'ROLLING_DICE' | 'PLANNING' | 'ROTATING' | 'PAUSE_AFTER_ROTATE' | 'MOVING' | 'RELEASING' | 'SETTLING' | 'AUTO_RESTART_WAIT'
             phaseStartTime: 0,
+            lastCountdownSec: 15,
             startAngle: 0,
             targetAngle: 0,
             startPos: { x: 0, y: 0 },
@@ -3116,7 +3117,9 @@
                     if (now - aiDemoState.phaseStartTime > 520) {
                         const remaining = unplacedFishPool.filter(f => !f.placed).length;
                         if (remaining === 0 && !stagedFishBody) {
-                            stopAiDemo('🎉 AI 自動示範完成！16 隻小魚已全數放畢');
+                            aiDemoState.phase = 'AUTO_RESTART_WAIT';
+                            aiDemoState.phaseStartTime = now;
+                            aiDemoState.lastCountdownSec = -1;
                             return;
                         }
                         const started = triggerDiceRollAction();
@@ -3264,11 +3267,36 @@
                     if (elapsed > 1350 || (elapsed > 850 && whaleCalm)) {
                         const remaining = unplacedFishPool.filter(f => !f.placed).length;
                         if (remaining === 0 && !stagedFishBody) {
-                            stopAiDemo('🎉 AI 自動示範完成！16 隻小魚已全數擺放');
+                            aiDemoState.phase = 'AUTO_RESTART_WAIT';
+                            aiDemoState.phaseStartTime = now;
+                            aiDemoState.lastCountdownSec = -1;
                         } else {
                             aiDemoState.phase = 'WAIT_TO_ROLL';
                             aiDemoState.phaseStartTime = now;
                         }
+                    }
+                    break;
+                }
+
+                case 'AUTO_RESTART_WAIT': {
+                    const totalWaitMs = 15000;
+                    const elapsed = now - aiDemoState.phaseStartTime;
+                    const remainSec = Math.max(0, Math.ceil((totalWaitMs - elapsed) / 1000));
+
+                    if (remainSec !== aiDemoState.lastCountdownSec) {
+                        aiDemoState.lastCountdownSec = remainSec;
+                        titleEl.textContent = `🎉 AI 示範完成！(${remainSec} 秒後自動重播)`;
+                        titleEl.className = 'text-xs sm:text-sm font-black text-emerald-400';
+                        subEl.textContent = '15 秒內若無任何動作，系統將自動重新開局並再次示範！';
+                    }
+
+                    if (elapsed >= totalWaitMs) {
+                        SoundFX.playArcadeButton('reset');
+                        setupFreshGameScene();
+                        aiDemoState.enabled = true;
+                        aiDemoState.phase = 'WAIT_TO_ROLL';
+                        aiDemoState.phaseStartTime = now;
+                        syncAiDemoButtonUI();
                     }
                     break;
                 }
@@ -3277,6 +3305,54 @@
 
         function renderAiVirtualCursor(now) {
             if (!aiDemoState.enabled) return;
+
+            // 若處於示範完成後的 15 秒閒置自動重播倒數階段，在 Canvas 上方中央繪製醒目的倒數計時橫幅與進度條
+            if (aiDemoState.phase === 'AUTO_RESTART_WAIT') {
+                const totalWaitMs = 15000;
+                const elapsed = Math.min(totalWaitMs, Math.max(0, now - aiDemoState.phaseStartTime));
+                const remainSec = Math.max(0, Math.ceil((totalWaitMs - elapsed) / 1000));
+                const progress = 1 - (elapsed / totalWaitMs);
+
+                const boxW = Math.min(390, canvas.width * 0.72);
+                const boxH = 66;
+                const bx = ORIGIN_X - boxW / 2;
+                const by = Math.max(68, canvas.height * 0.12);
+
+                ctx.save();
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
+                ctx.strokeStyle = 'rgba(52, 211, 153, 0.75)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(bx, by, boxW, boxH, 16);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#34d399';
+                ctx.font = 'bold 14px "Noto Sans TC", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(`🤖 AI 自動示範完成！閒置 ${remainSec} 秒後將自動重播`, ORIGIN_X, by + 24);
+
+                ctx.fillStyle = '#cbd5e1';
+                ctx.font = '11px "Noto Sans TC", sans-serif';
+                ctx.fillText('👆 觸碰畫面或點擊任一按鈕即可取消倒數並手動遊玩', ORIGIN_X, by + 43);
+
+                // 底部倒數進度條
+                const barW = boxW - 36;
+                const barX = bx + 18;
+                const barY = by + 53;
+                ctx.fillStyle = 'rgba(51, 65, 85, 0.85)';
+                ctx.beginPath();
+                ctx.roundRect(barX, barY, barW, 5, 3);
+                ctx.fill();
+
+                ctx.fillStyle = '#10b981';
+                ctx.beginPath();
+                ctx.roundRect(barX, barY, Math.max(4, barW * progress), 5, 3);
+                ctx.fill();
+                ctx.restore();
+                return;
+            }
+
             if (!['ROTATING', 'PAUSE_AFTER_ROTATE', 'MOVING'].includes(aiDemoState.phase)) return;
 
             const { x, y } = aiDemoState.cursorPos;
@@ -3329,6 +3405,16 @@
                 startAiDemo();
             }
         });
+
+        // 在 15 秒閒置倒數期間，若使用者有任何點擊或鍵盤動作（排除 AI 示範按鈕本身），立即取消倒數交還手動控制權
+        const cancelIdleReplayOnAction = (e) => {
+            if (!aiDemoState.enabled || aiDemoState.phase !== 'AUTO_RESTART_WAIT') return;
+            if (e.target && e.target.closest && e.target.closest('#btnAiDemo')) return;
+            stopAiDemo('👆 已偵測到操作，取消自動重播');
+        };
+        window.addEventListener('mousedown', cancelIdleReplayOnAction, true);
+        window.addEventListener('touchstart', cancelIdleReplayOnAction, { capture: true, passive: true });
+        window.addEventListener('keydown', cancelIdleReplayOnAction, true);
 
         // 物理參數抽屜開關與材質模式切換UI同步
         function syncMaterialModeUI() {
