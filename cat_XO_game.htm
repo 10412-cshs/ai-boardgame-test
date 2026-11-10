@@ -500,6 +500,7 @@
         };
 
         let demoMoveTimer = null;
+        let aiActionTimer = null;
         let demoIdleCountdownTimer = null;
         let demoIdleRemainingSec = 30;
 
@@ -1064,6 +1065,9 @@
         // 6. Initialize & Manage All 12 Pieces + Gameplay Rules
         // ============================================================================
         function initPieces() {
+            clearAllDemoTimers();
+            activeAnimations.length = 0;
+
             pieceMeshesMap.forEach(mesh => scene.remove(mesh));
             pieceMeshesMap.clear();
 
@@ -1126,7 +1130,12 @@
         function getTopPieceAtCell(cellIndex) {
             const stack = gameState.boardStacks[cellIndex];
             if (!stack || stack.length === 0) return null;
-            return getPieceById(stack[stack.length - 1]);
+            const topPiece = getPieceById(stack[stack.length - 1]);
+            // 防呆校驗：確保該棋子確實位於棋盤該格上，防止任何殘留幽靈 ID
+            if (!topPiece || topPiece.location !== 'board' || topPiece.cellIndex !== cellIndex) {
+                return null;
+            }
+            return topPiece;
         }
 
         function canSelectPiece(piece) {
@@ -1420,10 +1429,8 @@
 
         function undoTempMove(token) {
             const piece = token.piece;
+            // 僅將模擬推入的 piece.id 彈出即可，底層原本的 prevTargetTop 並未被移除，不可重複 push
             gameState.boardStacks[token.targetCell].pop();
-            if (token.prevTargetTop) {
-                gameState.boardStacks[token.targetCell].push(token.prevTargetTop.id);
-            }
 
             piece.location = token.prevLocation;
             piece.cellIndex = token.prevCellIndex;
@@ -1560,7 +1567,10 @@
             playSound('select', bestMove.piece.size);
             updateVisualHighlights();
 
-            setTimeout(() => {
+            if (aiActionTimer) clearTimeout(aiActionTimer);
+            aiActionTimer = setTimeout(() => {
+                aiActionTimer = null;
+                if (gameState.gameOver || gameState.isAutoDemo || gameState.currentTurn !== 2) return;
                 executeMove(bestMove.piece, bestMove.targetCell);
             }, 320);
         }
@@ -1572,6 +1582,10 @@
             if (demoMoveTimer) {
                 clearTimeout(demoMoveTimer);
                 demoMoveTimer = null;
+            }
+            if (aiActionTimer) {
+                clearTimeout(aiActionTimer);
+                aiActionTimer = null;
             }
             if (demoIdleCountdownTimer) {
                 clearInterval(demoIdleCountdownTimer);
@@ -2225,11 +2239,14 @@
                 }
             }
 
-            if (gameState.selectedPieceId && !gameState.animating) {
-                const selMesh = pieceMeshesMap.get(gameState.selectedPieceId);
-                if (selMesh) {
-                    selMesh.position.y = 8 + Math.sin(now * 0.006) * 2.5;
-                }
+            if (!gameState.animating) {
+                pieceMeshesMap.forEach((mesh, id) => {
+                    if (gameState.selectedPieceId === id) {
+                        mesh.position.y = 8 + Math.sin(now * 0.006) * 2.5;
+                    } else if (mesh.position.y !== 0) {
+                        mesh.position.y = 0;
+                    }
+                });
             }
 
             const ringScale = 1 + Math.sin(now * 0.005) * 0.04;
