@@ -30,7 +30,7 @@
             margin: 0;
             padding: 0;
             overflow: hidden;
-             overscroll-behavior: none;
+            overscroll-behavior: none;
             font-family: 'Noto Sans TC', sans-serif;
             background: radial-gradient(circle at center, #2c221e 0%, #171210 100%);
             color: #f8fafc;
@@ -134,6 +134,12 @@
                             強
                         </button>
                     </div>
+
+                    <!-- AI Auto-Demo Button (自動示範對戰 + 30秒無動作自動重播) -->
+                    <button id="btn-auto-demo" class="btn-game px-3 py-2 rounded-xl text-xs sm:text-sm font-bold bg-fuchsia-500/20 hover:bg-fuchsia-500/35 text-fuchsia-200 border border-fuchsia-400/40 flex items-center gap-1.5 shadow-sm" title="由 AI 自動操作雙方招財貓示範對戰，完成後30秒無動作將自動重新示範">
+                        <i id="auto-demo-icon" class="fa-solid fa-clapperboard"></i>
+                        <span id="auto-demo-label">AI 自動示範</span>
+                    </button>
 
                     <button id="btn-xray" class="btn-game px-3 py-2 rounded-xl text-xs sm:text-sm font-bold bg-stone-800/80 hover:bg-stone-700 text-stone-200 border border-stone-600/40 flex items-center gap-1.5" title="半透明透視大吃小內部結構">
                         <i class="fa-solid fa-eye"></i>
@@ -384,7 +390,6 @@
             cell_size: 52.0,
             bar_width: 8.0,
             bar_height: 10.0,
-            // 貓咪自身座標系：正面朝 +Z 時，-X (-1) 為貓咪自身的「右手 (右前腳)」，+X (1) 為貓咪自身的「左手 (左前腳)」
             p1_paw_side: -1, // 黃色棋 (P1) 預設抬起「右手 (-1)」招財
             p2_paw_side: 1,  // 藍色棋 (P2) 預設抬起「左手 (+1)」招福
 
@@ -396,7 +401,7 @@
                 return this.cyl_h(lv - 1) + this.crest_h(lv - 1) + this.vertical_clearance;
             },
             total_bar_len() { return 3 * this.cell_size + 2 * this.bar_width; },
-            pitch() { return this.cell_size + this.bar_width; } // 60mm center-to-center
+            pitch() { return this.cell_size + this.bar_width; }
         };
 
         const SIZE_NAMES = ['小貓 (S)', '中貓 (M)', '大貓 (L)'];
@@ -453,7 +458,6 @@
                     const notes = ['C5', 'G4', 'C4'];
                     synth.triggerAttackRelease(notes[size] || 'G4', '8n');
                 } else if (type === 'gobble') {
-                    // Russian doll nesting sound + lucky cat bell chime
                     synth.triggerAttackRelease(['E4', 'B4'], '8n');
                     if (bellSynth) bellSynth.triggerAttackRelease('16n', '+0.05');
                 } else if (type === 'win') {
@@ -466,55 +470,56 @@
                 } else if (type === 'error') {
                     synth.triggerAttackRelease(['F3', 'F#3'], '16n');
                 }
-            } catch (e) {
-                // Ignore audio errors on restricted devices
-            }
+            } catch (e) {}
         }
 
         // ============================================================================
         // 3. Game State & Logic (Gobblet Gobblers Rules)
         // ============================================================================
         const WIN_LINES = [
-            [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
-            [0, 3, 6], [1, 4, 7], [2, 5, 8], // Cols
-            [0, 4, 8], [2, 4, 6]             // Diagonals
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],
+            [0, 4, 8], [2, 4, 6]
         ];
 
         const gameState = {
-            mode: 'ai',          // 'ai' or 'pvp'
-            aiLevel: 'medium',   // 'easy' (弱), 'medium' (中), 'hard' (強)
-            currentTurn: 1,      // 1 = Yellow/Gold Cat (Player 1), 2 = Blue Cat (Player 2 / AI)
+            mode: 'ai',
+            aiLevel: 'medium',
+            isAutoDemo: false,
+            currentTurn: 1,
             gameOver: false,
             winner: null,
             winningLine: null,
             selectedPieceId: null,
             xrayMode: false,
-            sectionMode: false,  // OpenSCAD nesting_section cross-section plane
+            sectionMode: false,
             scores: { 1: 0, 2: 0 },
-            pieces: [],          // All 12 piece metadata objects
-            boardStacks: Array.from({ length: 9 }, () => []), // Each cell holds array of piece IDs from bottom to top
+            pieces: [],
+            boardStacks: Array.from({ length: 9 }, () => []),
             animating: false
         };
 
-        // Helper: Get cell 3D world coordinates (OpenSCAD X, Y -> Three.js X, Z)
+        let demoMoveTimer = null;
+        let demoIdleCountdownTimer = null;
+        let demoIdleRemainingSec = 30;
+
         function getCellWorldPos(cellIndex) {
-            const row = Math.floor(cellIndex / 3); // 0=Top(Back), 1=Mid, 2=Bottom(Front)
-            const col = cellIndex % 3;            // 0=Left, 1=Center, 2=Right
+            const col = cellIndex % 3;
+            const row = Math.floor(cellIndex / 3);
             const pitch = SCAD.pitch();
             return new THREE.Vector3((col - 1) * pitch, 0, (row - 1) * pitch);
         }
 
-        // Helper: Get reserve slot 3D world coordinates
         function getReserveWorldPos(owner, size, copyIndex) {
-            const xDir = owner === 1 ? -1 : 1; // P1 on Left (-X), P2 on Right (+X)
+            const xDir = owner === 1 ? -1 : 1;
             const baseX = xDir * 136;
             const colOffset = (copyIndex === 0 ? -24 : 24) * xDir;
-            const zPos = (1 - size) * 58; // Large at back (-58), Medium at 0, Small at front (+58)
+            const zPos = (1 - size) * 58;
             return new THREE.Vector3(baseX + colOffset, 0, zPos);
         }
 
         // ============================================================================
-        // 4. Three.js Scene, Camera, Lighting & Custom Orbit Controls
+        // 4. Three.js Scene, Camera, Lighting & Orbit Controls
         // ============================================================================
         const container = document.getElementById('canvas-container');
         const scene = new THREE.Scene();
@@ -528,10 +533,8 @@
         renderer.localClippingEnabled = false;
         container.appendChild(renderer.domElement);
 
-        // OpenSCAD `inspect_nesting_section()` Cross-Section Clipping Plane (cuts front half Z > 0)
         const sectionClipPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0.1);
 
-        // Custom Smooth Spherical Camera Controller
         const camControl = {
             theta: 0,
             phi: 0.82,
@@ -547,22 +550,17 @@
             prevY: 0
         };
 
-        // 針對 iPad 6 (4:3 比例：橫向 1024x768 aspect≈1.33 / 直向 768x1024 aspect≈0.75) 與一般螢幕自動計算最佳距離
-        // 確保中央九宮格與左右兩側 3D 預備區的所有招財貓皆完整落在上下 UI 之間、方便直接點擊
         function updateCameraResponsiveDefaults() {
             const aspect = window.innerWidth / window.innerHeight;
             if (aspect < 0.85) {
-                // iPad 直向 (768x1024) 或手機直向
                 camControl.desiredRadius = 485;
                 camControl.desiredPhi = 0.76;
                 camControl.desiredTarget.set(0, 6, 14);
             } else if (aspect < 1.45) {
-                // iPad 6 橫向全螢幕 (1024x768, 4:3 比例 aspect ≈ 1.33)
                 camControl.desiredRadius = 395;
                 camControl.desiredPhi = 0.82;
                 camControl.desiredTarget.set(0, 8, 12);
             } else {
-                // 16:9 寬螢幕電腦
                 camControl.desiredRadius = 350;
                 camControl.desiredPhi = 0.86;
                 camControl.desiredTarget.set(0, 10, 8);
@@ -590,7 +588,6 @@
             }
         }
 
-        // Studio & Warm Tabletop Lighting
         const ambientLight = new THREE.AmbientLight(0xfff5e6, 0.65);
         scene.add(ambientLight);
 
@@ -618,17 +615,16 @@
         scene.add(rimLight);
 
         // ============================================================================
-        // 5. OpenSCAD 3D Geometry Builders (Maneki-neko & Half-Lap Grid Bars)
+        // 5. OpenSCAD 3D Geometry Builders
         // ============================================================================
         const boardGroup = new THREE.Group();
         scene.add(boardGroup);
 
         const cellHitMeshes = [];
         const cellRingMeshes = [];
-        const pieceMeshesMap = new Map(); // piece.id -> THREE.Group
+        const pieceMeshesMap = new Map();
         let winBeamMesh = null;
 
-        // Helper: Build a capsule (OpenSCAD `hull() { translate(p1) sphere(r1); translate(p2) sphere(r2); }`)
         function createCapsuleSegment(p1, r1, p2, r2, material) {
             const group = new THREE.Group();
             const s1 = new THREE.Mesh(new THREE.SphereGeometry(r1, 24, 16), material);
@@ -658,10 +654,8 @@
             return group;
         }
 
-        // Helper: Build 3D Cat Ear matching OpenSCAD 3-sphere hull
         function createCatEarGeometry(r_out, h_cyl, h_ear, lv, side) {
             const geo = new THREE.ConeGeometry(r_out * 0.34, h_ear + r_out * 0.38, 28, 1);
-            // Flatten slightly front-to-back & tilt outward like a Maneki-neko ear
             geo.scale(1.0, 1.0, 0.62);
             geo.rotateZ(-side * 0.22);
             geo.translate(
@@ -672,9 +666,7 @@
             return geo;
         }
 
-        // 5.1 Build Wooden Tabletop Mat & Reserve Trays
         function buildTabletopAndBoard() {
-            // Subtle dark wooden tabletop base
             const tableGeo = new THREE.CylinderGeometry(260, 270, 8, 64);
             const tableMat = new THREE.MeshStandardMaterial({
                 color: 0x231b16,
@@ -686,7 +678,6 @@
             tableMesh.receiveShadow = true;
             boardGroup.add(tableMesh);
 
-            // Inner tatami-style play mat
             const matGeo = new THREE.BoxGeometry(196, 1.2, 196);
             const matMaterial = new THREE.MeshStandardMaterial({
                 color: 0x332720,
@@ -697,19 +688,18 @@
             playMat.receiveShadow = true;
             boardGroup.add(playMat);
 
-            // OpenSCAD `grid_bar()` — 4 Interlocking Half-Lap Joint Bars
-            const len = SCAD.total_bar_len(); // 172 mm
-            const bw = SCAD.bar_width;        // 8 mm
-            const bh = SCAD.bar_height;       // 10 mm
-            const pitch = SCAD.pitch();       // 60 mm
+            const len = SCAD.total_bar_len();
+            const bw = SCAD.bar_width;
+            const bh = SCAD.bar_height;
+            const pitch = SCAD.pitch();
 
             const lowerBarMat = new THREE.MeshStandardMaterial({
-                color: 0xd97706, // Gold / Amber
+                color: 0xd97706,
                 roughness: 0.35,
                 metalness: 0.15
             });
             const upperBarMat = new THREE.MeshStandardMaterial({
-                color: 0xf59e0b, // Bright Goldenrod
+                color: 0xf59e0b,
                 roughness: 0.3,
                 metalness: 0.18
             });
@@ -738,14 +728,12 @@
                 return mesh;
             }
 
-            // 2 Horizontal Bars (along X, placed at Z = -30 and +30)
             [-pitch / 2, pitch / 2].forEach(zPos => {
                 const bar = createRoundedGridBarMesh(lowerBarMat);
                 bar.position.set(0, 0, zPos);
                 boardGroup.add(bar);
             });
 
-            // 2 Vertical Bars (along Z, placed at X = -30 and +30)
             [-pitch / 2, pitch / 2].forEach(xPos => {
                 const bar = createRoundedGridBarMesh(upperBarMat);
                 bar.rotation.y = Math.PI / 2;
@@ -753,11 +741,9 @@
                 boardGroup.add(bar);
             });
 
-            // 9 Interactive Cell Targets & Visual Highlight Rings
             for (let i = 0; i < 9; i++) {
                 const pos = getCellWorldPos(i);
 
-                // 加大隱形點擊感應柱 (半徑 27mm、高度 10mm)，讓 iPad 觸控點擊九宮格更加靈敏好按
                 const hitGeo = new THREE.CylinderGeometry(27, 27, 10, 24);
                 const hitMat = new THREE.MeshBasicMaterial({ visible: false });
                 const hitMesh = new THREE.Mesh(hitGeo, hitMat);
@@ -766,7 +752,6 @@
                 boardGroup.add(hitMesh);
                 cellHitMeshes.push(hitMesh);
 
-                // Glowing valid-move indicator ring
                 const ringGeo = new THREE.RingGeometry(19, 23.5, 32);
                 ringGeo.rotateX(-Math.PI / 2);
                 const ringMat = new THREE.MeshBasicMaterial({
@@ -781,7 +766,6 @@
                 cellRingMeshes.push(ringMesh);
             }
 
-            // Reserve Zone Base Pads (Left for P1 Yellow, Right for P2 Blue)
             [
                 { x: -136, color: 0xf59e0b },
                 { x: 136,  color: 0x0284c7 }
@@ -809,21 +793,17 @@
             });
         }
 
-        // 5.2 Exact OpenSCAD `gobbler(lv)` Maneki-neko 3D Piece Builder
-        // Uses LatheGeometry for the hollow cup + dome so cross-section & X-ray show real wall thickness!
         function createManekiNekoMesh(lv, owner) {
             const r_out = SCAD.outer_r(lv);
             const r_in  = SCAD.inner_r(lv);
             const h_cyl = SCAD.cyl_h(lv);
             const h_ear = SCAD.crest_h(lv);
             const max_protrusion = 2.6;
-            // 大幅加粗手臂與貓掌尺寸，並將中心點往身體外側推，讓大貓掌立體突出於臉頰側面
             const paw_r = 2.55 + lv * 0.42;
             const paw_radial_center = r_out + paw_r * 0.42;
 
             const catGroup = new THREE.Group();
 
-            // Primary Body Material (P1 = 金黃色招財貓, P2 = 寶藍色招福貓)
             const isYellowP1 = owner === 1;
             const mainColor = isYellowP1 ? 0xf59e0b : 0x0284c7;
             const earInnerColor = isYellowP1 ? 0xfda4af : 0x7dd3fc;
@@ -863,14 +843,11 @@
                 clippingPlanes: [sectionClipPlane]
             });
 
-            // (1) Hollow Cup Body + Hemispherical Head + Bottom Chamfer via LatheGeometry
             const lathePoints = [];
-            // Start at inner bottom chamfer: cylinder(r1 = r_in + 1.2, r2 = r_in, h = 1.8)
             lathePoints.push(new THREE.Vector2(r_in + 1.2, 0));
             lathePoints.push(new THREE.Vector2(r_in, 1.8));
             lathePoints.push(new THREE.Vector2(r_in, h_cyl));
 
-            // Inner hemispherical dome
             const domeSteps = 20;
             for (let i = 1; i <= domeSteps; i++) {
                 const ang = (i / domeSteps) * (Math.PI / 2);
@@ -879,7 +856,6 @@
                     h_cyl + Math.sin(ang) * r_in
                 ));
             }
-            // Outer hemispherical dome (top down to cylinder)
             for (let i = domeSteps; i >= 0; i--) {
                 const ang = (i / domeSteps) * (Math.PI / 2);
                 lathePoints.push(new THREE.Vector2(
@@ -887,7 +863,6 @@
                     h_cyl + Math.sin(ang) * r_out
                 ));
             }
-            // Outer cylinder wall down to base
             lathePoints.push(new THREE.Vector2(r_out, 0));
             lathePoints.push(new THREE.Vector2(r_in + 1.2, 0));
 
@@ -897,7 +872,6 @@
             bodyMesh.receiveShadow = true;
             catGroup.add(bodyMesh);
 
-            // (2) Dual 3D Pointed Cat Ears + Shallow Front Ear Hollows
             [-1, 1].forEach(side => {
                 const earGeo = createCatEarGeometry(r_out, h_cyl, h_ear, lv, side);
                 const earMesh = new THREE.Mesh(earGeo, bodyMat);
@@ -905,7 +879,6 @@
                 earMesh.receiveShadow = true;
                 catGroup.add(earMesh);
 
-                // Inner ear depression highlight
                 const innerEarGeo = new THREE.ConeGeometry(r_out * 0.17, h_ear * 0.72, 16);
                 innerEarGeo.scale(0.95, 1.0, 0.35);
                 innerEarGeo.rotateZ(-side * 0.22);
@@ -918,14 +891,10 @@
                 catGroup.add(innerEarMesh);
             });
 
-            // (3) Raised Beckoning Front Paw + (4) Resting Opposite Front Paw
-            // Put in a dedicated subgroup so user can toggle Left/Right paw live!
             const pawsSubgroup = new THREE.Group();
             pawsSubgroup.name = 'pawsSubgroup';
 
-            // 依據隊伍決定舉起哪一隻手：黃色棋 (owner === 1) 預設為 -1 (貓咪自身的右手)
             const pawSide = owner === 1 ? SCAD.p1_paw_side : SCAD.p2_paw_side;
-            // 將手臂角度往側面加大 (56°~62°)，使大手掌往身體側面立體外推、不擋住臉部五官
             const sh_ang = (pawSide * 62) * (Math.PI / 180);
             const el_ang = (pawSide * 56) * (Math.PI / 180);
 
@@ -945,11 +914,9 @@
                 Math.cos(el_ang) * paw_radial_center
             );
 
-            // Upper arm ( >50 deg support-free overhang ) & vertical forearm
             pawsSubgroup.add(createCapsuleSegment(pShoulder, paw_r * 0.9, pElbow, paw_r * 1.05, bodyMat));
             pawsSubgroup.add(createCapsuleSegment(pElbow, paw_r * 1.05, pWrist, paw_r * 1.18, bodyMat));
 
-            // Curled beckoning cat paw at top (明顯加大的圓潤招財貓掌)
             const el_ang_tip = el_ang * 0.90;
             const pawTipGroup = new THREE.Group();
             pawTipGroup.position.set(
@@ -958,7 +925,7 @@
                 Math.cos(el_ang_tip) * (paw_radial_center + 0.3)
             );
             pawTipGroup.rotation.y = el_ang_tip * 0.65;
-            pawTipGroup.rotation.x = 0.22; // Slight forward beckoning tilt
+            pawTipGroup.rotation.x = 0.22;
 
             const pawBallGeo = new THREE.SphereGeometry(paw_r * 1.32, 24, 18);
             pawBallGeo.scale(1.22, 1.08, 0.92);
@@ -966,7 +933,6 @@
             pawBallMesh.castShadow = true;
             pawTipGroup.add(pawBallMesh);
 
-            // (d) Central Palm Pad & 3 Toe Beans on the raised paw (同步放大肉球)
             const mainPadGeo = new THREE.SphereGeometry(paw_r * 0.54, 16, 12);
             mainPadGeo.scale(1.22, 1.0, 0.45);
             const mainPadMesh = new THREE.Mesh(mainPadGeo, pinkPadMat);
@@ -982,23 +948,21 @@
             });
             pawsSubgroup.add(pawTipGroup);
 
-            // (4) Opposite Low Resting Front Paw
             const other_ang = (-pawSide * 38) * (Math.PI / 180);
-            const other_ang2 = (-pawSide * 30) * (Math.PI / 180);
+            const other_top_ang = (-pawSide * 28) * (Math.PI / 180);
             const pOther1 = new THREE.Vector3(
-                Math.sin(other_ang) * (r_out - paw_r * 0.4),
+                Math.sin(other_ang) * (r_out - paw_r * 0.45),
                 h_cyl * 0.18,
-                Math.cos(other_ang) * (r_out - paw_r * 0.4)
+                Math.cos(other_ang) * (r_out - paw_r * 0.45)
             );
             const pOther2 = new THREE.Vector3(
-                Math.sin(other_ang2) * (r_out + paw_r * 0.12),
+                Math.sin(other_top_ang) * (r_out + 1.5 - paw_r * 0.85),
                 h_cyl * 0.36,
-                Math.cos(other_ang2) * (r_out + paw_r * 0.12)
+                Math.cos(other_top_ang) * (r_out + 1.5 - paw_r * 0.85)
             );
-            pawsSubgroup.add(createCapsuleSegment(pOther1, paw_r * 0.72, pOther2, paw_r * 0.88, bodyMat));
+            pawsSubgroup.add(createCapsuleSegment(pOther1, paw_r * 0.72, pOther2, paw_r * 0.85, bodyMat));
             catGroup.add(pawsSubgroup);
 
-            // (5) Neck Collar & Lucky Golden Bell (`h_cyl * 0.40`)
             const collarGeo = new THREE.SphereGeometry(r_out + 0.55, 36, 20);
             collarGeo.scale(1, 0.28, 1);
             const collarMesh = new THREE.Mesh(collarGeo, collarMat);
@@ -1011,7 +975,6 @@
             const bellMesh = new THREE.Mesh(new THREE.SphereGeometry(bell_r, 20, 16), goldBellMat);
             bellGroup.add(bellMesh);
 
-            // (h) Bell horizontal slit
             const slitMesh = new THREE.Mesh(
                 new THREE.BoxGeometry(bell_r * 1.4, 0.65, 0.8),
                 darkFeatureMat
@@ -1020,7 +983,6 @@
             bellGroup.add(slitMesh);
             catGroup.add(bellGroup);
 
-            // (6) Bulging Cat Eyes + (e) Vertical Elliptical Pupils
             [-1, 1].forEach(side => {
                 const eye_ang = (side * 21) * (Math.PI / 180);
                 const eyeGroup = new THREE.Group();
@@ -1045,14 +1007,12 @@
                 catGroup.add(eyeGroup);
             });
 
-            // Triangular Cat Nose (`h_cyl + r_out * 0.02`)
             const noseGeo = new THREE.SphereGeometry(r_out * 0.095, 16, 12);
             noseGeo.scale(1.25, 0.8, 0.7);
             const noseMesh = new THREE.Mesh(noseGeo, pinkPadMat);
             noseMesh.position.set(0, h_cyl + r_out * 0.02, r_out + 0.25);
             catGroup.add(noseMesh);
 
-            // (f) Classic W-Shaped Smiling Cat Mouth
             [-1, 1].forEach(side => {
                 const smileGeo = new THREE.TorusGeometry(r_out * 0.105, 0.48 + lv * 0.08, 10, 20, Math.PI);
                 const smileMesh = new THREE.Mesh(smileGeo, darkFeatureMat);
@@ -1061,12 +1021,11 @@
                     h_cyl - r_out * 0.01,
                     r_out + 0.08
                 );
-                smileMesh.rotation.x = Math.PI; // Curve downward into a smile
+                smileMesh.rotation.x = Math.PI;
                 smileMesh.rotation.y = side * 0.12;
                 catGroup.add(smileMesh);
             });
 
-            // (g) Cheek Whiskers (2 per side)
             [-1, 1].forEach(side => {
                 [-1, 1].forEach(w => {
                     const w_ang = (side * 31) * (Math.PI / 180);
@@ -1083,7 +1042,6 @@
                 });
             });
 
-            // Selection Floating Halo Ring above head
             const haloGeo = new THREE.RingGeometry(r_out * 0.55, r_out * 0.78, 32);
             haloGeo.rotateX(-Math.PI / 2);
             const haloMat = new THREE.MeshBasicMaterial({
@@ -1097,7 +1055,6 @@
             haloMesh.name = 'selectionHalo';
             catGroup.add(haloMesh);
 
-            // Store references for X-ray transparency & selection states
             catGroup.userData.bodyMat = bodyMat;
             catGroup.userData.haloMat = haloMat;
             return catGroup;
@@ -1107,7 +1064,6 @@
         // 6. Initialize & Manage All 12 Pieces + Gameplay Rules
         // ============================================================================
         function initPieces() {
-            // Clear existing 3D piece meshes
             pieceMeshesMap.forEach(mesh => scene.remove(mesh));
             pieceMeshesMap.clear();
 
@@ -1125,7 +1081,6 @@
                 winBeamMesh = null;
             }
 
-            // Create 6 pieces for Player 1 (Yellow) and 6 for Player 2 (Blue)
             for (const owner of [1, 2]) {
                 for (let size = 0; size <= 2; size++) {
                     for (let copy = 0; copy < 2; copy++) {
@@ -1135,9 +1090,9 @@
                         const pieceObj = {
                             id,
                             owner,
-                            size, // 0=Small, 1=Medium, 2=Large
+                            size,
                             copy,
-                            location: 'reserve', // 'reserve' or 'board'
+                            location: 'reserve',
                             cellIndex: null,
                             homePos: homePos.clone()
                         };
@@ -1145,10 +1100,8 @@
 
                         const mesh = createManekiNekoMesh(size, owner);
                         mesh.position.copy(homePos);
-                        // Face toward the player camera (+Z for P1, slight inward angle for P2)
                         mesh.rotation.y = owner === 1 ? 0.18 : -0.18;
 
-                        // Tag all child meshes so Raycaster can identify which piece was clicked
                         mesh.traverse(child => {
                             if (child.isMesh) {
                                 child.userData.pieceId = id;
@@ -1166,27 +1119,6 @@
             updateVisualHighlights();
         }
 
-        // Rebuild cat meshes when toggling Left/Right Beckoning Paw without losing current board state
-        function rebuildCatMeshesKeepingState() {
-            gameState.pieces.forEach(p => {
-                const oldMesh = pieceMeshesMap.get(p.id);
-                const pos = oldMesh.position.clone();
-                const rotY = oldMesh.rotation.y;
-                scene.remove(oldMesh);
-
-                const newMesh = createManekiNekoMesh(p.size, p.owner);
-                newMesh.position.copy(pos);
-                newMesh.rotation.y = rotY;
-                newMesh.traverse(child => {
-                    if (child.isMesh) child.userData.pieceId = p.id;
-                });
-                scene.add(newMesh);
-                pieceMeshesMap.set(p.id, newMesh);
-            });
-            applyXrayAndSectionMaterials();
-            updateVisualHighlights();
-        }
-
         function getPieceById(id) {
             return gameState.pieces.find(p => p.id === id) || null;
         }
@@ -1199,6 +1131,7 @@
 
         function canSelectPiece(piece) {
             if (!piece || gameState.gameOver || gameState.animating) return false;
+            if (gameState.isAutoDemo) return false;
             if (piece.owner !== gameState.currentTurn) return false;
             if (gameState.mode === 'ai' && gameState.currentTurn === 2) return false;
 
@@ -1206,7 +1139,6 @@
                 return true;
             }
             if (piece.location === 'board') {
-                // Only the outermost (top) piece in a cell stack can be moved
                 const topPiece = getTopPieceAtCell(piece.cellIndex);
                 return topPiece && topPiece.id === piece.id;
             }
@@ -1218,11 +1150,10 @@
             if (piece.location === 'board' && piece.cellIndex === targetCellIndex) return false;
 
             const topTarget = getTopPieceAtCell(targetCellIndex);
-            if (!topTarget) return true; // Empty cell is always valid
-            return piece.size > topTarget.size; // Russian doll rule: strictly larger size can gobble smaller!
+            if (!topTarget) return true;
+            return piece.size > topTarget.size;
         }
 
-        // Check all 8 winning lines based on visible TOP pieces
         function evaluateBoardWinner() {
             const winners = [];
             for (const line of WIN_LINES) {
@@ -1236,7 +1167,6 @@
             return winners;
         }
 
-        // Parabolic 3D Hop Animation for placing or gobbling a piece
         const activeAnimations = [];
 
         function animatePieceHop(mesh, targetPos, targetRotY, maxArcHeight, durationMs, onComplete) {
@@ -1247,13 +1177,11 @@
             activeAnimations.push({
                 update(now) {
                     const t = Math.min(1, (now - startTime) / durationMs);
-                    // Smooth ease-in-out
                     const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 
                     mesh.position.x = THREE.MathUtils.lerp(startPos.x, targetPos.x, ease);
                     mesh.position.z = THREE.MathUtils.lerp(startPos.z, targetPos.z, ease);
 
-                    // Parabolic vertical arc high enough to clear the tallest Large Cat (approx 55mm)
                     const baseLerpY = THREE.MathUtils.lerp(startPos.y, targetPos.y, ease);
                     const arcY = Math.sin(t * Math.PI) * maxArcHeight;
                     mesh.position.y = baseLerpY + arcY;
@@ -1264,14 +1192,13 @@
                         mesh.position.copy(targetPos);
                         mesh.rotation.y = targetRotY;
                         if (onComplete) onComplete();
-                        return true; // finished
+                        return true;
                     }
                     return false;
                 }
             });
         }
 
-        // Execute a validated move (from reserve or board -> targetCellIndex)
         function executeMove(piece, targetCellIndex) {
             if (gameState.animating || gameState.gameOver) return;
             if (!isCellValidTarget(piece, targetCellIndex)) {
@@ -1287,13 +1214,10 @@
             const targetTopBefore = getTopPieceAtCell(targetCellIndex);
             const isGobbling = !!targetTopBefore;
 
-            // Step 1: If moving a piece already on the board, remove it from its old stack first
             let uncoveredOpponentWin = null;
             if (prevCell !== null) {
                 gameState.boardStacks[prevCell].pop();
 
-                // Official Gobblet Gobblers Uncovering Rule:
-                // If lifting your piece exposes an opponent's 3-in-a-row, the opponent wins unless your move covers one of those 3 cells!
                 const opponentOwner = piece.owner === 1 ? 2 : 1;
                 const uncoveredWins = evaluateBoardWinner().filter(w => w.owner === opponentOwner);
                 for (const w of uncoveredWins) {
@@ -1304,14 +1228,12 @@
                 }
             }
 
-            // Step 2: Push piece onto target cell stack
             gameState.boardStacks[targetCellIndex].push(piece.id);
             piece.location = 'board';
             piece.cellIndex = targetCellIndex;
 
             const mesh = pieceMeshesMap.get(piece.id);
             const targetWorldPos = getCellWorldPos(targetCellIndex);
-            // Orient P1 cats toward front (+Z = 0 rad), P2 cats toward back (-Z = PI rad) or front for clear face visibility
             const targetRotY = piece.owner === 1 ? 0 : Math.PI;
             const arcHeight = isGobbling ? 72 : 52;
 
@@ -1322,7 +1244,6 @@
                 playSound(isGobbling ? 'gobble' : 'place', piece.size);
                 applyXrayAndSectionMaterials();
 
-                // Check win conditions after landing
                 if (uncoveredOpponentWin) {
                     finishGame(uncoveredOpponentWin.owner, uncoveredOpponentWin.line, '揭開大貓後底下對手棋子直接連成一線！');
                     gameState.animating = false;
@@ -1331,33 +1252,38 @@
 
                 const currentWins = evaluateBoardWinner();
                 if (currentWins.length > 0) {
-                    // Prioritize active player if both somehow formed a line, otherwise first winner
                     const myWin = currentWins.find(w => w.owner === piece.owner) || currentWins[0];
                     finishGame(myWin.owner, myWin.line, isGobbling ? '大吃小連成一線！' : '招財貓三連線成功！');
                     gameState.animating = false;
                     return;
                 }
 
-                // Switch turn
                 gameState.currentTurn = gameState.currentTurn === 1 ? 2 : 1;
                 gameState.animating = false;
 
-                // 安全檢查：確認下一位玩家是否仍有合法步數可走
                 const nextPlayerMoves = getAllLegalMovesForPlayer(gameState.currentTurn);
                 if (nextPlayerMoves.length === 0) {
                     gameState.gameOver = true;
                     updateVisualHighlights();
                     updateHUD();
                     showToast('🤝 雙方皆無合法步數可走，本局平手！');
+                    if (gameState.isAutoDemo) {
+                        startPostDemoIdleCountdown();
+                    }
                     return;
                 }
 
                 updateVisualHighlights();
                 updateHUD();
 
-                // Trigger AI if in single-player mode and it's Blue Cat's turn
-                if (!gameState.gameOver && gameState.mode === 'ai' && gameState.currentTurn === 2) {
-                    setTimeout(triggerAIMove, 480);
+                if (!gameState.gameOver) {
+                    if (gameState.isAutoDemo) {
+                        clearTimeout(demoMoveTimer);
+                        demoMoveTimer = setTimeout(triggerAutoDemoTurn, 650);
+                    } else if (gameState.mode === 'ai' && gameState.currentTurn === 2) {
+                        clearTimeout(demoMoveTimer);
+                        demoMoveTimer = setTimeout(triggerAIMove, 480);
+                    }
                 }
             });
         }
@@ -1373,328 +1299,263 @@
             updateVisualHighlights();
             updateHUD();
 
-            const teamName = winnerOwner === 1 ? '黃色招財貓 (P1右手招財)' : (gameState.mode === 'ai' ? `藍色招福貓 AI (${AI_LEVEL_NAMES[gameState.aiLevel]})` : '藍色招福貓 (P2左手招福)');
+            const teamName = winnerOwner === 1 ? '黃色招財貓 (P1右手招財)' : (gameState.mode === 'ai' && !gameState.isAutoDemo ? `藍色招福貓 AI (${AI_LEVEL_NAMES[gameState.aiLevel]})` : '藍色招福貓 (P2左手招福)');
             showToast(customReason ? `${customReason} ${teamName} 獲勝！` : `🎉 恭喜 ${teamName} 達成三連線獲勝！`);
+
+            if (gameState.isAutoDemo) {
+                startPostDemoIdleCountdown();
+            }
         }
 
-        function drawWinningLineBeam(line, winnerOwner) {
+        function drawWinningLineBeam(line, owner) {
             if (winBeamMesh) scene.remove(winBeamMesh);
             const pStart = getCellWorldPos(line[0]);
             const pEnd = getCellWorldPos(line[2]);
-            pStart.y = 32;
-            pEnd.y = 32;
+            const dist = pStart.distanceTo(pEnd);
+            const mid = new THREE.Vector3().addVectors(pStart, pEnd).multiplyScalar(0.5);
 
-            const beamMat = new THREE.MeshStandardMaterial({
-                color: winnerOwner === 1 ? 0xfbbf24 : 0x38bdf8,
-                emissive: winnerOwner === 1 ? 0xf59e0b : 0x0284c7,
-                emissiveIntensity: 0.8,
-                roughness: 0.2
+            const beamGeo = new THREE.CylinderGeometry(4.5, 4.5, dist + 20, 24);
+            const beamMat = new THREE.MeshBasicMaterial({
+                color: owner === 1 ? 0xfbbf24 : 0x38bdf8,
+                transparent: true,
+                opacity: 0.55
             });
-            winBeamMesh = createCapsuleSegment(pStart, 3.2, pEnd, 3.2, beamMat);
+            winBeamMesh = new THREE.Mesh(beamGeo, beamMat);
+            winBeamMesh.position.copy(mid);
+            winBeamMesh.position.y = 12;
+            winBeamMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3().subVectors(pEnd, pStart).normalize());
             scene.add(winBeamMesh);
         }
 
         // ============================================================================
-        // 7. 3-Level AI Opponent (Exhaustive Simulation + Minimax Lookahead)
+        // 7. AI & Heuristic Move Logic (Easy, Medium, Hard Minimax)
         // ============================================================================
-        // Collect all legal moves for `owner` (1 = Human Yellow Cat, 2 = AI Blue Cat)
         function getAllLegalMovesForPlayer(owner) {
             const moves = [];
-            const seenReserveSizes = new Set();
-
-            for (const p of gameState.pieces) {
-                if (p.owner !== owner) continue;
-
-                // De-duplicate identical reserve sizes so we don't simulate twin reserve pieces twice
-                if (p.location === 'reserve') {
-                    if (seenReserveSizes.has(p.size)) continue;
-                    seenReserveSizes.add(p.size);
-                } else if (p.location === 'board') {
-                    const top = getTopPieceAtCell(p.cellIndex);
-                    if (!top || top.id !== p.id) continue; // Covered piece cannot move
+            const emptyCells = [];
+            for (let c = 0; c < 9; c++) {
+                if (gameState.boardStacks[c].length === 0) {
+                    emptyCells.push(c);
                 }
+            }
 
-                for (let cell = 0; cell < 9; cell++) {
-                    if (isCellValidTarget(p, cell)) {
-                        moves.push({ piece: p, targetCell: cell });
+            const playerPieces = gameState.pieces.filter(p => p.owner === owner);
+
+            for (const piece of playerPieces) {
+                if (piece.location === 'reserve') {
+                    for (let c = 0; c < 9; c++) {
+                        if (isCellValidTarget(piece, c)) {
+                            moves.push({ piece, targetCell: c });
+                        }
+                    }
+                } else if (piece.location === 'board') {
+                    const top = getTopPieceAtCell(piece.cellIndex);
+                    if (top && top.id === piece.id) {
+                        for (let c = 0; c < 9; c++) {
+                            if (c !== piece.cellIndex && isCellValidTarget(piece, c)) {
+                                moves.push({ piece, targetCell: c });
+                            }
+                        }
                     }
                 }
             }
             return moves;
         }
 
-        // Apply a move temporarily in memory and return an undo token
-        function applyTempMove(move) {
-            const { piece, targetCell } = move;
-            const oldLocation = piece.location;
-            const oldCell = piece.cellIndex;
-            const prevTargetTop = getTopPieceAtCell(targetCell);
-
-            if (oldLocation === 'board') {
-                gameState.boardStacks[oldCell].pop();
-            }
-
-            // 記錄移開棋子後，原本壓在底下重見天日的棋子 (用來判斷是否誤放了被壓住的對手棋子)
-            const uncoveredPiece = oldLocation === 'board' ? getTopPieceAtCell(oldCell) : null;
-
-            // Check Gobblet Gobblers "Uncovering Rule (見光死)" when lifting a board piece
-            const opponent = piece.owner === 1 ? 2 : 1;
-            let exposedOpponentWin = false;
-            if (oldLocation === 'board') {
-                const uncoveredWins = evaluateBoardWinner();
-                if (uncoveredWins.some(w => w.owner === opponent && !w.line.includes(targetCell))) {
-                    exposedOpponentWin = true;
-                }
-            }
-
-            gameState.boardStacks[targetCell].push(piece.id);
-            piece.location = 'board';
-            piece.cellIndex = targetCell;
-
-            return {
-                piece,
-                targetCell,
-                oldLocation,
-                oldCell,
-                prevTargetTop,
-                uncoveredPiece,
-                exposedOpponentWin
-            };
-        }
-
-        // Revert a temporary move in memory
-        function undoTempMove(token) {
-            const { piece, targetCell, oldLocation, oldCell } = token;
-            gameState.boardStacks[targetCell].pop();
-            if (oldLocation === 'board') {
-                gameState.boardStacks[oldCell].push(piece.id);
-            }
-            piece.location = oldLocation;
-            piece.cellIndex = oldCell;
-        }
-
-        // 輔助函式：計算某位玩家在「不破壞指定連線 excludedCells」的前提下，目前可調動的最大招財貓尺寸
-        function getMaxAvailablePieceSize(owner, excludedCells = []) {
+        function getMaxAvailablePieceSize(owner, excludeLineCells) {
             let maxSize = -1;
-            for (const p of gameState.pieces) {
-                if (p.owner !== owner) continue;
-                if (p.size <= maxSize) continue;
-
-                if (p.location === 'reserve') {
-                    maxSize = p.size;
-                } else if (p.location === 'board' && !excludedCells.includes(p.cellIndex)) {
-                    const top = getTopPieceAtCell(p.cellIndex);
-                    if (top && top.id === p.id) {
-                        maxSize = p.size;
-                    }
+            const reservePieces = gameState.pieces.filter(p => p.owner === owner && p.location === 'reserve');
+            for (const p of reservePieces) {
+                if (p.size > maxSize) maxSize = p.size;
+            }
+            for (const p of gameState.pieces.filter(p => p.owner === owner && p.location === 'board')) {
+                if (!excludeLineCells.includes(p.cellIndex)) {
+                    if (p.size > maxSize) maxSize = p.size;
                 }
             }
             return maxSize;
         }
 
-        // Static Heuristic Board Evaluation from AI's perspective (owner = 2)
-        // Used at leaf nodes of 1-ply (Easy/Medium) and 2-ply Minimax (Hard)
-        function evaluateBoardHeuristic(level) {
-            let score = 0;
-            let aiTwoInRowThreats = 0;
-            let humanTwoInRowThreats = 0;
+        function applyTempMove(move) {
+            const piece = move.piece;
+            const targetCell = move.targetCell;
+            const prevLocation = piece.location;
+            const prevCellIndex = piece.cellIndex;
+            const targetTopBefore = getTopPieceAtCell(targetCell);
 
-            for (const line of WIN_LINES) {
-                let aiCount = 0, humanCount = 0;
-                let aiSizeSum = 0, humanSizeSum = 0;
-                let soleAiPiece = null;
-                let soleHumanPiece = null;
-
-                for (const c of line) {
-                    const top = getTopPieceAtCell(c);
-                    if (top) {
-                        if (top.owner === 2) {
-                            aiCount++;
-                            aiSizeSum += (top.size + 1);
-                            soleAiPiece = top;
-                        } else {
-                            humanCount++;
-                            humanSizeSum += (top.size + 1);
-                            soleHumanPiece = top;
-                        }
-                    }
-                }
-
-                // (A) 玩家二連線威脅判定：第三格為空，或第三格雖有 AI 棋子但可被玩家更大的貓「大吃小」吞掉！
-                const maxHumanMover = (level !== 'easy' && humanCount === 2 && aiCount === 1)
-                    ? getMaxAvailablePieceSize(1, line)
-                    : -1;
-                const humanCanGobbleBlock = (humanCount === 2 && aiCount === 1 && soleAiPiece && maxHumanMover > soleAiPiece.size);
-
-                // (B) AI 二連線威脅判定：第三格為空，或第三格雖有玩家小棋但可被 AI 更大的貓「大吃小」吞掉！
-                const maxAiMover = (level !== 'easy' && aiCount === 2 && humanCount === 1)
-                    ? getMaxAvailablePieceSize(2, line)
-                    : -1;
-                const aiCanGobbleBlock = (aiCount === 2 && humanCount === 1 && soleHumanPiece && maxAiMover > soleHumanPiece.size);
-
-                if (humanCount === 2 && (aiCount === 0 || humanCanGobbleBlock)) {
-                    humanTwoInRowThreats++;
-                    // Easy mode 偶爾忽略威脅；Medium/Hard 則重罰未封鎖的聽牌（包含假封鎖卻會被大貓反吃的情況）
-                    score -= (level === 'easy' ? 110 : (humanCanGobbleBlock ? 440 : 480));
-                } else if (aiCount === 2 && (humanCount === 0 || aiCanGobbleBlock)) {
-                    aiTwoInRowThreats++;
-                    score += (level === 'easy' ? 60 : (aiCanGobbleBlock ? 125 : 150) + aiSizeSum * 15);
-                } else if (aiCount === 1 && humanCount === 0) {
-                    score += 12 + aiSizeSum * 4;
-                } else if (humanCount === 1 && aiCount === 0) {
-                    score -= 10 + humanSizeSum * 4;
-                }
+            if (prevLocation === 'board') {
+                gameState.boardStacks[prevCellIndex].pop();
             }
+            gameState.boardStacks[targetCell].push(piece.id);
+            piece.location = 'board';
+            piece.cellIndex = targetCell;
 
-            // Hard mode bonus/penalty for "Double Threat Forks (雙聽必勝陣)"
-            if (level === 'hard') {
-                if (aiTwoInRowThreats >= 2) score += 650;
-                if (humanTwoInRowThreats >= 2) score -= 750;
-            }
-
-            // Positional control (Center cell 4 & Corners 0,2,6,8)
-            if (level !== 'easy') {
-                const centerTop = getTopPieceAtCell(4);
-                if (centerTop) {
-                    const centerVal = 34 + centerTop.size * 18;
-                    score += (centerTop.owner === 2 ? centerVal : -centerVal);
+            let exposedOpponentWin = false;
+            let uncoveredPiece = null;
+            if (prevLocation === 'board') {
+                const stackBefore = gameState.boardStacks[prevCellIndex];
+                if (stackBefore.length > 0) {
+                    uncoveredPiece = getPieceById(stackBefore[stackBefore.length - 1]);
                 }
-                for (const corner of [0, 2, 6, 8]) {
-                    const cTop = getTopPieceAtCell(corner);
-                    if (cTop) {
-                        const cVal = 14 + cTop.size * 6;
-                        score += (cTop.owner === 2 ? cVal : -cVal);
+                const opponentOwner = piece.owner === 1 ? 2 : 1;
+                const uncoveredWins = evaluateBoardWinner().filter(w => w.owner === opponentOwner);
+                for (const w of uncoveredWins) {
+                    if (!w.line.includes(targetCell)) {
+                        exposedOpponentWin = true;
+                        break;
                     }
                 }
             }
 
-            return score;
+            return {
+                piece,
+                prevLocation,
+                prevCellIndex,
+                targetCell,
+                prevTargetTop: targetTopBefore,
+                exposedOpponentWin,
+                uncoveredPiece
+            };
         }
 
-        // Score a candidate AI move according to selected AI Difficulty ('easy', 'medium', 'hard')
-        function scoreMoveByDifficulty(aiMove, level) {
-            const token1 = applyTempMove(aiMove);
-
-            // 1. Check immediate "Uncovering Rule" self-destruction
-            if (token1.exposedOpponentWin) {
-                undoTempMove(token1);
-                // Easy mode has a small chance to blunder into uncovering, Medium & Hard strictly forbid it
-                return level === 'easy' ? -800 + Math.random() * 400 : -10000;
+        function undoTempMove(token) {
+            const piece = token.piece;
+            gameState.boardStacks[token.targetCell].pop();
+            if (token.prevTargetTop) {
+                gameState.boardStacks[token.targetCell].push(token.prevTargetTop.id);
             }
 
-            // 2. Check immediate board winners after AI's move
-            const postAiWins = evaluateBoardWinner();
-            const aiWonImmediately = postAiWins.some(w => w.owner === 2);
-            const humanWonImmediately = postAiWins.some(w => w.owner === 1);
+            piece.location = token.prevLocation;
+            piece.cellIndex = token.prevCellIndex;
 
-            if (aiWonImmediately) {
-                undoTempMove(token1);
-                // Easy mode might miss an immediate winning move 25% of the time; Medium & Hard always take it
-                if (level === 'easy' && Math.random() < 0.25) return 120;
-                return 10000;
+            if (token.prevLocation === 'board') {
+                gameState.boardStacks[token.prevCellIndex].push(piece.id);
             }
-            if (humanWonImmediately) {
-                undoTempMove(token1);
-                return -9500;
-            }
-
-            // Tactical delta: bonus for gobbling opponent's piece, penalty for releasing a trapped opponent piece
-            let tacticalDelta = 0;
-            if (token1.prevTargetTop) {
-                if (token1.prevTargetTop.owner === 1) {
-                    tacticalDelta += (level === 'easy' ? 25 : 65 + token1.prevTargetTop.size * 25);
-                } else {
-                    tacticalDelta -= 45; // Avoid wasting a larger cat on own smaller cat unless necessary
-                }
-            }
-            // 若移動場上棋子會把原本壓在底下的「玩家棋子」放出來，予以扣分避免無意義來回搬動
-            if (level !== 'easy' && token1.uncoveredPiece && token1.uncoveredPiece.owner === 1) {
-                tacticalDelta -= (60 + token1.uncoveredPiece.size * 28);
-            }
-
-            // ====================================================================
-            // LEVEL 1 (弱 Easy) & LEVEL 2 (中 Medium): 1-Ply Lookahead Evaluation
-            // ====================================================================
-            if (level === 'easy' || level === 'medium') {
-                let score = evaluateBoardHeuristic(level) + tacticalDelta;
-                // Add noise: large random noise for Easy (blunders), small noise for Medium (variety)
-                const noiseRange = level === 'easy' ? 260 : 16;
-                score += (Math.random() * noiseRange - noiseRange / 2);
-                undoTempMove(token1);
-                return score;
-            }
-
-            // ====================================================================
-            // LEVEL 3 (強 Hard): 2-Ply Minimax Lookahead (AI Max -> Human Min)
-            // Exhaustively simulates every legal counter-move Player 1 can make next turn!
-            // ====================================================================
-            const humanResponses = getAllLegalMovesForPlayer(1);
-            let worstCaseForAI = Infinity; // Human tries to MINIMIZE AI's score
-            let humanWinningReplyCount = 0;
-
-            for (const hMove of humanResponses) {
-                const token2 = applyTempMove(hMove);
-                let replyScore = 0;
-
-                if (token2.exposedOpponentWin) {
-                    // Human's move uncovered an AI winning line -> great for AI
-                    replyScore = 9000;
-                } else {
-                    const postHumanWins = evaluateBoardWinner();
-                    const humanWinsNext = postHumanWins.some(w => w.owner === 1);
-                    const aiWinsNext = postHumanWins.some(w => w.owner === 2);
-
-                    if (humanWinsNext) {
-                        // CRITICAL: Human has a guaranteed winning counter-move (e.g., gobbling back with a Large cat)!
-                        humanWinningReplyCount++;
-                        replyScore = -9200;
-                    } else if (aiWinsNext) {
-                        replyScore = 8800;
-                    } else {
-                        replyScore = evaluateBoardHeuristic('hard') + tacticalDelta * 0.6;
-                        // If human can gobble AI's newly placed piece on the very next turn, penalize slightly
-                        if (hMove.targetCell === aiMove.targetCell) {
-                            replyScore -= (40 + aiMove.piece.size * 25);
-                        }
-                    }
-                }
-
-                undoTempMove(token2);
-
-                if (replyScore < worstCaseForAI) {
-                    worstCaseForAI = replyScore;
-                }
-            }
-
-            // 若玩家已有雙聽牌導致多數走法皆為 -9200，仍區分「哪一步能封鎖最多贏法」以維持最強頑強防守
-            if (humanWinningReplyCount > 0) {
-                const baseBoardScore = evaluateBoardHeuristic('hard') * 0.1;
-                worstCaseForAI = -9200 - (humanWinningReplyCount * 60) + baseBoardScore;
-            }
-
-            undoTempMove(token1);
-            // Tiny tie-breaker jitter (±1.5) so equally optimal moves still feel natural
-            return worstCaseForAI + (Math.random() * 3 - 1.5);
         }
 
         function triggerAIMove() {
             if (gameState.gameOver || gameState.currentTurn !== 2) return;
 
-            const legalMoves = getAllLegalMovesForPlayer(2);
-            if (legalMoves.length === 0) return;
+            const aiLegalMoves = getAllLegalMovesForPlayer(2);
+            if (aiLegalMoves.length === 0) return;
 
-            let bestMove = legalMoves[0];
+            let bestMove = aiLegalMoves[0];
             let bestScore = -Infinity;
 
-            for (const m of legalMoves) {
-                const s = scoreMoveByDifficulty(m, gameState.aiLevel);
-                if (s > bestScore) {
-                    bestScore = s;
-                    bestMove = m;
+            const difficulty = gameState.aiLevel; // 'easy', 'medium', 'hard'
+
+            for (const move of aiLegalMoves) {
+                const token = applyTempMove(move);
+                let score = 0;
+
+                if (token.exposedOpponentWin) {
+                    undoTempMove(token);
+                    score = -10000;
+                } else {
+                    const wins = evaluateBoardWinner();
+                    const aiWin = wins.some(w => w.owner === 2);
+                    const humanWin = wins.some(w => w.owner === 1);
+
+                    if (aiWin) {
+                        score = 10000;
+                    } else if (humanWin) {
+                        score = -9200;
+                    } else {
+                        // Hard difficulty 2-ply Minimax Lookahead
+                        if (difficulty === 'hard') {
+                            const humanLegalMoves = getAllLegalMovesForPlayer(1);
+                            let worstCaseForAI = Infinity;
+                            let humanWinningReplyCount = 0;
+
+                            for (const hm of humanLegalMoves) {
+                                const hToken = applyTempMove(hm);
+                                if (hToken.exposedOpponentWin) {
+                                    undoTempMove(hToken);
+                                    continue;
+                                }
+                                const hWins = evaluateBoardWinner();
+                                if (hWins.some(w => w.owner === 1)) {
+                                    humanWinningReplyCount++;
+                                    undoTempMove(hToken);
+                                    worstCaseForAI = -9200;
+                                    break;
+                                }
+
+                                let hScore = 0;
+                                for (const line of WIN_LINES) {
+                                    let hCount = 0, aCount = 0;
+                                    for (const c of line) {
+                                        const top = getTopPieceAtCell(c);
+                                        if (top) {
+                                            if (top.owner === 1) hCount++;
+                                            else if (top.owner === 2) aCount++;
+                                        }
+                                    }
+                                    if (hCount === 2 && aCount === 0) hScore += 350;
+                                }
+                                undoTempMove(hToken);
+                                if (hScore < worstCaseForAI) worstCaseForAI = hScore;
+                            }
+                            score -= (worstCaseForAI * 0.75);
+                            if (humanWinningReplyCount > 1) score -= 650;
+                        }
+
+                        // Heuristic evaluation
+                        if (token.prevTargetTop) {
+                            if (token.prevTargetTop.owner === 1) {
+                                score += 85 + token.prevTargetTop.size * 28;
+                            } else {
+                                score -= 30;
+                            }
+                        }
+                        if (token.uncoveredPiece && token.uncoveredPiece.owner === 1) {
+                            score -= (60 + token.uncoveredPiece.size * 22);
+                        }
+
+                        for (const line of WIN_LINES) {
+                            let aiCount = 0, humanCount = 0;
+                            let soleAiPiece = null;
+                            for (const c of line) {
+                                const top = getTopPieceAtCell(c);
+                                if (top) {
+                                    if (top.owner === 2) {
+                                        aiCount++;
+                                        soleAiPiece = top;
+                                    } else {
+                                        humanCount++;
+                                    }
+                                }
+                            }
+                            const maxHumanMover = (humanCount === 2 && aiCount === 1) ? getMaxAvailablePieceSize(1, line) : -1;
+                            const humanCanGobbleBlock = (humanCount === 2 && aiCount === 1 && soleAiPiece && maxHumanMover > soleAiPiece.size);
+
+                            if (humanCount === 2 && (aiCount === 0 || humanCanGobbleBlock)) {
+                                score -= (difficulty === 'easy' ? 110 : (difficulty === 'medium' ? 480 : 540));
+                            } else if (aiCount === 2 && humanCount === 0) {
+                                score += 180;
+                            } else if (aiCount === 1 && humanCount === 0) {
+                                score += 24;
+                            }
+                        }
+
+                        const centerTop = getTopPieceAtCell(4);
+                        if (centerTop && centerTop.owner === 2) {
+                            score += 35;
+                        }
+
+                        // Noise level per difficulty
+                        const noise = difficulty === 'easy' ? (Math.random() * 260 - 130) : (difficulty === 'medium' ? (Math.random() * 16 - 8) : (Math.random() * 3 - 1.5));
+                        score += noise;
+                    }
+                    undoTempMove(token);
+                }
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = move;
                 }
             }
 
-            // Highlight AI's chosen piece briefly, then execute move
             gameState.selectedPieceId = bestMove.piece.id;
             playSound('select', bestMove.piece.size);
             updateVisualHighlights();
@@ -1705,208 +1566,183 @@
         }
 
         // ============================================================================
-        // 8. Visual Highlights, X-Ray Nesting View & OpenSCAD Section View
+        // 7.5 AI Auto-Demo Mode & Idle Countdown
         // ============================================================================
-        function applyXrayAndSectionMaterials() {
-            renderer.localClippingEnabled = gameState.sectionMode;
-
-            gameState.pieces.forEach(p => {
-                const mesh = pieceMeshesMap.get(p.id);
-                if (!mesh) return;
-                const bodyMat = mesh.userData.bodyMat;
-
-                // Determine if this piece is currently covering smaller pieces on the board
-                let isOuterShellOnBoard = false;
-                if (p.location === 'board' && p.size > 0) {
-                    const stack = gameState.boardStacks[p.cellIndex];
-                    if (stack.length > 1 && stack[stack.length - 1] === p.id) {
-                        isOuterShellOnBoard = true;
-                    }
-                }
-
-                if (gameState.xrayMode && (p.size > 0 && (p.location === 'board' || isOuterShellOnBoard))) {
-                    bodyMat.transparent = true;
-                    bodyMat.opacity = p.size === 2 ? 0.42 : 0.56;
-                    bodyMat.depthWrite = false;
-                } else {
-                    bodyMat.transparent = false;
-                    bodyMat.opacity = 1.0;
-                    bodyMat.depthWrite = true;
-                }
-                bodyMat.needsUpdate = true;
-            });
-        }
-
-        function updateVisualHighlights() {
-            const selectedPiece = getPieceById(gameState.selectedPieceId);
-
-            // Highlight selected cat & lift it slightly
-            gameState.pieces.forEach(p => {
-                const mesh = pieceMeshesMap.get(p.id);
-                if (!mesh) return;
-                const haloMat = mesh.userData.haloMat;
-                const bodyMat = mesh.userData.bodyMat;
-
-                const isSelected = selectedPiece && selectedPiece.id === p.id;
-                haloMat.opacity = isSelected ? 0.95 : 0.0;
-                bodyMat.emissive.setHex(isSelected ? 0x553300 : 0x000000);
-
-                if (!gameState.animating) {
-                    const baseTargetY = isSelected ? 9 : 0;
-                    mesh.position.y = baseTargetY;
-                }
-            });
-
-            // Highlight valid target cells on the 3x3 board
-            for (let cell = 0; cell < 9; cell++) {
-                const ring = cellRingMeshes[cell];
-                if (selectedPiece && isCellValidTarget(selectedPiece, cell)) {
-                    const topPiece = getTopPieceAtCell(cell);
-                    // Green ring for empty cell, Amber/Gold ring for "Gobble smaller cat!"
-                    ring.material.color.setHex(topPiece ? 0xfbbf24 : 0x4ade80);
-                    ring.material.opacity = 0.85;
-                } else {
-                    ring.material.opacity = 0.0;
-                }
+        function clearAllDemoTimers() {
+            if (demoMoveTimer) {
+                clearTimeout(demoMoveTimer);
+                demoMoveTimer = null;
+            }
+            if (demoIdleCountdownTimer) {
+                clearInterval(demoIdleCountdownTimer);
+                demoIdleCountdownTimer = null;
             }
         }
 
-        // ============================================================================
-        // 9. UI HUD & Reserve Buttons Synchronization
-        // ============================================================================
-        function selectPiece(pieceId) {
-            if (gameState.animating || gameState.gameOver) return;
-            const piece = getPieceById(pieceId);
-            if (!piece) return;
+        function chooseBestDemoMoveForOwner(owner) {
+            const opponent = owner === 1 ? 2 : 1;
+            const legalMoves = getAllLegalMovesForPlayer(owner);
+            if (legalMoves.length === 0) return null;
 
-            // If user already selected a piece and clicks an opponent's smaller piece on the board, treat as Gobble target!
-            if (gameState.selectedPieceId && gameState.selectedPieceId !== pieceId) {
-                const currentlySelected = getPieceById(gameState.selectedPieceId);
-                if (piece.location === 'board' && isCellValidTarget(currentlySelected, piece.cellIndex)) {
-                    executeMove(currentlySelected, piece.cellIndex);
-                    return;
-                }
-            }
+            let bestMove = legalMoves[0];
+            let bestScore = -Infinity;
 
-            if (!canSelectPiece(piece)) {
-                if (piece.location === 'board') {
-                    const top = getTopPieceAtCell(piece.cellIndex);
-                    if (top && top.id !== piece.id) {
-                        playSound('error');
-                        showToast('這隻小招財貓被蓋在裡面，不能直接移動喔！');
-                        return;
+            for (const move of legalMoves) {
+                const token = applyTempMove(move);
+                let score = 0;
+
+                if (token.exposedOpponentWin) {
+                    undoTempMove(token);
+                    score = -10000;
+                } else {
+                    const wins = evaluateBoardWinner();
+                    const myWin = wins.some(w => w.owner === owner);
+                    const oppWin = wins.some(w => w.owner === opponent);
+
+                    if (myWin) {
+                        score = 10000;
+                    } else if (oppWin) {
+                        score = -9500;
+                    } else {
+                        if (token.prevTargetTop) {
+                            if (token.prevTargetTop.owner === opponent) {
+                                score += 95 + token.prevTargetTop.size * 30;
+                            } else {
+                                score -= 50;
+                            }
+                        }
+                        if (token.uncoveredPiece && token.uncoveredPiece.owner === opponent) {
+                            score -= (65 + token.uncoveredPiece.size * 25);
+                        }
+
+                        for (const line of WIN_LINES) {
+                            let myCount = 0, oppCount = 0;
+                            let soleMyPiece = null;
+                            for (const c of line) {
+                                const top = getTopPieceAtCell(c);
+                                if (top) {
+                                    if (top.owner === owner) {
+                                        myCount++;
+                                        soleMyPiece = top;
+                                    } else {
+                                        oppCount++;
+                                    }
+                                }
+                            }
+                            const maxOppMover = (oppCount === 2 && myCount === 1) ? getMaxAvailablePieceSize(opponent, line) : -1;
+                            const oppCanGobbleBlock = (oppCount === 2 && myCount === 1 && soleMyPiece && maxOppMover > soleMyPiece.size);
+
+                            if (oppCount === 2 && (myCount === 0 || oppCanGobbleBlock)) {
+                                score -= 460;
+                            } else if (myCount === 2 && oppCount === 0) {
+                                score += 165;
+                            } else if (myCount === 1 && oppCount === 0) {
+                                score += 18;
+                            }
+                        }
+
+                        const centerTop = getTopPieceAtCell(4);
+                        if (centerTop && centerTop.owner === owner) {
+                            score += 28 + centerTop.size * 12;
+                        }
+
+                        score += (Math.random() * 76 - 38);
                     }
+                    undoTempMove(token);
                 }
-                if (piece.owner !== gameState.currentTurn) {
-                    playSound('error');
-                    showToast(gameState.currentTurn === 1 ? '現在是黃色招財貓 (P1右手招財) 的回合喔！' : '現在是藍色招福貓 (P2左手招福) 的回合喔！');
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = move;
                 }
-                return;
             }
 
-            if (gameState.selectedPieceId === pieceId) {
-                gameState.selectedPieceId = null;
-            } else {
-                gameState.selectedPieceId = pieceId;
-                playSound('select', piece.size);
-            }
+            return bestMove;
+        }
 
+        function triggerAutoDemoTurn() {
+            if (!gameState.isAutoDemo || gameState.gameOver || gameState.animating) return;
+
+            const bestMove = chooseBestDemoMoveForOwner(gameState.currentTurn);
+            if (!bestMove) return;
+
+            gameState.selectedPieceId = bestMove.piece.id;
+            playSound('select', bestMove.piece.size);
             updateVisualHighlights();
             updateHUD();
+
+            demoMoveTimer = setTimeout(() => {
+                if (!gameState.isAutoDemo || gameState.gameOver) return;
+                executeMove(bestMove.piece, bestMove.targetCell);
+            }, 520);
         }
 
-        function renderReserveButtonsForTeam(owner, containerId) {
-            const containerEl = document.getElementById(containerId);
-            if (!containerEl) return;
+        function startPostDemoIdleCountdown() {
+            clearAllDemoTimers();
+            demoIdleRemainingSec = 30;
+            updateHUD();
 
-            const isMyTurn = !gameState.gameOver && gameState.currentTurn === owner && !(gameState.mode === 'ai' && owner === 2);
+            demoIdleCountdownTimer = setInterval(() => {
+                if (!gameState.isAutoDemo || !gameState.gameOver) {
+                    clearInterval(demoIdleCountdownTimer);
+                    demoIdleCountdownTimer = null;
+                    return;
+                }
+                demoIdleRemainingSec--;
+                updateHUD();
 
-            let html = '';
-            for (let size = 0; size <= 2; size++) {
-                const reserveCats = gameState.pieces.filter(p => p.owner === owner && p.size === size && p.location === 'reserve');
-                const count = reserveCats.length;
-                const topReserveCat = reserveCats[0] || null;
-                const isSelected = topReserveCat && gameState.selectedPieceId === topReserveCat.id;
-
-                const colorClasses = owner === 1
-                    ? (isSelected ? 'bg-amber-400 text-slate-950 border-yellow-200 shadow-lg' : 'bg-amber-500/15 hover:bg-amber-500/30 text-amber-200 border-amber-500/30')
-                    : (isSelected ? 'bg-sky-400 text-slate-950 border-yellow-300 shadow-lg' : 'bg-sky-500/15 hover:bg-sky-500/30 text-sky-200 border-sky-500/30');
-
-                const disabledAttr = (!isMyTurn || count === 0) ? 'disabled' : '';
-                const opacityClass = count === 0 ? 'opacity-35 cursor-not-allowed' : (isMyTurn ? 'cursor-pointer' : 'opacity-70');
-
-                html += `
-                    <button
-                        onclick="${topReserveCat ? `selectPiece('${topReserveCat.id}')` : ''}"
-                        ${disabledAttr}
-                        class="btn-game rounded-xl px-2.5 py-2 min-h-[48px] border text-left transition-all flex items-center justify-between ${colorClasses} ${opacityClass}">
-                        <div>
-                            <div class="text-xs sm:text-sm font-black leading-tight">${SIZE_NAMES[size]}</div>
-                            <div class="text-[10px] sm:text-[11px] opacity-80">Ø${(SCAD.outer_r(size)*2).toFixed(0)}mm</div>
-                        </div>
-                        <span class="text-xs sm:text-sm font-black px-2 py-0.5 rounded-lg bg-black/30">×${count}</span>
-                    </button>
-                `;
-            }
-            containerEl.innerHTML = html;
+                if (demoIdleRemainingSec <= 0) {
+                    clearInterval(demoIdleCountdownTimer);
+                    demoIdleCountdownTimer = null;
+                    startAutoDemoRound(true);
+                }
+            }, 1000);
         }
 
-        function updateHUD() {
-            renderReserveButtonsForTeam(1, 'p1-reserve-buttons');
-            renderReserveButtonsForTeam(2, 'p2-reserve-buttons');
-
-            document.getElementById('p1-score-badge').textContent = `勝場: ${gameState.scores[1]}`;
-            document.getElementById('p2-score-badge').textContent = `勝場: ${gameState.scores[2]}`;
-            document.getElementById('p2-name-label').textContent = gameState.mode === 'ai'
-                ? `藍色招福貓 AI (${AI_LEVEL_NAMES[gameState.aiLevel]} • P2左手招福)`
-                : '藍色招福貓 (P2左手招福) 預備區';
-
-            const p1Hud = document.getElementById('p1-hud');
-            const p2Hud = document.getElementById('p2-hud');
-            const turnBanner = document.getElementById('turn-banner');
-            const turnDot = document.getElementById('turn-dot');
-            const turnTitle = document.getElementById('turn-title');
-            const turnSub = document.getElementById('turn-subtitle');
-            const cancelBtn = document.getElementById('btn-cancel-select');
-
-            if (gameState.selectedPieceId) {
-                cancelBtn.classList.remove('hidden');
-            } else {
-                cancelBtn.classList.add('hidden');
+        function notifyUserActivityOnPage() {
+            if (gameState.isAutoDemo && gameState.gameOver && demoIdleCountdownTimer) {
+                demoIdleRemainingSec = 30;
+                updateHUD();
             }
+        }
 
-            if (gameState.gameOver) {
-                const isP1Win = gameState.winner === 1;
-                turnBanner.className = `glass-panel rounded-2xl px-4 py-2 pointer-events-auto flex items-center gap-3 border-2 ${isP1Win ? 'border-amber-400' : 'border-sky-400'}`;
-                turnDot.className = `w-3.5 h-3.5 rounded-full ${isP1Win ? 'bg-amber-400' : 'bg-sky-400'}`;
-                turnTitle.textContent = isP1Win ? '🏆 黃色招財貓獲勝！(P1右手招財)' : (gameState.mode === 'ai' ? `🏆 藍色招福貓 AI (${AI_LEVEL_NAMES[gameState.aiLevel]}) 獲勝！` : '🏆 藍色招福貓獲勝！(P2左手招福)');
-                turnTitle.className = `font-black text-sm sm:text-base ${isP1Win ? 'text-amber-300' : 'text-sky-300'}`;
-                turnSub.textContent = '點擊下方「重新開局」再來一場招財招福對決';
-                p1Hud.classList.remove('active-turn-glow');
-                p2Hud.classList.remove('active-turn-glow');
-                return;
-            }
+        function updateAutoDemoButtonUI() {
+            const btn = document.getElementById('btn-auto-demo');
+            const icon = document.getElementById('auto-demo-icon');
+            const label = document.getElementById('auto-demo-label');
+            if (!btn) return;
 
-            if (gameState.currentTurn === 1) {
-                p1Hud.className = 'glass-panel rounded-2xl p-2.5 sm:p-3 pointer-events-auto flex-1 border-2 border-amber-400 active-turn-glow transition-all';
-                p2Hud.className = 'glass-panel rounded-2xl p-2.5 sm:p-3 pointer-events-auto flex-1 border-2 border-transparent opacity-80 transition-all';
-                turnBanner.className = 'glass-panel rounded-2xl px-4 py-2 pointer-events-auto flex items-center gap-3 border-2 border-amber-400/80';
-                turnDot.className = 'w-3.5 h-3.5 rounded-full bg-amber-400 shadow-[0_0_12px_#fbbf24]';
-                turnTitle.textContent = '黃色招財貓回合 (P1右手招財)';
-                turnTitle.className = 'font-bold text-sm sm:text-base text-amber-300';
-                turnSub.textContent = gameState.selectedPieceId
-                    ? '已選取黃色招財貓！請點擊九宮格上的綠色圓環或更小的棋子蓋住牠'
-                    : '請點選場外預備區或棋盤上的黃色招財貓';
+            if (gameState.isAutoDemo) {
+                btn.className = 'btn-game px-3 py-2 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-fuchsia-500 to-amber-400 text-slate-950 border border-yellow-200 flex items-center gap-1.5 shadow-[0_0_16px_rgba(217,70,239,0.6)]';
+                icon.className = 'fa-solid fa-circle-stop';
+                label.textContent = '停止示範';
             } else {
-                p2Hud.className = 'glass-panel rounded-2xl p-2.5 sm:p-3 pointer-events-auto flex-1 border-2 border-sky-400 active-turn-glow transition-all';
-                p1Hud.className = 'glass-panel rounded-2xl p-2.5 sm:p-3 pointer-events-auto flex-1 border-2 border-transparent opacity-80 transition-all';
-                turnBanner.className = 'glass-panel rounded-2xl px-4 py-2 pointer-events-auto flex items-center gap-3 border-2 border-sky-400/80';
-                turnDot.className = 'w-3.5 h-3.5 rounded-full bg-sky-400 shadow-[0_0_12px_#38bdf8]';
-                turnTitle.textContent = gameState.mode === 'ai' ? `藍色招福貓 AI (${AI_LEVEL_NAMES[gameState.aiLevel]}) 思考中...` : '藍色招福貓回合 (P2左手招福)';
-                turnTitle.className = 'font-bold text-sm sm:text-base text-sky-300';
-                turnSub.textContent = gameState.mode === 'ai'
-                    ? (gameState.aiLevel === 'hard' ? '宗師店長正在推演雙層 Minimax 反擊樹...' : '藍色招福貓店長正在計算套疊步數...')
-                    : (gameState.selectedPieceId ? '請點擊九宮格上的目標位置放置藍色招福貓' : '請點選場外預備區或棋盤上的藍色招福貓');
+                btn.className = 'btn-game px-3 py-2 rounded-xl text-xs sm:text-sm font-bold bg-fuchsia-500/20 hover:bg-fuchsia-500/35 text-fuchsia-200 border border-fuchsia-400/40 flex items-center gap-1.5 shadow-sm';
+                icon.className = 'fa-solid fa-clapperboard';
+                label.textContent = 'AI 自動示範';
+            }
+        }
+
+        function startAutoDemoRound(isAutoReplay = false) {
+            clearAllDemoTimers();
+            gameState.isAutoDemo = true;
+            updateAutoDemoButtonUI();
+            initPieces();
+            showToast(isAutoReplay
+                ? '🔄 已超過 30 秒無操作，自動重新展示 AI 對戰示範！'
+                : '🎬 已啟動 AI 自動示範對戰！示範結束後若 30 秒無動作將自動重播');
+
+            demoMoveTimer = setTimeout(triggerAutoDemoTurn, 600);
+        }
+
+        function stopAutoDemoMode(showMsg = true) {
+            if (!gameState.isAutoDemo) return;
+            clearAllDemoTimers();
+            gameState.isAutoDemo = false;
+            updateAutoDemoButtonUI();
+            initPieces();
+            if (showMsg) {
+                showToast('⏹ 已停止 AI 自動示範，現在您可以親自操作招財貓對戰！');
             }
         }
 
@@ -1926,64 +1762,239 @@
         }
 
         // ============================================================================
-        // 10. Pointer / Touch Raycasting & Camera Orbit Interaction
+        // 8. Materials, X-ray & Cross-Section Management
         // ============================================================================
-        const raycaster = new THREE.Raycaster();
-        const pointerNDC = new THREE.Vector2();
+        function applyXrayAndSectionMaterials() {
+            sectionClipPlane.constant = gameState.sectionMode ? 0.1 : -999;
 
-        function handleCanvasTap(clientX, clientY) {
-            if (gameState.animating || gameState.gameOver) return;
-            if (gameState.mode === 'ai' && gameState.currentTurn === 2) return;
+            pieceMeshesMap.forEach((mesh, id) => {
+                const piece = getPieceById(id);
+                if (!piece) return;
 
-            const rect = renderer.domElement.getBoundingClientRect();
-            pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-            pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-
-            raycaster.setFromCamera(pointerNDC, camera);
-
-            // 1. Check if user clicked on a Piece Mesh
-            const allPieceObjects = [];
-            pieceMeshesMap.forEach((group, id) => {
-                const p = getPieceById(id);
-                // Only raycast against reserve pieces or the TOP piece of a board stack
-                if (p.location === 'reserve') {
-                    allPieceObjects.push(group);
-                } else if (p.location === 'board') {
-                    const top = getTopPieceAtCell(p.cellIndex);
-                    if (top && top.id === p.id) {
-                        allPieceObjects.push(group);
+                const bodyMat = mesh.userData.bodyMat;
+                if (bodyMat) {
+                    if (gameState.sectionMode) {
+                        bodyMat.transparent = false;
+                        bodyMat.opacity = 1.0;
+                    } else if (gameState.xrayMode) {
+                        bodyMat.transparent = true;
+                        bodyMat.opacity = piece.size === 2 ? 0.32 : (piece.size === 1 ? 0.52 : 0.82);
+                    } else {
+                        bodyMat.transparent = false;
+                        bodyMat.opacity = 1.0;
                     }
                 }
             });
+        }
 
-            const pieceHits = raycaster.intersectObjects(allPieceObjects, true);
-            if (pieceHits.length > 0) {
-                const hitPieceId = pieceHits[0].object.userData.pieceId;
-                if (hitPieceId) {
-                    selectPiece(hitPieceId);
-                    return;
+        // ============================================================================
+        // 9. UI Rendering, HUD & Interaction Updates
+        // ============================================================================
+        function updateVisualHighlights() {
+            const selectedPiece = getPieceById(gameState.selectedPieceId);
+
+            pieceMeshesMap.forEach((mesh, id) => {
+                const piece = getPieceById(id);
+                const halo = mesh.getObjectByName('selectionHalo');
+                if (!halo) return;
+
+                if (gameState.selectedPieceId === id) {
+                    halo.material.opacity = 0.85;
+                    halo.material.color.setHex(0xfef08a);
+                } else if (selectedPiece && canSelectPiece(piece) && piece.location === 'reserve' && piece.size === selectedPiece.size && piece.owner === selectedPiece.owner) {
+                    halo.material.opacity = 0.35;
+                    halo.material.color.setHex(0x67e8f9);
+                } else {
+                    halo.material.opacity = 0.0;
+                }
+            });
+
+            cellRingMeshes.forEach((ring, cIdx) => {
+                if (selectedPiece && isCellValidTarget(selectedPiece, cIdx)) {
+                    ring.material.opacity = 0.85;
+                } else {
+                    ring.material.opacity = 0.0;
+                }
+            });
+
+            const cancelBtn = document.getElementById('btn-cancel-select');
+            if (gameState.selectedPieceId) {
+                cancelBtn.classList.remove('hidden');
+            } else {
+                cancelBtn.classList.add('hidden');
+            }
+        }
+
+        function updateHUD() {
+            const turnBanner = document.getElementById('turn-banner');
+            const turnDot = document.getElementById('turn-dot');
+            const turnTitle = document.getElementById('turn-title');
+            const turnSub = document.getElementById('turn-subtitle');
+            const p1Hud = document.getElementById('p1-hud');
+            const p2Hud = document.getElementById('p2-hud');
+
+            document.getElementById('p1-score-badge').textContent = `勝場: ${gameState.scores[1]}`;
+            document.getElementById('p2-score-badge').textContent = `勝場: ${gameState.scores[2]}`;
+
+            // Render Reserve Buttons for P1 & P2
+            for (const owner of [1, 2]) {
+                const containerId = owner === 1 ? 'p1-reserve-buttons' : 'p2-reserve-buttons';
+                const containerEl = document.getElementById(containerId);
+                containerEl.innerHTML = '';
+
+                for (let size = 0; size <= 2; size++) {
+                    const availableInReserve = gameState.pieces.filter(p => p.owner === owner && p.location === 'reserve' && p.size === size);
+                    const count = availableInReserve.length;
+                    const representativePiece = availableInReserve[0] || null;
+                    const isSelected = representativePiece && gameState.selectedPieceId === representativePiece.id;
+
+                    const btn = document.createElement('button');
+                    btn.className = `btn-game px-2 py-1.5 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-0.5 border transition-all ${
+                        isSelected
+                            ? 'bg-amber-400 text-slate-950 border-amber-200 shadow-md ring-2 ring-amber-300'
+                            : (count > 0
+                                ? (owner === 1 ? 'bg-amber-500/15 hover:bg-amber-500/30 text-amber-200 border-amber-500/40' : 'bg-sky-500/15 hover:bg-sky-500/30 text-sky-200 border-sky-500/40')
+                                : 'bg-stone-800/40 text-stone-600 border-stone-800 pointer-events-none opacity-40')
+                    }`;
+
+                    btn.innerHTML = `
+                        <span class="text-xs font-black">${SIZE_SHORT[size]}</span>
+                        <span class="text-[10px] opacity-85">剩餘:${count}</span>
+                    `;
+
+                    if (count > 0 && representativePiece) {
+                        btn.onclick = () => {
+                            if (canSelectPiece(representativePiece)) {
+                                gameState.selectedPieceId = representativePiece.id;
+                                playSound('select', size);
+                                updateVisualHighlights();
+                                updateHUD();
+                                showToast(`已選取 ${owner === 1 ? '黃色' : '藍色'} ${SIZE_NAMES[size]}招財貓`);
+                            }
+                        };
+                    }
+                    containerEl.appendChild(btn);
                 }
             }
 
-            // 2. Check if user clicked on a Board Cell Target
-            if (gameState.selectedPieceId) {
-                const cellHits = raycaster.intersectObjects(cellHitMeshes, false);
-                if (cellHits.length > 0) {
-                    const cellIndex = cellHits[0].object.userData.cellIndex;
-                    const selectedPiece = getPieceById(gameState.selectedPieceId);
-                    if (selectedPiece) {
-                        executeMove(selectedPiece, cellIndex);
+            if (gameState.gameOver) {
+                const isP1Win = gameState.winner === 1;
+                const isDraw = !gameState.winner;
+                turnBanner.className = `glass-panel rounded-2xl px-4 py-2 pointer-events-auto flex items-center gap-3 border-2 ${isDraw ? 'border-stone-400' : (isP1Win ? 'border-amber-400' : 'border-sky-400')}`;
+                turnDot.className = `w-3.5 h-3.5 rounded-full ${isDraw ? 'bg-stone-400' : (isP1Win ? 'bg-amber-400' : 'bg-sky-400')}`;
+                if (isDraw) {
+                    turnTitle.textContent = '🤝 本局雙方平手！';
+                    turnTitle.className = 'font-black text-sm sm:text-base text-stone-200';
+                } else {
+                    turnTitle.textContent = isP1Win
+                        ? (gameState.isAutoDemo ? '🏆 [示範完成] 黃色招財貓獲勝！(P1右手招財)' : '🏆 黃色招財貓獲勝！(P1右手招財)')
+                        : (gameState.isAutoDemo ? '🏆 [示範完成] 藍色招福貓獲勝！(P2左手招福)' : (gameState.mode === 'ai' ? `🏆 藍色招福貓 AI (${AI_LEVEL_NAMES[gameState.aiLevel]}) 獲勝！` : '🏆 藍色招福貓獲勝！(P2左手招福)'));
+                    turnTitle.className = `font-black text-sm sm:text-base ${isP1Win ? 'text-amber-300' : 'text-sky-300'}`;
+                }
+                turnSub.textContent = gameState.isAutoDemo
+                    ? `自動示範已完成 • 若 ${demoIdleRemainingSec} 秒內無動作將自動重新示範 (點擊「停止示範」可親自遊玩)`
+                    : '點擊下方「重新開局」再來一場招財招福對決';
+                p1Hud.classList.remove('active-turn-glow');
+                p2Hud.classList.remove('active-turn-glow');
+                return;
+            }
+
+            if (gameState.currentTurn === 1) {
+                p1Hud.className = 'glass-panel rounded-2xl p-2.5 sm:p-3 pointer-events-auto flex-1 border-2 border-amber-400 active-turn-glow transition-all';
+                p2Hud.className = 'glass-panel rounded-2xl p-2.5 sm:p-3 pointer-events-auto flex-1 border-2 border-transparent opacity-80 transition-all';
+                turnBanner.className = 'glass-panel rounded-2xl px-4 py-2 pointer-events-auto flex items-center gap-3 border-2 border-amber-400/80';
+                turnDot.className = 'w-3.5 h-3.5 rounded-full bg-amber-400 shadow-[0_0_12px_#fbbf24]';
+                turnTitle.textContent = gameState.isAutoDemo ? '🎬 [AI 自動示範] 黃色招財貓回合 (P1右手招財)' : '黃色招財貓回合 (P1右手招財)';
+                turnTitle.className = 'font-bold text-sm sm:text-base text-amber-300';
+                turnSub.textContent = gameState.isAutoDemo
+                    ? 'AI 正在自動演示黃色招財貓步數 • 點擊上方「停止示範」可隨時親自遊玩'
+                    : (gameState.selectedPieceId
+                        ? '已選取黃色招財貓！請點擊九宮格上的綠色圓環或更小的棋子蓋住牠'
+                        : '請點選場外預備區或棋盤上的黃色招財貓');
+            } else {
+                p2Hud.className = 'glass-panel rounded-2xl p-2.5 sm:p-3 pointer-events-auto flex-1 border-2 border-sky-400 active-turn-glow transition-all';
+                p1Hud.className = 'glass-panel rounded-2xl p-2.5 sm:p-3 pointer-events-auto flex-1 border-2 border-transparent opacity-80 transition-all';
+                turnBanner.className = 'glass-panel rounded-2xl px-4 py-2 pointer-events-auto flex items-center gap-3 border-2 border-sky-400/80';
+                turnDot.className = 'w-3.5 h-3.5 rounded-full bg-sky-400 shadow-[0_0_12px_#38bdf8]';
+                turnTitle.textContent = gameState.isAutoDemo
+                    ? '🎬 [AI 自動示範] 藍色招福貓回合 (P2左手招福)'
+                    : (gameState.mode === 'ai' ? `藍色招福貓 AI (${AI_LEVEL_NAMES[gameState.aiLevel]}) 思考中...` : '藍色招福貓回合 (P2左手招福)');
+                turnTitle.className = 'font-bold text-sm sm:text-base text-sky-300';
+                turnSub.textContent = gameState.isAutoDemo
+                    ? 'AI 正在自動演示藍色招福貓步數 • 點擊上方「停止示範`可隨時親自遊玩'
+                    : (gameState.mode === 'ai'
+                        ? (gameState.aiLevel === 'hard' ? '宗師店長正在推演雙層 Minimax 反擊樹...' : '藍色招福貓店長正在計算套疊步數...')
+                        : (gameState.selectedPieceId ? '請點擊九宮格上的目標位置放置藍色招福貓' : '請點選場外預備區或棋盤上的藍色招福貓'));
+            }
+        }
+
+        // ============================================================================
+        // 10. Pointer / Touch Raycasting & Camera Orbit Interaction
+        // ============================================================================
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        function handleCanvasTap(clientX, clientY) {
+            if (gameState.animating || gameState.gameOver) return;
+            if (gameState.isAutoDemo) {
+                showToast('目前為 AI 自動示範模式，點擊上方「停止示範」即可親自遊玩！');
+                return;
+            }
+            if (gameState.mode === 'ai' && gameState.currentTurn === 2) return;
+
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+
+            const hitObjects = [];
+            pieceMeshesMap.forEach(mesh => {
+                mesh.traverse(child => {
+                    if (child.isMesh) hitObjects.push(child);
+                });
+            });
+            cellHitMeshes.forEach(mesh => hitObjects.push(mesh));
+
+            const intersects = raycaster.intersectObjects(hitObjects, true);
+            if (intersects.length === 0) return;
+
+            const hit = intersects[0].object;
+            const userData = hit.userData;
+
+            if (userData.type === 'cell') {
+                const cellIndex = userData.cellIndex;
+                if (gameState.selectedPieceId) {
+                    const piece = getPieceById(gameState.selectedPieceId);
+                    if (piece) {
+                        executeMove(piece, cellIndex);
+                    }
+                }
+            } else if (userData.pieceId) {
+                const clickedPiece = getPieceById(userData.pieceId);
+                if (!clickedPiece) return;
+
+                if (canSelectPiece(clickedPiece)) {
+                    if (gameState.selectedPieceId === clickedPiece.id) {
+                        gameState.selectedPieceId = null;
+                    } else {
+                        gameState.selectedPieceId = clickedPiece.id;
+                        playSound('select', clickedPiece.size);
+                        showToast(`已選取 ${clickedPiece.owner === 1 ? '黃色' : '藍色'} ${SIZE_NAMES[clickedPiece.size]}招財貓`);
+                    }
+                    updateVisualHighlights();
+                    updateHUD();
+                } else if (gameState.selectedPieceId && gameState.selectedPieceId !== clickedPiece.id) {
+                    if (clickedPiece.location === 'board') {
+                        executeMove(getPieceById(gameState.selectedPieceId), clickedPiece.cellIndex);
                     }
                 }
             }
         }
 
-        // Mouse & Touch Orbit + Tap detection
         let activeTouches = [];
         let prevPinchDist = 0;
 
         renderer.domElement.addEventListener('pointerdown', (e) => {
-            if (e.pointerType === 'touch') return; // Handled via touch events for pinch support
+            if (e.pointerType === 'touch') return;
             camControl.isDragging = true;
             camControl.dragDistance = 0;
             camControl.prevX = e.clientX;
@@ -2015,7 +2026,6 @@
             camControl.desiredRadius = Math.max(150, Math.min(620, camControl.desiredRadius + e.deltaY * 0.25));
         }, { passive: false });
 
-        // Touch Events (1-finger orbit/tap, 2-finger pinch zoom)
         renderer.domElement.addEventListener('touchstart', (e) => {
             activeTouches = Array.from(e.touches);
             if (activeTouches.length === 1) {
@@ -2055,7 +2065,6 @@
         }, { passive: true });
 
         renderer.domElement.addEventListener('touchend', (e) => {
-            // 放寬 iPad 手指點擊的微小滑動容許值 (< 18px)，避免手指輕觸時因微幅接觸面積位移而被誤判為旋轉拖曳
             if (camControl.isDragging && camControl.dragDistance < 18 && e.changedTouches.length > 0) {
                 const t = e.changedTouches[0];
                 handleCanvasTap(t.clientX, t.clientY);
@@ -2066,8 +2075,24 @@
         // ============================================================================
         // 11. UI Button Listeners
         // ============================================================================
+        ['pointerdown', 'touchstart', 'wheel', 'keydown'].forEach(evtName => {
+            window.addEventListener(evtName, notifyUserActivityOnPage, { passive: true });
+        });
+
+        document.getElementById('btn-auto-demo').addEventListener('click', () => {
+            playSound('select', 1);
+            if (gameState.isAutoDemo) {
+                stopAutoDemoMode(true);
+            } else {
+                startAutoDemoRound(false);
+            }
+        });
+
         document.getElementById('btn-restart').addEventListener('click', () => {
             playSound('select', 1);
+            if (gameState.isAutoDemo) {
+                stopAutoDemoMode(false);
+            }
             initPieces();
             showToast('棋局已重置！黃色招財貓 (P1右手招財) 先手');
         });
@@ -2079,6 +2104,9 @@
         });
 
         document.getElementById('btn-mode-toggle').addEventListener('click', () => {
+            if (gameState.isAutoDemo) {
+                stopAutoDemoMode(false);
+            }
             gameState.mode = gameState.mode === 'ai' ? 'pvp' : 'ai';
             document.getElementById('mode-label').textContent = gameState.mode === 'ai' ? '單人挑戰 AI' : '雙人同機對戰';
             const aiGroup = document.getElementById('ai-level-group');
@@ -2091,7 +2119,6 @@
             showToast(gameState.mode === 'ai' ? `已切換為：單人挑戰 AI (${AI_LEVEL_NAMES[gameState.aiLevel]})` : '已切換為：雙人同機對戰模式');
         });
 
-        // AI Difficulty Level Buttons (弱 / 中 / 強)
         document.querySelectorAll('.ai-lvl-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const level = btn.getAttribute('data-level');
@@ -2156,7 +2183,6 @@
             rulesModal.classList.remove('flex');
         });
 
-        // iPad 鎖定教學彈窗控制
         const ipadGuideModal = document.getElementById('ipad-guide-modal');
         document.getElementById('btn-ipad-guide').addEventListener('click', () => {
             playSound('select', 1);
@@ -2192,7 +2218,6 @@
         function animate(now) {
             requestAnimationFrame(animate);
 
-            // Process active piece hop animations
             for (let i = activeAnimations.length - 1; i >= 0; i--) {
                 const finished = activeAnimations[i].update(now);
                 if (finished) {
@@ -2200,7 +2225,6 @@
                 }
             }
 
-            // Gentle floating & pulse for currently selected piece
             if (gameState.selectedPieceId && !gameState.animating) {
                 const selMesh = pieceMeshesMap.get(gameState.selectedPieceId);
                 if (selMesh) {
@@ -2208,7 +2232,6 @@
                 }
             }
 
-            // Pulse valid target cell rings
             const ringScale = 1 + Math.sin(now * 0.005) * 0.04;
             cellRingMeshes.forEach(ring => {
                 if (ring.material.opacity > 0) {
@@ -2216,7 +2239,6 @@
                 }
             });
 
-            // Smoothly interpolate camera spherical coordinates
             camControl.theta += (camControl.desiredTheta - camControl.theta) * 0.1;
             camControl.phi += (camControl.desiredPhi - camControl.phi) * 0.1;
             camControl.radius += (camControl.desiredRadius - camControl.radius) * 0.1;
@@ -2230,7 +2252,6 @@
             renderer.render(scene, camera);
         }
 
-        // Start 3D scene on window load
         window.onload = function () {
             buildTabletopAndBoard();
             initPieces();
