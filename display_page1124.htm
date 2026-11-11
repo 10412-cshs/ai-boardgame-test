@@ -1,0 +1,2934 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <!-- 針對 iPad 6 (1024x768 / 2048x1536) 與全螢幕鎖定播放最佳化設定 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="金山科技中心3D桌遊" />
+  <title>新北市金山自造教育及科技中心 - AI輔助3D桌遊設計體驗</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 載入三個遊戲檔案所使用的核心引擎：Three.js (r128) 與 Matter.js (0.19.0) + poly-decomp -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/poly-decomp@0.3.0/build/decomp.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background-color: #0b1528;
+      font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+      touch-action: none;
+    }
+
+    /* 標題橘字白邊特效 (還原第一張圖的標題樣式) */
+    .org-title-stroke {
+      color: #e0531f;
+      -webkit-text-stroke: 3.5px #ffffff;
+      paint-order: stroke fill;
+      text-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
+      letter-spacing: 0.04em;
+    }
+
+    /* 主標題立體白字陰影 */
+    .main-title-shadow {
+      color: #ffffff;
+      text-shadow: 0 5px 16px rgba(0, 0, 0, 0.85), 0 2px 4px rgba(0, 0, 0, 0.9);
+      letter-spacing: 0.05em;
+    }
+
+    /* 場次黃色標題與白色時間陰影 */
+    .game-title-yellow {
+      color: #ffde3b;
+      text-shadow: 0 3px 8px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(0, 0, 0, 0.95);
+    }
+
+    .game-time-white {
+      color: #ffffff;
+      text-shadow: 0 3px 8px rgba(0, 0, 0, 0.9), 0 1px 3px rgba(0, 0, 0, 0.95);
+    }
+
+    /* 外框玻璃擬態與星芒裝飾 */
+    .poster-frame {
+      border: 1.5px solid rgba(255, 255, 255, 0.28);
+      border-radius: 26px;
+      background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.09) 0%,
+        rgba(15, 28, 52, 0.18) 28%,
+        rgba(10, 20, 38, 0.35) 100%
+      );
+      box-shadow: inset 0 1px 25px rgba(255, 255, 255, 0.08), 0 16px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    /* 模擬器畫布容器 */
+    .sim-stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    canvas.game-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* 閃爍星芒動畫 */
+    @keyframes twinkle {
+      0%, 100% { transform: scale(0.85) rotate(0deg); opacity: 0.75; }
+      50% { transform: scale(1.15) rotate(8deg); opacity: 1; }
+    }
+    .star-glint {
+      animation: twinkle 4s ease-in-out infinite;
+    }
+
+    /* 針對 iPad 6 (4:3 比例 1024x768) 進行響應式字級與間距微調 */
+    @media (max-aspect-ratio: 14/10) {
+      .org-title-stroke {
+        -webkit-text-stroke: 3px #ffffff;
+      }
+    }
+  </style>
+</head>
+<body class="relative select-none">
+
+  <!-- ================= 背景層：校園建築景深與科技光影 ================= -->
+  <div id="bg-layer" class="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+    <!-- 擬真校園建築晨昏剪影 SVG 背景 (還原第一張圖的金山高中校舍景深與藍暗色調) -->
+    <svg class="w-full h-full object-cover" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <!-- 天空漸層 -->
+        <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#1a2c4e" />
+          <stop offset="38%" stop-color="#2c436b" />
+          <stop offset="68%" stop-color="#1e2f4d" />
+          <stop offset="100%" stop-color="#0d1726" />
+        </linearGradient>
+        <!-- 建築立面光影 -->
+        <linearGradient id="buildingFront" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#606d80" />
+          <stop offset="100%" stop-color="#384354" />
+        </linearGradient>
+        <linearGradient id="buildingSide" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#455163" />
+          <stop offset="100%" stop-color="#263040" />
+        </linearGradient>
+        <linearGradient id="GlassHeaderOverlay" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.14" />
+          <stop offset="100%" stop-color="#8da9d4" stop-opacity="0.03" />
+        </linearGradient>
+        <filter id="campusBlur" x="-5%" y="-5%" width="110%" height="110%">
+          <feGaussianBlur stdDeviation="2.5" />
+        </filter>
+      </defs>
+
+      <!-- 天空底色 -->
+      <rect width="1920" height="1080" fill="url(#skyGrad)" />
+
+      <!-- 遠山與雲彩 -->
+      <path d="M0,330 Q360,260 720,310 T1480,290 T1920,320 L1920,600 L0,600 Z" fill="#18263e" opacity="0.7" />
+      <path d="M0,380 Q450,330 920,360 T1920,350 L1920,600 L0,600 Z" fill="#121e31" opacity="0.85" />
+
+      <!-- 校園建築群 (帶微景深效果) -->
+      <g filter="url(#campusBlur)" opacity="0.58">
+        <!-- 後方高樓校舍 -->
+        <polygon points="480,280 960,210 960,560 480,580" fill="url(#buildingFront)" />
+        <polygon points="960,210 1370,190 1370,580 960,560" fill="url(#buildingSide)" />
+        <polygon points="1370,170 1820,250 1820,660 1370,580" fill="url(#buildingFront)" />
+        <polygon points="1180,310 1760,330 1760,680 1180,650" fill="#4b586b" />
+
+        <!-- 校舍窗格陣列 -->
+        <g fill="#1c2636" opacity="0.75">
+          <!-- 左棟窗戶 -->
+          <rect x="520" y="290" width="410" height="24" />
+          <rect x="520" y="335" width="410" height="24" />
+          <rect x="520" y="380" width="410" height="24" />
+          <rect x="520" y="425" width="410" height="24" />
+          <!-- 中棟窗戶 -->
+          <rect x="990" y="250" width="340" height="26" />
+          <rect x="990" y="300" width="340" height="26" />
+          <rect x="990" y="350" width="340" height="26" />
+          <rect x="990" y="400" width="340" height="26" />
+          <!-- 右前棟走廊與格柵 -->
+          <rect x="1220" y="355" width="500" height="32" />
+          <rect x="1220" y="410" width="500" height="32" />
+          <rect x="1220" y="465" width="500" height="32" />
+          <rect x="1220" y="520" width="500" height="32" />
+        </g>
+
+        <!-- 前方中庭矮樓 (圖一左中方的灰色教學樓) -->
+        <polygon points="290,480 610,435 810,475 810,670 610,700 290,640" fill="#5b6778" />
+        <polygon points="280,475 610,425 825,470 610,510" fill="#3a4556" />
+        <g fill="#1e293b">
+          <rect x="330" y="520" width="240" height="28" transform="skewY(5)" />
+          <rect x="330" y="568" width="240" height="28" transform="skewY(5)" />
+          <rect x="630" y="515" width="145" height="28" transform="skewY(-5)" />
+          <rect x="630" y="563" width="145" height="28" transform="skewY(-5)" />
+        </g>
+
+        <!-- 校園綠樹叢與中庭步道 -->
+        <path d="M0,700 L550,650 L950,1080 L0,1080 Z" fill="#17242c" />
+        <path d="M550,650 L780,670 L700,1080 L420,1080 Z" fill="#3b4654" opacity="0.7" />
+        <!-- 樹木團塊 -->
+        <g fill="#162829">
+          <circle cx="140" cy="480" r="95" />
+          <circle cx="240" cy="450" r="110" />
+          <circle cx="350" cy="440" r="85" />
+          <circle cx="80" cy="590" r="120" />
+          <circle cx="920" cy="590" r="65" />
+          <circle cx="1010" cy="610" r="75" />
+          <circle cx="1120" cy="635" r="70" />
+          <circle cx="1820" cy="680" r="130" />
+        </g>
+      </g>
+
+      <!-- 深色漸層遮罩讓前景文字與 3D 遊戲更清晰 -->
+      <rect width="1920" height="1080" fill="#091324" opacity="0.48" />
+    </svg>
+  </div>
+
+  <!-- ================= 主要海報外框與內容區 ================= -->
+  <main class="relative z-10 w-full h-full p-3 sm:p-5 md:p-7 flex flex-col justify-between">
+    <!-- 玻璃擬態邊框容器 (還原圖一圓角細框與上方反光帶) -->
+    <div class="poster-frame relative w-full h-full flex flex-col justify-between px-4 py-3 sm:px-8 sm:py-5 overflow-hidden">
+
+      <!-- 上方橫向亮面玻璃反光層 (如圖一標題背景區塊) -->
+      <div class="absolute top-0 left-0 right-0 h-[31%] bg-gradient-to-b from-white/10 via-white/5 to-transparent pointer-events-none rounded-t-[24px] border-b border-white/10"></div>
+
+      <!-- 右上角四角星芒裝飾 (還原圖一標題右下方的白色閃光星芒) -->
+      <svg class="star-glint absolute top-[12%] right-[26%] w-10 h-10 sm:w-14 sm:h-14 pointer-events-none z-10 opacity-90" viewBox="0 0 100 100">
+        <path d="M50 0 C52 38 62 48 100 50 C62 52 52 62 50 100 C48 62 38 52 0 50 C38 48 48 38 50 0 Z" fill="#ffffff" />
+      </svg>
+
+      <!-- 右下角藍色小星芒 (還原圖一右下角邊框旁的小星芒) -->
+      <svg class="star-glint absolute bottom-[27%] right-[1.2%] w-5 h-5 sm:w-6 sm:h-6 pointer-events-none z-10" viewBox="0 0 100 100" style="animation-delay: 1.8s;">
+        <path d="M50 5 C53 40 60 47 95 50 C60 53 53 60 50 95 C47 60 40 53 5 50 C40 47 47 40 50 5 Z" fill="#9bd5ff" />
+      </svg>
+
+      <!-- ================= 頂部標題區 (SVG 中心 Logo + 中心名稱 + 大標題) ================= -->
+      <header class="relative z-20 flex flex-col items-center justify-start pt-1 sm:pt-2 shrink-0">
+        <!-- 第一列：Logo + 新北市金山自造教育及科技中心 -->
+        <div class="flex items-center justify-center gap-3 sm:gap-5 md:gap-7 w-full max-w-6xl">
+          
+          <!-- 第二張附圖：新北市金山高中 MAKER & TECH 自造教育及科技中心 SVG 向量徽章 -->
+          <div class="w-24 h-20 sm:w-32 sm:h-28 md:w-40 md:h-32 shrink-0 drop-shadow-[0_6px_12px_rgba(0,0,0,0.55)] -mt-1">
+            <svg viewBox="0 0 500 430" class="w-full h-full overflow-visible" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="新北市金山高中自造教育及科技中心 Logo">
+              <!-- 外層白色底盾與正六邊形結構 -->
+              <!-- 六邊形頂點: (250, 12), (422, 110), (422, 320), (250, 418), (78, 320), (78, 110) -->
+              <polygon points="250,12 422,110 422,320 250,418 78,320 78,110" fill="#ffffff" />
+              <!-- 外圈粗橘紅框 -->
+              <polygon points="250,18 415,113 415,317 250,412 85,317 85,113" fill="none" stroke="#DE451D" stroke-width="14" stroke-linejoin="miter" />
+              <!-- 內圈細橘紅框 -->
+              <polygon points="250,35 399,122 399,308 250,395 101,308 101,122" fill="none" stroke="#DE451D" stroke-width="4" stroke-linejoin="miter" />
+
+              <!-- 左側工具：一字螺絲起子 (傾斜約 -21 度) -->
+              <g transform="translate(160, 178) rotate(-21)" fill="#DE451D">
+                <!-- 起子尖端 -->
+                <polygon points="-3.5,-54 3.5,-54 5,-42 -2,-42" />
+                <!-- 金屬軸桿 -->
+                <rect x="-2.2" y="-42" width="4.4" height="45" />
+                <!-- 握柄護環 -->
+                <rect x="-9" y="2" width="18" height="5" rx="1.5" />
+                <!-- 握柄凹槽頸部 -->
+                <rect x="-6" y="7" width="12" height="5" />
+                <!-- 握柄主體 -->
+                <rect x="-10.5" y="12" width="21" height="38" rx="3" />
+              </g>
+
+              <!-- 右側工具：開口扳手 (傾斜約 24 度) -->
+              <g transform="translate(340, 182) rotate(24)" fill="#DE451D">
+                <!-- 扳手握柄 -->
+                <rect x="-7.5" y="-15" width="15" height="58" rx="3" />
+                <!-- 扳手開口頭部 (C字開口朝上偏左) -->
+                <path d="M -18,-35
+                         A 20,20 0 1,0 18,-35
+                         C 18,-43 13,-50 7,-53
+                         L 6,-35
+                         L -5,-32
+                         L -9,-44
+                         L -5,-54
+                         C -13,-51 -18,-44 -18,-35 Z" />
+              </g>
+
+              <!-- 中央核心：10 01 機器人 -->
+              <g fill="#DE451D">
+                <!-- 天線頂球與立桿 -->
+                <circle cx="250" cy="80" r="7" />
+                <rect x="247.5" y="85" width="5" height="12" />
+
+                <!-- 左右耳機/耳朵 -->
+                <ellipse cx="189" cy="133" rx="8.5" ry="15" />
+                <ellipse cx="311" cy="133" rx="8.5" ry="15" />
+
+                <!-- 機器人外頭殼 -->
+                <rect x="197" y="95" width="106" height="75" rx="12" />
+
+                <!-- 機器人臉部白色螢幕 -->
+                <rect x="205" y="106" width="90" height="53" rx="9" fill="#ffffff" />
+
+                <!-- 螢幕內的 10 01 點陣方塊字 (每格 4.2x4.2, 間距 5.4) -->
+                <!-- 第一位數 '1' (x=215) -->
+                <g transform="translate(215, 121)">
+                  <rect x="0" y="0" width="4.4" height="4.4" />
+                  <rect x="0" y="5.4" width="4.4" height="4.4" />
+                  <rect x="0" y="10.8" width="4.4" height="4.4" />
+                  <rect x="0" y="16.2" width="4.4" height="4.4" />
+                  <rect x="0" y="21.6" width="4.4" height="4.4" />
+                </g>
+
+                <!-- 第二位數 '0' (x=227, 3x5 鏤空方塊陣列) -->
+                <g transform="translate(227, 121)">
+                  <!-- 左欄 -->
+                  <rect x="0" y="0" width="4.4" height="4.4" />
+                  <rect x="0" y="5.4" width="4.4" height="4.4" />
+                  <rect x="0" y="10.8" width="4.4" height="4.4" />
+                  <rect x="0" y="16.2" width="4.4" height="4.4" />
+                  <rect x="0" y="21.6" width="4.4" height="4.4" />
+                  <!-- 中欄上下 -->
+                  <rect x="6" y="0" width="4.4" height="4.4" />
+                  <rect x="6" y="21.6" width="4.4" height="4.4" />
+                  <!-- 右欄 -->
+                  <rect x="12" y="0" width="4.4" height="4.4" />
+                  <rect x="12" y="5.4" width="4.4" height="4.4" />
+                  <rect x="12" y="10.8" width="4.4" height="4.4" />
+                  <rect x="12" y="16.2" width="4.4" height="4.4" />
+                  <rect x="12" y="21.6" width="4.4" height="4.4" />
+                </g>
+
+                <!-- 第三位數 '0' (x=256, 3x5 鏤空方塊陣列) -->
+                <g transform="translate(256, 121)">
+                  <!-- 左欄 -->
+                  <rect x="0" y="0" width="4.4" height="4.4" />
+                  <rect x="0" y="5.4" width="4.4" height="4.4" />
+                  <rect x="0" y="10.8" width="4.4" height="4.4" />
+                  <rect x="0" y="16.2" width="4.4" height="4.4" />
+                  <rect x="0" y="21.6" width="4.4" height="4.4" />
+                  <!-- 中欄上下 -->
+                  <rect x="6" y="0" width="4.4" height="4.4" />
+                  <rect x="6" y="21.6" width="4.4" height="4.4" />
+                  <!-- 右欄 -->
+                  <rect x="12" y="0" width="4.4" height="4.4" />
+                  <rect x="12" y="5.4" width="4.4" height="4.4" />
+                  <rect x="12" y="10.8" width="4.4" height="4.4" />
+                  <rect x="12" y="16.2" width="4.4" height="4.4" />
+                  <rect x="12" y="21.6" width="4.4" height="4.4" />
+                </g>
+
+                <!-- 第四位數 '1' (x=280) -->
+                <g transform="translate(280, 121)">
+                  <rect x="0" y="0" width="4.4" height="4.4" />
+                  <rect x="0" y="5.4" width="4.4" height="4.4" />
+                  <rect x="0" y="10.8" width="4.4" height="4.4" />
+                  <rect x="0" y="16.2" width="4.4" height="4.4" />
+                  <rect x="0" y="21.6" width="4.4" height="4.4" />
+                </g>
+
+                <!-- 機器人頸部與雙層底座肩部 -->
+                <rect x="225" y="169" width="50" height="16" />
+                <rect x="204" y="185" width="92" height="12" rx="6" />
+                <rect x="191" y="197" width="118" height="12" rx="6" />
+              </g>
+
+              <!-- 中央橫幅燕尾緞帶 -->
+              <polygon points="12,205 488,205 465,261 488,317 12,317 35,261" fill="#DE451D" />
+              <!-- 緞帶上下白色細雙線 -->
+              <line x1="15" y1="211" x2="485" y2="211" stroke="#ffffff" stroke-width="1.6" />
+              <line x1="15" y1="311" x2="485" y2="311" stroke="#ffffff" stroke-width="1.6" />
+
+              <!-- 緞帶第一行英文：MAKER & TECH -->
+              <text x="250" y="255" text-anchor="middle" fill="#ffffff" font-family="'Arial Black', 'Noto Sans TC', sans-serif" font-weight="900" font-size="43" letter-spacing="2.5">MAKER &amp; TECH</text>
+
+              <!-- 緞帶第二行中文：自造教育及科技中心 -->
+              <text x="253" y="294" text-anchor="middle" fill="#ffffff" font-family="'Noto Sans TC', sans-serif" font-weight="700" font-size="33" letter-spacing="8">自造教育及科技中心</text>
+
+              <!-- 六邊形下方白色三角區文字：新北市金山高中 -->
+              <text x="250" y="342" text-anchor="middle" fill="#DE451D" font-family="'Noto Sans TC', sans-serif" font-weight="700" font-size="20.5" letter-spacing="1">新北市金山高中</text>
+            </svg>
+          </div>
+
+          <!-- 中心名稱 (橘底白邊大字) -->
+          <h2 class="org-title-stroke text-2xl sm:text-4xl md:text-[2.75rem] lg:text-[3.2rem] font-black tracking-wider leading-tight">
+            新北市金山自造教育及科技中心
+          </h2>
+        </div>
+
+        <!-- 第二列：主標題「AI輔助3D桌遊設計體驗」 -->
+        <h1 class="main-title-shadow text-3xl sm:text-5xl md:text-[3.6rem] lg:text-[4.1rem] font-black tracking-widest mt-1 sm:mt-2 leading-tight text-center">
+          AI輔助3D桌遊設計體驗
+        </h1>
+      </header>
+
+      <!-- ================= 三大 3D 桌遊時段與即時 AI 模擬器動畫區 ================= -->
+      <section class="relative z-20 flex-1 grid grid-cols-3 gap-2 sm:gap-4 md:gap-6 items-stretch pt-2 sm:pt-4 min-h-0">
+
+        <!-- ====== (一) 招財貓連連 (解析自 cat_XO_game.htm：Three.js OpenSCAD 招財貓模型與 AI 自動示範) ====== -->
+        <div class="flex flex-col items-center justify-between h-full min-h-0">
+          <!-- 場次文字資訊 -->
+          <div class="text-center shrink-0">
+            <h3 class="game-title-yellow text-xl sm:text-2xl md:text-3xl lg:text-[2.1rem] font-black tracking-wide mb-1 sm:mb-2">
+              (一)招財貓連連
+            </h3>
+            <p class="game-time-white text-lg sm:text-2xl md:text-[1.75rem] font-bold leading-snug tracking-wide">
+              14:00~15:20<br />開放體驗
+            </p>
+          </div>
+
+          <!-- Three.js WebGL 招財貓 3D 遊戲容器 -->
+          <div id="stage-gobblet" class="sim-stage flex-1 w-full min-h-0 mt-1 cursor-pointer" title="單指拖曳可旋轉視角 / 點擊切換透視套疊模式">
+            <div id="hud-gobblet" class="hud-pill absolute top-1.5 left-1/2 -translate-x-1/2 z-20 px-3 py-1 rounded-full bg-slate-900/80 border border-amber-400/50 text-[11px] sm:text-xs font-bold text-amber-200 whitespace-nowrap pointer-events-none shadow-lg backdrop-blur-md">
+              🐱 AI 自動示範準備中...
+            </div>
+          </div>
+        </div>
+
+        <!-- ====== (二) 立體井字棋 (解析自 3d_OX_game.htm：OpenSCAD 50x50x15mm 十字準心卡榫 O/X 積木與 AI 引擎) ====== -->
+        <div class="flex flex-col items-center justify-between h-full min-h-0">
+          <!-- 場次文字資訊 -->
+          <div class="text-center shrink-0">
+            <h3 class="game-title-yellow text-xl sm:text-2xl md:text-3xl lg:text-[2.1rem] font-black tracking-wide mb-1 sm:mb-2">
+              (二)立體井字棋
+            </h3>
+            <p class="game-time-white text-lg sm:text-2xl md:text-[1.75rem] font-bold leading-snug tracking-wide">
+              15:20~16:40<br />開放體驗
+            </p>
+          </div>
+
+          <!-- Three.js WebGL 立體井字棋 3D 遊戲容器 -->
+          <div id="stage-connect3d" class="sim-stage flex-1 w-full min-h-0 mt-1 cursor-pointer" title="單指拖曳可旋轉 3D 視角 / 點擊切換樓層微展開檢視">
+            <div id="hud-connect3d" class="hud-pill absolute top-1.5 left-1/2 -translate-x-1/2 z-20 px-3 py-1 rounded-full bg-slate-900/80 border border-sky-400/50 text-[11px] sm:text-xs font-bold text-sky-200 whitespace-nowrap pointer-events-none shadow-lg backdrop-blur-md">
+              🧊 3D Connect AI 演算中...
+            </div>
+          </div>
+        </div>
+
+        <!-- ====== (三) 鯨魚平衡積木 (解析自 whale_balance_game.htm：Matter.js 物理與 OpenSCAD 鯨魚/小魚幾何) ====== -->
+        <div class="flex flex-col items-center justify-between h-full min-h-0">
+          <!-- 場次文字資訊 -->
+          <div class="text-center shrink-0">
+            <h3 class="game-title-yellow text-xl sm:text-2xl md:text-3xl lg:text-[2.1rem] font-black tracking-wide mb-1 sm:mb-2">
+              (三)鯨魚平衡積木
+            </h3>
+            <p class="game-time-white text-lg sm:text-2xl md:text-[1.75rem] font-bold leading-snug tracking-wide">
+              16:40~18:00<br />開放體驗
+            </p>
+          </div>
+
+          <!-- Matter.js + OpenSCAD 2D 物理畫布容器 -->
+          <div id="stage-whale" class="sim-stage flex-1 w-full min-h-0 mt-1 cursor-pointer" title="點擊可切換剖面檢視內部 9 孔蜂巢減重空腔">
+            <div id="hud-whale" class="hud-pill absolute top-1.5 left-1/2 -translate-x-1/2 z-20 px-3 py-1 rounded-full bg-slate-900/80 border border-emerald-400/50 text-[11px] sm:text-xs font-bold text-emerald-200 whitespace-nowrap pointer-events-none shadow-lg backdrop-blur-md">
+              🐳 AI 力矩平衡計算中...
+            </div>
+            <canvas id="canvas-whale" class="game-canvas"></canvas>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ================= iPad 6 展場全螢幕與鎖定控制懸浮列 (自動隱藏，點按右下角喚醒) ================= -->
+      <div id="kiosk-controls" class="fixed bottom-3 right-4 z-50 flex items-center gap-2 transition-opacity duration-500 opacity-30 hover:opacity-100">
+        <!-- iPad 鎖定教學彈窗按鈕 (整合自三個遊戲檔的展場鎖定說明) -->
+        <button id="btn-ipad-guide" class="px-2.5 py-1.5 rounded-full bg-emerald-900/85 text-emerald-200 border border-emerald-400/40 text-xs font-bold backdrop-blur-md shadow-lg active:scale-95">
+          🔒 iPad鎖定教學
+        </button>
+        <!-- 透視/剖面檢視快速切換 -->
+        <button id="btn-xray-all" class="px-2.5 py-1.5 rounded-full bg-slate-900/85 text-sky-300 border border-sky-400/35 text-xs font-bold backdrop-blur-md shadow-lg active:scale-95">
+          🔍 結構透視: 關
+        </button>
+        <!-- 速度切換按鈕 -->
+        <button id="btn-speed" class="px-2.5 py-1.5 rounded-full bg-slate-900/80 text-white/90 border border-white/20 text-xs font-bold backdrop-blur-md shadow-lg active:scale-95">
+          AI 速度: 1.0x
+        </button>
+        <!-- 介面數據顯示開關 -->
+        <button id="btn-hud" class="px-2.5 py-1.5 rounded-full bg-slate-900/80 text-amber-300 border border-amber-400/30 text-xs font-bold backdrop-blur-md shadow-lg active:scale-95">
+          HUD: 精簡
+        </button>
+        <!-- 全螢幕鎖定播放按鈕 -->
+        <button id="btn-fullscreen" class="px-3 py-1.5 rounded-full bg-orange-600/90 hover:bg-orange-500 text-white border border-white/30 text-xs font-bold backdrop-blur-md shadow-lg flex items-center gap-1 active:scale-95">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+          </svg>
+          <span id="fs-text">全螢幕展演</span>
+        </button>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ================= iPad 展場全螢幕與防手勢跳出設定步驟 教學彈窗 ================= -->
+  <div id="ipad-guide-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+    <div class="w-full max-w-xl rounded-3xl bg-[#0d1522] border border-emerald-500/40 shadow-[0_20px_60px_rgba(0,0,0,0.85)] p-6 text-slate-100">
+      <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-800">
+        <h2 class="text-lg sm:text-xl font-black text-emerald-400 flex items-center gap-2">
+          <span>🔒</span>
+          <span>iPad 6 展場全螢幕與防手勢跳出設定步驟</span>
+        </h2>
+        <button id="btn-close-ipad-modal" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold">✕</button>
+      </div>
+      <div class="space-y-3 text-sm leading-relaxed">
+        <div class="rounded-2xl bg-[#162030] border border-slate-700/80 p-3.5">
+          <div class="font-black text-amber-400 mb-1">步驟 1：隱藏 Safari 網址列 (變身獨立全螢幕 App)</div>
+          <p class="text-slate-200">在 iPad 的 Safari 打開本網頁，點擊右上角「<strong class="text-white">分享</strong>」圖示 ➔ 選擇「<strong class="text-white underline">加入主畫面</strong>」。從桌面點擊該圖示啟動即可呈現 100% 無邊框全螢幕。</p>
+        </div>
+        <div class="rounded-2xl bg-[#162030] border border-slate-700/80 p-3.5">
+          <div class="font-black text-emerald-400 mb-1">步驟 2：開啟 iPad 內建「引導使用模式」(徹底鎖死手勢)</div>
+          <p class="text-slate-200">前往 iPad「<strong class="text-white">設定</strong>」➔「<strong class="text-white">輔助使用</strong>」➔ 開啟「<strong class="text-white">引導使用模式 (Guided Access)</strong>」，並設定一組解鎖密碼。</p>
+        </div>
+        <div class="rounded-2xl bg-[#162030] border border-slate-700/80 p-3.5">
+          <div class="font-black text-sky-400 mb-1">步驟 3：連按三下 Home 鍵 / 電源鍵立即鎖定</div>
+          <p class="text-slate-200">打開本展示畫面後，<strong class="text-white">連按三下 iPad 6 實體 Home 鍵（或頂部電源鍵）</strong>即可進入鎖定狀態，徹底封鎖四指抓攏回桌面與下拉控制中心！</p>
+        </div>
+      </div>
+      <div class="mt-5 flex justify-end">
+        <button id="btn-ok-ipad-modal" class="px-6 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm shadow-lg">我知道了</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 三大遊戲檔案圖形與 AI 自動示範核心腳本 ================= -->
+  <script>
+    // 全域控制參數
+    let GLOBAL_SPEED = 1.0;
+    let SHOW_GAME_HUD = false; // 預設隱藏頂部膠囊，完全還原海報第一張圖的乾淨視覺，可隨時點右下角開啟
+    let GLOBAL_INSPECT_XRAY = false;
+
+    // 防止 iPad Safari 雙指縮放與橡皮筋捲動
+    document.addEventListener('gesturestart', (e) => e.preventDefault());
+    document.addEventListener('touchmove', (e) => {
+      if (e.touches.length > 1) e.preventDefault();
+    }, { passive: false });
+
+    // 控制列互動邏輯
+    const btnSpeed = document.getElementById('btn-speed');
+    const btnHud = document.getElementById('btn-hud');
+    const btnXrayAll = document.getElementById('btn-xray-all');
+    const btnFullscreen = document.getElementById('btn-fullscreen');
+    const fsText = document.getElementById('fs-text');
+    const kioskControls = document.getElementById('kiosk-controls');
+    const ipadModal = document.getElementById('ipad-guide-modal');
+
+    function syncHudVisibility() {
+      document.querySelectorAll('.hud-pill').forEach(el => {
+        el.style.display = SHOW_GAME_HUD ? 'block' : 'none';
+      });
+    }
+    syncHudVisibility();
+
+    let hideToolbarTimer = null;
+    function kickToolbarTimer() {
+      kioskControls.style.opacity = '0.95';
+      clearTimeout(hideToolbarTimer);
+      hideToolbarTimer = setTimeout(() => {
+        kioskControls.style.opacity = '0.18';
+      }, 4500);
+    }
+    window.addEventListener('pointerdown', kickToolbarTimer);
+    kickToolbarTimer();
+
+    document.getElementById('btn-ipad-guide').addEventListener('click', (e) => {
+      e.stopPropagation();
+      ipadModal.classList.remove('hidden');
+    });
+    document.getElementById('btn-close-ipad-modal').addEventListener('click', () => ipadModal.classList.add('hidden'));
+    document.getElementById('btn-ok-ipad-modal').addEventListener('click', () => ipadModal.classList.add('hidden'));
+
+    btnSpeed.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const speeds = [1.0, 1.5, 2.0, 0.75];
+      GLOBAL_SPEED = speeds[(speeds.indexOf(GLOBAL_SPEED) + 1) % speeds.length];
+      btnSpeed.textContent = `AI 速度: ${GLOBAL_SPEED}x`;
+    });
+
+    btnHud.addEventListener('click', (e) => {
+      e.stopPropagation();
+      SHOW_GAME_HUD = !SHOW_GAME_HUD;
+      btnHud.textContent = `HUD: ${SHOW_GAME_HUD ? '開啟' : '精簡'}`;
+      syncHudVisibility();
+    });
+
+    btnFullscreen.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        const docEl = document.documentElement;
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+          if (docEl.requestFullscreen) await docEl.requestFullscreen();
+          else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen();
+          fsText.textContent = '退出全螢幕';
+        } else {
+          if (document.exitFullscreen) await document.exitFullscreen();
+          else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+          fsText.textContent = '全螢幕展演';
+        }
+      } catch (err) {}
+      if ('wakeLock' in navigator) {
+        try { await navigator.wakeLock.request('screen'); } catch (_) {}
+      }
+    });
+
+    /* ==========================================================================================
+     * 【遊戲一：招財貓連連】— 完整解析自 cat_XO_game.htm
+     * 包含：OpenSCAD 參數化 Three.js 招財貓模型 (createManekiNekoMesh)、半搭接 # 棋盤、
+     * 黃貓右手招財(-1) / 藍貓左手招福(+1)、套疊透視模式與 AI 自動對戰示範邏輯
+     * ========================================================================================== */
+    class CatXOGameWidget {
+      constructor(containerId, hudId) {
+        this.container = document.getElementById(containerId);
+        this.hudEl = document.getElementById(hudId);
+
+        // 1. OpenSCAD Exact Parametric Constants (來自 cat_XO_game.htm)
+        this.SCAD = {
+          base_radius: 10.0,
+          base_cyl_h: 15.0,
+          base_crest_h: 3.8,
+          wall_thickness: 2.2,
+          radial_clearance: 4.2,
+          vertical_clearance: 3.2,
+          cell_size: 52.0,
+          bar_width: 8.0,
+          bar_height: 10.0,
+          p1_paw_side: -1, // 黃色棋 (P1) 抬起「右手 (-1)」招財
+          p2_paw_side: 1,  // 藍色棋 (P2) 抬起「左手 (+1)」招福
+          crest_h(lv) { return this.base_crest_h + lv * 0.5; },
+          outer_r(lv) { return this.base_radius + lv * (this.radial_clearance + this.wall_thickness); },
+          inner_r(lv) { return this.outer_r(lv) - this.wall_thickness; },
+          cyl_h(lv) {
+            if (lv === 0) return this.base_cyl_h;
+            return this.cyl_h(lv - 1) + this.crest_h(lv - 1) + this.vertical_clearance;
+          },
+          total_bar_len() { return 3 * this.cell_size + 2 * this.bar_width; },
+          pitch() { return this.cell_size + this.bar_width; }
+        };
+
+        this.WIN_LINES = [
+          [0, 1, 2], [3, 4, 5], [6, 7, 8],
+          [0, 3, 6], [1, 4, 7], [2, 5, 8],
+          [0, 4, 8], [2, 4, 6]
+        ];
+
+        this.pieceMeshesMap = new Map();
+        this.cellRingMeshes = [];
+        this.activeAnimations = [];
+        this.winBeamMesh = null;
+        this.xrayMode = false;
+
+        this.initThree();
+        this.buildBoard();
+        this.initPieces();
+        this.setupInteractions();
+      }
+
+      initThree() {
+        const w = Math.max(100, this.container.clientWidth);
+        const h = Math.max(100, this.container.clientHeight);
+
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera(38, w / h, 1, 1500);
+
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+        this.renderer.setSize(w, h);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.container.appendChild(this.renderer.domElement);
+
+        // 相機角度對齊第一張海報左下角的俯視斜角
+        this.camControl = {
+          theta: 0.0,
+          phi: 0.88,
+          radius: 420,
+          target: new THREE.Vector3(0, 6, 12),
+          isDragging: false,
+          prevX: 0
+        };
+
+        const ambientLight = new THREE.AmbientLight(0xfff5e6, 0.72);
+        this.scene.add(ambientLight);
+
+        const hemiLight = new THREE.HemisphereLight(0xfffaed, 0x261d18, 0.5);
+        hemiLight.position.set(0, 250, 0);
+        this.scene.add(hemiLight);
+
+        const dirLight = new THREE.DirectionalLight(0xfffbeb, 0.98);
+        dirLight.position.set(110, 240, 140);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        this.scene.add(dirLight);
+
+        const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.4);
+        rimLight.position.set(-150, 120, -140);
+        this.scene.add(rimLight);
+
+        this.boardGroup = new THREE.Group();
+        this.scene.add(this.boardGroup);
+      }
+
+      setupInteractions() {
+        const dom = this.renderer.domElement;
+        let moveDist = 0;
+        dom.addEventListener('pointerdown', (e) => {
+          this.camControl.isDragging = true;
+          this.camControl.prevX = e.clientX;
+          moveDist = 0;
+        });
+        window.addEventListener('pointermove', (e) => {
+          if (!this.camControl.isDragging) return;
+          const dx = e.clientX - this.camControl.prevX;
+          moveDist += Math.abs(dx);
+          this.camControl.prevX = e.clientX;
+          this.camControl.theta -= dx * 0.008;
+        });
+        window.addEventListener('pointerup', () => {
+          if (this.camControl.isDragging && moveDist < 6) {
+            this.toggleXray();
+          }
+          this.camControl.isDragging = false;
+        });
+      }
+
+      toggleXray(forceState = null) {
+        this.xrayMode = forceState !== null ? forceState : !this.xrayMode;
+        this.applyXrayMaterials();
+      }
+
+      getCellWorldPos(cellIndex) {
+        const col = cellIndex % 3;
+        const row = Math.floor(cellIndex / 3);
+        const pitch = this.SCAD.pitch();
+        return new THREE.Vector3((col - 1) * pitch, 0, (row - 1) * pitch);
+      }
+
+      getReserveWorldPos(owner, size, copyIndex) {
+        const xDir = owner === 1 ? -1 : 1;
+        const baseX = xDir * 136;
+        const colOffset = (copyIndex === 0 ? -24 : 24) * xDir;
+        const zPos = (1 - size) * 58;
+        return new THREE.Vector3(baseX + colOffset, 0, zPos);
+      }
+
+      // 完整移植自 cat_XO_game.htm：建立半搭接 # 棋盤與左右備戰區線框
+      buildBoard() {
+        const SCAD = this.SCAD;
+        const len = SCAD.total_bar_len();
+        const bw = SCAD.bar_width;
+        const bh = SCAD.bar_height;
+        const pitch = SCAD.pitch();
+
+        const lowerBarMat = new THREE.MeshStandardMaterial({
+          color: 0xd97706,
+          roughness: 0.32,
+          metalness: 0.15
+        });
+        const upperBarMat = new THREE.MeshStandardMaterial({
+          color: 0xf59e0b,
+          roughness: 0.28,
+          metalness: 0.18
+        });
+
+        const createRoundedGridBarMesh = (material) => {
+          const shape = new THREE.Shape();
+          const halfL = len / 2 - bw / 2;
+          const r = bw / 2;
+          shape.absarc(-halfL, 0, r, Math.PI / 2, Math.PI * 1.5, false);
+          shape.lineTo(halfL, -r);
+          shape.absarc(halfL, 0, r, -Math.PI / 2, Math.PI / 2, false);
+          shape.lineTo(-halfL, r);
+
+          const extrudeGeo = new THREE.ExtrudeGeometry(shape, {
+            depth: bh,
+            bevelEnabled: true,
+            bevelSegments: 2,
+            steps: 1,
+            bevelSize: 0.4,
+            bevelThickness: 0.4
+          });
+          extrudeGeo.rotateX(-Math.PI / 2);
+          const mesh = new THREE.Mesh(extrudeGeo, material);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          return mesh;
+        };
+
+        [-pitch / 2, pitch / 2].forEach(zPos => {
+          const bar = createRoundedGridBarMesh(lowerBarMat);
+          bar.position.set(0, 0, zPos);
+          this.boardGroup.add(bar);
+        });
+
+        [-pitch / 2, pitch / 2].forEach(xPos => {
+          const bar = createRoundedGridBarMesh(upperBarMat);
+          bar.rotation.y = Math.PI / 2;
+          bar.position.set(xPos, 0.05, 0);
+          this.boardGroup.add(bar);
+        });
+
+        for (let i = 0; i < 9; i++) {
+          const pos = this.getCellWorldPos(i);
+          const ringGeo = new THREE.RingGeometry(19, 23.5, 32);
+          ringGeo.rotateX(-Math.PI / 2);
+          const ringMat = new THREE.MeshBasicMaterial({
+            color: 0x4ade80,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.0
+          });
+          const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+          ringMesh.position.set(pos.x, 0.4, pos.z);
+          this.boardGroup.add(ringMesh);
+          this.cellRingMeshes.push(ringMesh);
+        }
+
+        // 左右兩側預備區立體線框 (還原第一張圖黃貓與藍貓底下的線框底座)
+        [
+          { x: -136, color: 0xf59e0b },
+          { x: 136,  color: 0x0284c7 }
+        ].forEach(zone => {
+          const borderGeo = new THREE.BoxGeometry(76, 1.8, 176);
+          const borderMat = new THREE.MeshBasicMaterial({
+            color: zone.color,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.38
+          });
+          const border = new THREE.Mesh(borderGeo, borderMat);
+          border.position.set(zone.x, -0.4, 0);
+          this.boardGroup.add(border);
+        });
+      }
+
+      // 完整移植自 cat_XO_game.htm：建立膠囊手臂與貓耳幾何
+      createCapsuleSegment(p1, r1, p2, r2, material) {
+        const group = new THREE.Group();
+        const s1 = new THREE.Mesh(new THREE.SphereGeometry(r1, 20, 14), material);
+        s1.position.copy(p1);
+        group.add(s1);
+
+        const s2 = new THREE.Mesh(new THREE.SphereGeometry(r2, 20, 14), material);
+        s2.position.copy(p2);
+        group.add(s2);
+
+        const dir = new THREE.Vector3().subVectors(p2, p1);
+        const len = dir.length();
+        if (len > 0.001) {
+          const cylGeo = new THREE.CylinderGeometry(r2, r1, len, 20, 1, false);
+          const cyl = new THREE.Mesh(cylGeo, material);
+          const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+          cyl.position.copy(mid);
+          cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+          group.add(cyl);
+        }
+        return group;
+      }
+
+      createCatEarGeometry(r_out, h_cyl, h_ear, lv, side) {
+        const geo = new THREE.ConeGeometry(r_out * 0.34, h_ear + r_out * 0.38, 24, 1);
+        geo.scale(1.0, 1.0, 0.62);
+        geo.rotateZ(-side * 0.22);
+        geo.translate(
+          side * r_out * 0.54,
+          h_cyl + r_out * 0.78 + h_ear * 0.32,
+          r_out * 0.05
+        );
+        return geo;
+      }
+
+      // 完整移植自 cat_XO_game.htm：建立 OpenSCAD 3D 招財貓模型
+      createManekiNekoMesh(lv, owner) {
+        const SCAD = this.SCAD;
+        const r_out = SCAD.outer_r(lv);
+        const r_in  = SCAD.inner_r(lv);
+        const h_cyl = SCAD.cyl_h(lv);
+        const h_ear = SCAD.crest_h(lv);
+        const max_protrusion = 2.6;
+        const paw_r = 2.55 + lv * 0.42;
+        const paw_radial_center = r_out + paw_r * 0.42;
+
+        const catGroup = new THREE.Group();
+
+        const isYellowP1 = owner === 1;
+        const mainColor = isYellowP1 ? 0xf59e0b : 0x0284c7;
+        const earInnerColor = isYellowP1 ? 0xfda4af : 0x7dd3fc;
+        const collarColor = isYellowP1 ? 0xdc2626 : 0xe11d48;
+
+        const bodyMat = new THREE.MeshStandardMaterial({
+          color: mainColor,
+          roughness: 0.28,
+          metalness: 0.1,
+          side: THREE.DoubleSide
+        });
+        const darkFeatureMat = new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.25 });
+        const pinkPadMat = new THREE.MeshStandardMaterial({ color: earInnerColor, roughness: 0.45 });
+        const collarMat = new THREE.MeshStandardMaterial({ color: collarColor, roughness: 0.35 });
+        const goldBellMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, roughness: 0.2, metalness: 0.75 });
+
+        const lathePoints = [];
+        lathePoints.push(new THREE.Vector2(r_in + 1.2, 0));
+        lathePoints.push(new THREE.Vector2(r_in, 1.8));
+        lathePoints.push(new THREE.Vector2(r_in, h_cyl));
+
+        const domeSteps = 18;
+        for (let i = 1; i <= domeSteps; i++) {
+          const ang = (i / domeSteps) * (Math.PI / 2);
+          lathePoints.push(new THREE.Vector2(Math.cos(ang) * r_in, h_cyl + Math.sin(ang) * r_in));
+        }
+        for (let i = domeSteps; i >= 0; i--) {
+          const ang = (i / domeSteps) * (Math.PI / 2);
+          lathePoints.push(new THREE.Vector2(Math.cos(ang) * r_out, h_cyl + Math.sin(ang) * r_out));
+        }
+        lathePoints.push(new THREE.Vector2(r_out, 0));
+        lathePoints.push(new THREE.Vector2(r_in + 1.2, 0));
+
+        const bodyLatheGeo = new THREE.LatheGeometry(lathePoints, 40);
+        const bodyMesh = new THREE.Mesh(bodyLatheGeo, bodyMat);
+        bodyMesh.castShadow = true;
+        bodyMesh.receiveShadow = true;
+        catGroup.add(bodyMesh);
+
+        [-1, 1].forEach(side => {
+          const earGeo = this.createCatEarGeometry(r_out, h_cyl, h_ear, lv, side);
+          const earMesh = new THREE.Mesh(earGeo, bodyMat);
+          catGroup.add(earMesh);
+
+          const innerEarGeo = new THREE.ConeGeometry(r_out * 0.17, h_ear * 0.72, 14);
+          innerEarGeo.scale(0.95, 1.0, 0.35);
+          innerEarGeo.rotateZ(-side * 0.22);
+          innerEarGeo.translate(
+            side * r_out * 0.53,
+            h_cyl + r_out * 0.80 + h_ear * 0.25,
+            r_out * 0.22
+          );
+          catGroup.add(new THREE.Mesh(innerEarGeo, pinkPadMat));
+        });
+
+        const pawsSubgroup = new THREE.Group();
+        const pawSide = owner === 1 ? SCAD.p1_paw_side : SCAD.p2_paw_side;
+        const sh_ang = (pawSide * 62) * (Math.PI / 180);
+        const el_ang = (pawSide * 56) * (Math.PI / 180);
+
+        const pShoulder = new THREE.Vector3(Math.sin(sh_ang) * (r_out - paw_r * 0.35), h_cyl * 0.22, Math.cos(sh_ang) * (r_out - paw_r * 0.35));
+        const pElbow = new THREE.Vector3(Math.sin(el_ang) * paw_radial_center, h_cyl * 0.48, Math.cos(el_ang) * paw_radial_center);
+        const pWrist = new THREE.Vector3(Math.sin(el_ang) * paw_radial_center, h_cyl + r_out * 0.18, Math.cos(el_ang) * paw_radial_center);
+
+        pawsSubgroup.add(this.createCapsuleSegment(pShoulder, paw_r * 0.9, pElbow, paw_r * 1.05, bodyMat));
+        pawsSubgroup.add(this.createCapsuleSegment(pElbow, paw_r * 1.05, pWrist, paw_r * 1.18, bodyMat));
+
+        const el_ang_tip = el_ang * 0.90;
+        const pawTipGroup = new THREE.Group();
+        pawTipGroup.position.set(
+          Math.sin(el_ang_tip) * (paw_radial_center + 0.3),
+          h_cyl + r_out * 0.28,
+          Math.cos(el_ang_tip) * (paw_radial_center + 0.3)
+        );
+        pawTipGroup.rotation.y = el_ang_tip * 0.65;
+        pawTipGroup.rotation.x = 0.22;
+
+        const pawBallGeo = new THREE.SphereGeometry(paw_r * 1.32, 20, 14);
+        pawBallGeo.scale(1.22, 1.08, 0.92);
+        pawTipGroup.add(new THREE.Mesh(pawBallGeo, bodyMat));
+
+        const mainPadGeo = new THREE.SphereGeometry(paw_r * 0.54, 14, 10);
+        mainPadGeo.scale(1.22, 1.0, 0.45);
+        const mainPadMesh = new THREE.Mesh(mainPadGeo, pinkPadMat);
+        mainPadMesh.position.set(0, -paw_r * 0.08, paw_r * 1.05);
+        pawTipGroup.add(mainPadMesh);
+
+        [-1, 0, 1].forEach(toe => {
+          const toeGeo = new THREE.SphereGeometry(paw_r * 0.28, 10, 8);
+          toeGeo.scale(0.95, 1.15, 0.45);
+          const toeMesh = new THREE.Mesh(toeGeo, pinkPadMat);
+          toeMesh.position.set(toe * paw_r * 0.52, paw_r * 0.52, paw_r * 1.0);
+          pawTipGroup.add(toeMesh);
+        });
+        pawsSubgroup.add(pawTipGroup);
+
+        const other_ang = (-pawSide * 38) * (Math.PI / 180);
+        const other_top_ang = (-pawSide * 28) * (Math.PI / 180);
+        const pOther1 = new THREE.Vector3(Math.sin(other_ang) * (r_out - paw_r * 0.45), h_cyl * 0.18, Math.cos(other_ang) * (r_out - paw_r * 0.45));
+        const pOther2 = new THREE.Vector3(Math.sin(other_top_ang) * (r_out + 1.5 - paw_r * 0.85), h_cyl * 0.36, Math.cos(other_top_ang) * (r_out + 1.5 - paw_r * 0.85));
+        pawsSubgroup.add(this.createCapsuleSegment(pOther1, paw_r * 0.72, pOther2, paw_r * 0.85, bodyMat));
+        catGroup.add(pawsSubgroup);
+
+        const collarGeo = new THREE.SphereGeometry(r_out + 0.55, 32, 16);
+        collarGeo.scale(1, 0.28, 1);
+        const collarMesh = new THREE.Mesh(collarGeo, collarMat);
+        collarMesh.position.y = h_cyl * 0.40;
+        catGroup.add(collarMesh);
+
+        const bell_r = 1.6 + lv * 0.25;
+        const bellGroup = new THREE.Group();
+        bellGroup.position.set(0, h_cyl * 0.35, r_out + max_protrusion - bell_r);
+        bellGroup.add(new THREE.Mesh(new THREE.SphereGeometry(bell_r, 16, 12), goldBellMat));
+        const slitMesh = new THREE.Mesh(new THREE.BoxGeometry(bell_r * 1.4, 0.65, 0.8), darkFeatureMat);
+        slitMesh.position.set(0, -0.1, bell_r * 0.78);
+        bellGroup.add(slitMesh);
+        catGroup.add(bellGroup);
+
+        [-1, 1].forEach(side => {
+          const eye_ang = (side * 21) * (Math.PI / 180);
+          const eyeGroup = new THREE.Group();
+          eyeGroup.position.set(Math.sin(eye_ang) * (r_out - 0.2), h_cyl + r_out * 0.18, Math.cos(eye_ang) * (r_out - 0.2));
+          eyeGroup.rotation.y = eye_ang;
+
+          const eyeSocketGeo = new THREE.SphereGeometry(r_out * 0.16, 14, 12);
+          eyeSocketGeo.scale(1.05, 1.15, 0.48);
+          eyeGroup.add(new THREE.Mesh(eyeSocketGeo, bodyMat));
+
+          const pupilGeo = new THREE.SphereGeometry(r_out * 0.085, 12, 10);
+          pupilGeo.scale(0.62, 1.35, 0.5);
+          const pupil = new THREE.Mesh(pupilGeo, darkFeatureMat);
+          pupil.position.z = r_out * 0.065;
+          eyeGroup.add(pupil);
+          catGroup.add(eyeGroup);
+        });
+
+        const noseGeo = new THREE.SphereGeometry(r_out * 0.095, 12, 10);
+        noseGeo.scale(1.25, 0.8, 0.7);
+        const noseMesh = new THREE.Mesh(noseGeo, pinkPadMat);
+        noseMesh.position.set(0, h_cyl + r_out * 0.02, r_out + 0.25);
+        catGroup.add(noseMesh);
+
+        [-1, 1].forEach(side => {
+          const smileGeo = new THREE.TorusGeometry(r_out * 0.105, 0.48 + lv * 0.08, 8, 16, Math.PI);
+          const smileMesh = new THREE.Mesh(smileGeo, darkFeatureMat);
+          smileMesh.position.set(side * r_out * 0.105, h_cyl - r_out * 0.01, r_out + 0.08);
+          smileMesh.rotation.x = Math.PI;
+          smileMesh.rotation.y = side * 0.12;
+          catGroup.add(smileMesh);
+        });
+
+        [-1, 1].forEach(side => {
+          [-1, 1].forEach(w => {
+            const w_ang = (side * 31) * (Math.PI / 180);
+            const whiskerGeo = new THREE.BoxGeometry(r_out * 0.24, 0.7, 0.8);
+            const whiskerMesh = new THREE.Mesh(whiskerGeo, darkFeatureMat);
+            whiskerMesh.position.set(Math.sin(w_ang) * (r_out + 0.05), h_cyl + w * (r_out * 0.065), Math.cos(w_ang) * (r_out + 0.05));
+            whiskerMesh.rotation.y = w_ang;
+            whiskerMesh.rotation.z = -side * w * 0.14;
+            catGroup.add(whiskerMesh);
+          });
+        });
+
+        const haloGeo = new THREE.RingGeometry(r_out * 0.55, r_out * 0.78, 28);
+        haloGeo.rotateX(-Math.PI / 2);
+        const haloMat = new THREE.MeshBasicMaterial({ color: 0xfef08a, side: THREE.DoubleSide, transparent: true, opacity: 0.0 });
+        const haloMesh = new THREE.Mesh(haloGeo, haloMat);
+        haloMesh.position.y = h_cyl + r_out + h_ear + 4;
+        haloMesh.name = 'selectionHalo';
+        catGroup.add(haloMesh);
+
+        catGroup.userData.bodyMat = bodyMat;
+        catGroup.userData.haloMat = haloMat;
+        return catGroup;
+      }
+
+      applyXrayMaterials() {
+        this.pieceMeshesMap.forEach((mesh, id) => {
+          const piece = this.getPieceById(id);
+          if (!piece) return;
+          const bodyMat = mesh.userData.bodyMat;
+          if (bodyMat) {
+            if (this.xrayMode) {
+              bodyMat.transparent = true;
+              bodyMat.opacity = piece.size === 2 ? 0.35 : (piece.size === 1 ? 0.55 : 0.88);
+            } else {
+              bodyMat.transparent = false;
+              bodyMat.opacity = 1.0;
+            }
+          }
+        });
+      }
+
+      initPieces() {
+        this.activeAnimations.length = 0;
+        this.pieceMeshesMap.forEach(m => this.scene.remove(m));
+        this.pieceMeshesMap.clear();
+        if (this.winBeamMesh) {
+          this.scene.remove(this.winBeamMesh);
+          this.winBeamMesh = null;
+        }
+
+        this.pieces = [];
+        this.boardStacks = Array.from({ length: 9 }, () => []);
+        this.currentTurn = 1;
+        this.selectedPieceId = null;
+        this.gameOver = false;
+        this.phase = 'THINKING';
+        this.phaseTimer = 0;
+        this.moveCounter = 0;
+
+        for (const owner of [1, 2]) {
+          for (let size = 0; size <= 2; size++) {
+            for (let copy = 0; copy < 2; copy++) {
+              const id = `p${owner}_s${size}_${copy}`;
+              const homePos = this.getReserveWorldPos(owner, size, copy);
+              this.pieces.push({ id, owner, size, copy, location: 'reserve', cellIndex: null, homePos: homePos.clone() });
+
+              const mesh = this.createManekiNekoMesh(size, owner);
+              mesh.position.copy(homePos);
+              mesh.rotation.y = owner === 1 ? 0.18 : -0.18;
+              this.scene.add(mesh);
+              this.pieceMeshesMap.set(id, mesh);
+            }
+          }
+        }
+        this.applyXrayMaterials();
+        this.hudEl.textContent = '🐱 招財貓 AI 開局佈陣中...';
+      }
+
+      getPieceById(id) {
+        return this.pieces.find(p => p.id === id) || null;
+      }
+
+      getTopPieceAtCell(cellIndex) {
+        const stack = this.boardStacks[cellIndex];
+        if (!stack || stack.length === 0) return null;
+        return this.getPieceById(stack[stack.length - 1]);
+      }
+
+      isCellValidTarget(piece, targetCellIndex) {
+        if (!piece) return false;
+        if (piece.location === 'board' && piece.cellIndex === targetCellIndex) return false;
+        const topTarget = this.getTopPieceAtCell(targetCellIndex);
+        if (!topTarget) return true;
+        return piece.size > topTarget.size;
+      }
+
+      evaluateBoardWinner() {
+        const winners = [];
+        for (const line of this.WIN_LINES) {
+          const p0 = this.getTopPieceAtCell(line[0]);
+          const p1 = this.getTopPieceAtCell(line[1]);
+          const p2 = this.getTopPieceAtCell(line[2]);
+          if (p0 && p1 && p2 && p0.owner === p1.owner && p1.owner === p2.owner) {
+            winners.push({ owner: p0.owner, line });
+          }
+        }
+        return winners;
+      }
+
+      getAllLegalMovesForPlayer(owner) {
+        const moves = [];
+        const playerPieces = this.pieces.filter(p => p.owner === owner);
+        for (const piece of playerPieces) {
+          if (piece.location === 'reserve') {
+            for (let c = 0; c < 9; c++) {
+              if (this.isCellValidTarget(piece, c)) moves.push({ piece, targetCell: c });
+            }
+          } else if (piece.location === 'board') {
+            const top = this.getTopPieceAtCell(piece.cellIndex);
+            if (top && top.id === piece.id) {
+              for (let c = 0; c < 9; c++) {
+                if (c !== piece.cellIndex && this.isCellValidTarget(piece, c)) moves.push({ piece, targetCell: c });
+              }
+            }
+          }
+        }
+        return moves;
+      }
+
+      // 移植自 cat_XO_game.htm 的 chooseBestDemoMoveForOwner
+      chooseBestDemoMoveForOwner(owner) {
+        const opponent = owner === 1 ? 2 : 1;
+        const legalMoves = this.getAllLegalMovesForPlayer(owner);
+        if (legalMoves.length === 0) return null;
+
+        let bestMove = legalMoves[0];
+        let bestScore = -Infinity;
+
+        for (const move of legalMoves) {
+          const piece = move.piece;
+          const targetCell = move.targetCell;
+          const prevLocation = piece.location;
+          const prevCellIndex = piece.cellIndex;
+          const targetTopBefore = this.getTopPieceAtCell(targetCell);
+
+          if (prevLocation === 'board') this.boardStacks[prevCellIndex].pop();
+          this.boardStacks[targetCell].push(piece.id);
+          piece.location = 'board';
+          piece.cellIndex = targetCell;
+
+          let score = 0;
+          const wins = this.evaluateBoardWinner();
+          const myWin = wins.some(w => w.owner === owner);
+          const oppWin = wins.some(w => w.owner === opponent);
+
+          if (myWin) {
+            score = 10000;
+          } else if (oppWin) {
+            score = -9500;
+          } else {
+            if (targetTopBefore) {
+              if (targetTopBefore.owner === opponent) score += 95 + targetTopBefore.size * 30;
+              else score -= 50;
+            }
+            for (const line of this.WIN_LINES) {
+              let myCount = 0, oppCount = 0;
+              for (const c of line) {
+                const top = this.getTopPieceAtCell(c);
+                if (top) {
+                  if (top.owner === owner) myCount++;
+                  else oppCount++;
+                }
+              }
+              if (oppCount === 2 && myCount === 0) score -= 460;
+              else if (myCount === 2 && oppCount === 0) score += 165;
+            }
+            if (targetCell === 4) score += 28 + piece.size * 10;
+            score += (Math.random() * 65 - 32);
+          }
+
+          // Undo temp move
+          this.boardStacks[targetCell].pop();
+          piece.location = prevLocation;
+          piece.cellIndex = prevCellIndex;
+          if (prevLocation === 'board') this.boardStacks[prevCellIndex].push(piece.id);
+
+          if (score > bestScore) {
+            bestScore = score;
+            bestMove = move;
+          }
+        }
+        return bestMove;
+      }
+
+      drawWinningLineBeam(line, owner) {
+        if (this.winBeamMesh) this.scene.remove(this.winBeamMesh);
+        const pStart = this.getCellWorldPos(line[0]);
+        const pEnd = this.getCellWorldPos(line[2]);
+        const dist = pStart.distanceTo(pEnd);
+        const mid = new THREE.Vector3().addVectors(pStart, pEnd).multiplyScalar(0.5);
+
+        const beamGeo = new THREE.CylinderGeometry(4.5, 4.5, dist + 20, 20);
+        const beamMat = new THREE.MeshBasicMaterial({
+          color: owner === 1 ? 0xfbbf24 : 0x38bdf8,
+          transparent: true,
+          opacity: 0.65
+        });
+        this.winBeamMesh = new THREE.Mesh(beamGeo, beamMat);
+        this.winBeamMesh.position.copy(mid);
+        this.winBeamMesh.position.y = 14;
+        this.winBeamMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3().subVectors(pEnd, pStart).normalize());
+        this.scene.add(this.winBeamMesh);
+      }
+
+      resize() {
+        const w = Math.max(100, this.container.clientWidth);
+        const h = Math.max(100, this.container.clientHeight);
+        this.camera.aspect = w / h;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(w, h);
+        this.camControl.radius = w < 330 ? 465 : 415;
+      }
+
+      update(dt, now) {
+        const scaledDt = dt * GLOBAL_SPEED;
+        this.phaseTimer += scaledDt;
+
+        // 緩慢微幅擺動視角展示 3D 招財貓細節
+        if (!this.camControl.isDragging) {
+          this.camControl.theta = Math.sin(now * 0.00045) * 0.16;
+        }
+
+        // 更新跳躍拋物線動畫
+        for (let i = this.activeAnimations.length - 1; i >= 0; i--) {
+          if (this.activeAnimations[i].update(scaledDt)) {
+            this.activeAnimations.splice(i, 1);
+          }
+        }
+
+        // 被選取的招財貓懸浮呼吸效果
+        this.pieceMeshesMap.forEach((mesh, id) => {
+          const halo = mesh.getObjectByName('selectionHalo');
+          if (this.selectedPieceId === id) {
+            mesh.position.y = 10 + Math.sin(now * 0.008) * 3;
+            if (halo) halo.material.opacity = 0.85;
+          } else if (halo) {
+            halo.material.opacity = 0.0;
+          }
+        });
+
+        // AI 自動示範狀態機
+        if (this.phase === 'THINKING' && this.phaseTimer >= 0.65) {
+          const bestMove = this.chooseBestDemoMoveForOwner(this.currentTurn);
+          if (!bestMove || this.moveCounter >= 18) {
+            this.initPieces();
+            return;
+          }
+          this.pendingMove = bestMove;
+          this.selectedPieceId = bestMove.piece.id;
+          this.cellRingMeshes.forEach((r, idx) => {
+            r.material.opacity = idx === bestMove.targetCell ? 0.85 : 0.0;
+          });
+          const teamStr = this.currentTurn === 1 ? '黃色招財貓' : '藍色招福貓';
+          const szStr = ['小(S)', '中(M)', '大(L)'][bestMove.piece.size];
+          this.hudEl.textContent = `🎬 ${teamStr} 選取 ${szStr}`;
+          this.phase = 'PRE_HOP';
+          this.phaseTimer = 0;
+        } else if (this.phase === 'PRE_HOP' && this.phaseTimer >= 0.45) {
+          const { piece, targetCell } = this.pendingMove;
+          this.selectedPieceId = null;
+          this.cellRingMeshes.forEach(r => { r.material.opacity = 0.0; });
+
+          const prevCell = piece.location === 'board' ? piece.cellIndex : null;
+          const targetTopBefore = this.getTopPieceAtCell(targetCell);
+          const isGobbling = !!targetTopBefore;
+
+          if (prevCell !== null) this.boardStacks[prevCell].pop();
+          this.boardStacks[targetCell].push(piece.id);
+          piece.location = 'board';
+          piece.cellIndex = targetCell;
+
+          // 當發生「大吃小」套疊時，短暫自動開啟半透明透視套疊展示內部小貓
+          if (isGobbling && !GLOBAL_INSPECT_XRAY) {
+            this.toggleXray(true);
+          }
+
+          const mesh = this.pieceMeshesMap.get(piece.id);
+          const startPos = mesh.position.clone();
+          const targetPos = this.getCellWorldPos(targetCell);
+          const startRotY = mesh.rotation.y;
+          const targetRotY = piece.owner === 1 ? 0 : Math.PI;
+          const maxArcHeight = isGobbling ? 74 : 52;
+          let elapsed = 0;
+          const duration = 0.48;
+
+          this.phase = 'HOPPING';
+          this.activeAnimations.push({
+            update: (sDt) => {
+              elapsed += sDt;
+              const t = Math.min(1, elapsed / duration);
+              const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+              mesh.position.x = THREE.MathUtils.lerp(startPos.x, targetPos.x, ease);
+              mesh.position.z = THREE.MathUtils.lerp(startPos.z, targetPos.z, ease);
+              mesh.position.y = THREE.MathUtils.lerp(startPos.y, targetPos.y, ease) + Math.sin(t * Math.PI) * maxArcHeight;
+              mesh.rotation.y = THREE.MathUtils.lerp(startRotY, targetRotY, ease);
+
+              if (t >= 1) {
+                mesh.position.copy(targetPos);
+                mesh.rotation.y = targetRotY;
+                this.moveCounter++;
+
+                const wins = this.evaluateBoardWinner();
+                if (wins.length > 0) {
+                  const win = wins[0];
+                  this.drawWinningLineBeam(win.line, win.owner);
+                  this.hudEl.textContent = win.owner === 1 ? '🏆 黃色招財貓三連線獲勝！' : '🏆 藍色招福貓三連線獲勝！';
+                  this.phase = 'GAME_OVER';
+                  this.phaseTimer = 0;
+                } else {
+                  if (!GLOBAL_INSPECT_XRAY && this.xrayMode && !isGobbling) {
+                    this.toggleXray(false);
+                  }
+                  this.currentTurn = this.currentTurn === 1 ? 2 : 1;
+                  this.phase = 'THINKING';
+                  this.phaseTimer = 0;
+                }
+                return true;
+              }
+              return false;
+            }
+          });
+        } else if (this.phase === 'GAME_OVER' && this.phaseTimer >= 2.8) {
+          this.initPieces();
+        }
+
+        // 更新相機並渲染
+        const { radius, theta, phi, target } = this.camControl;
+        this.camera.position.x = target.x + radius * Math.sin(phi) * Math.sin(theta);
+        this.camera.position.y = target.y + radius * Math.cos(phi);
+        this.camera.position.z = target.z + radius * Math.sin(phi) * Math.cos(theta);
+        this.camera.lookAt(target);
+        this.renderer.render(this.scene, this.camera);
+      }
+    }
+
+    /* ==========================================================================================
+     * 【遊戲二：立體井字棋】— 完整解析自 3d_OX_game.htm
+     * 包含：OpenSCADPieceBuilder (50x50x15mm 雙面凹槽、十字準心公母卡榫、14mm 包覆補強柱)、
+     * 4人色彩配置 (寶藍O、亮黃X、亮橘O、象牙白X) 與 Connect3DAIEngine 自動對戰示範
+     * ========================================================================================== */
+    class OpenSCADPieceBuilder {
+      constructor() {
+        this.mm = {
+          base_size: 50.0,
+          thickness: 15.0,
+          wall_t: 4.0,
+          web_t: 5.0,
+          corner_r: 3.75,
+          edge_r: 2.0,
+          peg_cyl_d: 8.50,
+          peg_cross_span: 9.625,
+          peg_rib_w: 2.375,
+          peg_bore_d: 4.00,
+          peg_len: 6.00,
+          socket_cyl_d: 9.00,
+          socket_cross_span: 10.0,
+          socket_rib_w: 2.875,
+          socket_depth: 7.00,
+          peg_spacing: 32.5,
+          boss_d: 14.0,
+          o_hole_d: 21.25,
+          x_arm_w: 16.0
+        };
+        this.scale = 2.2 / 50.0;
+        this.buildCachedGeometries();
+      }
+
+      createRoundedRectShape(w, h, r, isPath = false) {
+        const shape = isPath ? new THREE.Path() : new THREE.Shape();
+        const hw = w / 2, hh = h / 2;
+        const cr = Math.min(r, hw, hh);
+        shape.moveTo(-hw + cr, -hh);
+        shape.lineTo(hw - cr, -hh);
+        shape.quadraticCurveTo(hw, -hh, hw, -hh + cr);
+        shape.lineTo(hw, hh - cr);
+        shape.quadraticCurveTo(hw, hh, hw - cr, hh);
+        shape.lineTo(-hw + cr, hh);
+        shape.quadraticCurveTo(-hw, hh, -hw, hh - cr);
+        shape.lineTo(-hw, -hh + cr);
+        shape.quadraticCurveTo(-hw, -hh, -hw + cr, -hh);
+        return shape;
+      }
+
+      createCrosshairShape(cyl_d, cross_span, rib_w, bore_d = 0) {
+        const R = cyl_d / 2;
+        const halfSpan = cross_span / 2;
+        const halfRib = rib_w / 2;
+        const pts = [];
+        const segs = 10;
+        const intersectAngle = Math.asin(Math.min(0.99, halfRib / R));
+        const armAngles = [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2];
+
+        for (let q = 0; q < 4; q++) {
+          const baseA = armAngles[q];
+          const cosA = Math.cos(baseA), sinA = Math.sin(baseA);
+          const perpX = -sinA, perpY = cosA;
+          const tipCorner = halfRib * 0.3;
+          pts.push(new THREE.Vector2(cosA * (halfSpan - tipCorner) - perpX * halfRib, sinA * (halfSpan - tipCorner) - perpY * halfRib));
+          pts.push(new THREE.Vector2(cosA * halfSpan - perpX * (halfRib - tipCorner), sinA * halfSpan - perpY * (halfRib - tipCorner)));
+          pts.push(new THREE.Vector2(cosA * halfSpan + perpX * (halfRib - tipCorner), sinA * halfSpan + perpY * (halfRib - tipCorner)));
+          pts.push(new THREE.Vector2(cosA * (halfSpan - tipCorner) + perpX * halfRib, sinA * (halfSpan - tipCorner) + perpY * halfRib));
+
+          const startArc = baseA + intersectAngle;
+          const endArc = baseA + Math.PI / 2 - intersectAngle;
+          for (let i = 0; i <= segs; i++) {
+            const a = startArc + (i / segs) * (endArc - startArc);
+            pts.push(new THREE.Vector2(Math.cos(a) * R, Math.sin(a) * R));
+          }
+        }
+        const shape = new THREE.Shape(pts);
+        if (bore_d > 0) {
+          const hole = new THREE.Path();
+          hole.absarc(0, 0, bore_d / 2, 0, Math.PI * 2, true);
+          shape.holes.push(hole);
+        }
+        return shape;
+      }
+
+      createXProfilePoints(inset = 0) {
+        const halfBox = this.mm.base_size / 2 - inset;
+        const armX = this.mm.peg_spacing / 2;
+        const armY = this.mm.base_size / 2;
+        const armLen = Math.hypot(armX, armY);
+        const halfArmW = (this.mm.x_arm_w / 2) - inset;
+        const dxHoriz = halfArmW * (armLen / armY);
+        const xOuterAtTop = Math.min(halfBox, armX + dxHoriz * (halfBox / armY));
+        const xInnerAtTop = Math.max(2.0, armX - dxHoriz * (halfBox / armY));
+        const xSideWaist = dxHoriz;
+        const yTopWaist = dxHoriz * (armY / armX);
+        const cr = Math.max(0.8, (this.mm.corner_r - inset * 0.4));
+        const ir = Math.max(0.8, (this.mm.corner_r * 0.55));
+
+        const rawVertices = [
+          { x:  xInnerAtTop, y:  halfBox, r: cr },
+          { x:  xOuterAtTop, y:  halfBox, r: cr },
+          { x:  xSideWaist,  y:  0,       r: ir },
+          { x:  xOuterAtTop, y: -halfBox, r: cr },
+          { x:  xInnerAtTop, y: -halfBox, r: cr },
+          { x:  0,           y: -yTopWaist, r: ir },
+          { x: -xInnerAtTop, y: -halfBox, r: cr },
+          { x: -xOuterAtTop, y: -halfBox, r: cr },
+          { x: -xSideWaist,  y:  0,       r: ir },
+          { x: -xOuterAtTop, y:  halfBox, r: cr },
+          { x: -xInnerAtTop, y:  halfBox, r: cr },
+          { x:  0,           y:  yTopWaist, r: ir }
+        ];
+        return this.buildRoundedPolygon(rawVertices, inset > 0);
+      }
+
+      buildRoundedPolygon(verts, isHolePath = false) {
+        const path = isHolePath ? new THREE.Path() : new THREE.Shape();
+        const n = verts.length;
+        for (let i = 0; i < n; i++) {
+          const prev = verts[(i - 1 + n) % n];
+          const curr = verts[i];
+          const next = verts[(i + 1) % n];
+          const v1 = new THREE.Vector2(prev.x - curr.x, prev.y - curr.y);
+          const v2 = new THREE.Vector2(next.x - curr.x, next.y - curr.y);
+          const len1 = v1.length(), len2 = v2.length();
+          v1.normalize(); v2.normalize();
+          const radius = Math.min(curr.r, len1 * 0.42, len2 * 0.42);
+          const pStart = new THREE.Vector2(curr.x + v1.x * radius, curr.y + v1.y * radius);
+          const pEnd = new THREE.Vector2(curr.x + v2.x * radius, curr.y + v2.y * radius);
+          if (i === 0) path.moveTo(pStart.x, pStart.y);
+          else path.lineTo(pStart.x, pStart.y);
+          path.quadraticCurveTo(curr.x, curr.y, pEnd.x, pEnd.y);
+        }
+        path.closePath();
+        return path;
+      }
+
+      buildCachedGeometries() {
+        const m = this.mm;
+        const coreDepth = m.thickness - 2 * m.edge_r;
+        const wallExtrudeSettings = {
+          depth: coreDepth,
+          bevelEnabled: true,
+          bevelSegments: 4,
+          steps: 1,
+          bevelSize: m.edge_r * 0.85,
+          bevelThickness: m.edge_r,
+          curveSegments: 24
+        };
+        const webExtrudeSettings = { depth: m.web_t, bevelEnabled: false, curveSegments: 24 };
+
+        const oWebShape = this.createRoundedRectShape(m.base_size, m.base_size, m.corner_r, false);
+        const oCenterHole1 = new THREE.Path();
+        oCenterHole1.absarc(0, 0, m.o_hole_d / 2, 0, Math.PI * 2, true);
+        oWebShape.holes.push(oCenterHole1);
+        this.oWebGeo = new THREE.ExtrudeGeometry(oWebShape, webExtrudeSettings);
+        this.oWebGeo.translate(0, 0, -m.web_t / 2);
+
+        const oOuterRimShape = this.createRoundedRectShape(m.base_size, m.base_size, m.corner_r, false);
+        const oPocketInnerPath = this.createRoundedRectShape(m.base_size - 2 * m.wall_t, m.base_size - 2 * m.wall_t, Math.max(1.2, m.corner_r - m.wall_t * 0.5), true);
+        oOuterRimShape.holes.push(oPocketInnerPath);
+        this.oOuterRimGeo = new THREE.ExtrudeGeometry(oOuterRimShape, wallExtrudeSettings);
+        this.oOuterRimGeo.translate(0, 0, -coreDepth / 2);
+
+        const oInnerRingShape = new THREE.Shape();
+        oInnerRingShape.absarc(0, 0, m.o_hole_d / 2 + m.wall_t, 0, Math.PI * 2, false);
+        const oCenterHole2 = new THREE.Path();
+        oCenterHole2.absarc(0, 0, m.o_hole_d / 2, 0, Math.PI * 2, true);
+        oInnerRingShape.holes.push(oCenterHole2);
+        this.oInnerRingGeo = new THREE.ExtrudeGeometry(oInnerRingShape, wallExtrudeSettings);
+        this.oInnerRingGeo.translate(0, 0, -coreDepth / 2);
+
+        const xWebShape = this.createXProfilePoints(0);
+        this.xWebGeo = new THREE.ExtrudeGeometry(xWebShape, webExtrudeSettings);
+        this.xWebGeo.translate(0, 0, -m.web_t / 2);
+
+        const xOuterRimShape = this.createXProfilePoints(0);
+        const xPocketHolePath = this.createXProfilePoints(m.wall_t);
+        xOuterRimShape.holes.push(xPocketHolePath);
+        this.xOuterRimGeo = new THREE.ExtrudeGeometry(xOuterRimShape, wallExtrudeSettings);
+        this.xOuterRimGeo.translate(0, 0, -coreDepth / 2);
+
+        const bossLen = m.socket_depth + m.wall_t * 0.6;
+        this.bossGeo = new THREE.CylinderGeometry(m.boss_d / 2, m.boss_d / 2, bossLen, 20);
+
+        const pegShape = this.createCrosshairShape(m.peg_cyl_d, m.peg_cross_span, m.peg_rib_w, m.peg_bore_d);
+        this.pegGeo = new THREE.ExtrudeGeometry(pegShape, {
+          depth: m.peg_len - 0.8,
+          bevelEnabled: true,
+          bevelSegments: 2,
+          steps: 1,
+          bevelSize: 0.4,
+          bevelThickness: 0.6,
+          curveSegments: 14
+        });
+        this.pegGeo.rotateX(Math.PI / 2);
+
+        const socketShape = this.createCrosshairShape(m.socket_cyl_d, m.socket_cross_span, m.socket_rib_w, 0);
+        this.socketGeo = new THREE.ExtrudeGeometry(socketShape, { depth: 1.2, bevelEnabled: false, curveSegments: 14 });
+        this.socketGeo.rotateX(Math.PI / 2);
+      }
+
+      createPieceMesh(playerObj, isGhost = false, isSelected = false, isWinner = false) {
+        const root = new THREE.Group();
+        const m = this.mm;
+
+        // 獲勝連線時轉為如第一張海報圖中央的亮白微透明發光積木
+        const pieceColor = isWinner ? 0xffffff : playerObj.hex;
+        const mainMat = new THREE.MeshStandardMaterial({
+          color: pieceColor,
+          roughness: isGhost ? 0.20 : 0.30,
+          metalness: 0.08,
+          transparent: isGhost || isWinner,
+          opacity: isGhost ? 0.55 : (isWinner ? 0.92 : 1.0),
+          depthWrite: !isGhost,
+          emissive: isWinner ? 0xffffff : (isSelected ? 0xf59e0b : (isGhost ? playerObj.hex : 0x000000)),
+          emissiveIntensity: isWinner ? 0.35 : (isSelected ? 0.35 : (isGhost ? 0.35 : 0))
+        });
+
+        const webColor = new THREE.Color(pieceColor).multiplyScalar(0.84);
+        const webMat = new THREE.MeshStandardMaterial({
+          color: webColor,
+          roughness: 0.42,
+          metalness: 0.05,
+          transparent: isGhost,
+          opacity: isGhost ? 0.55 : 1.0,
+          depthWrite: !isGhost
+        });
+
+        const socketMat = new THREE.MeshStandardMaterial({
+          color: 0x09090b,
+          roughness: 0.9,
+          transparent: isGhost,
+          opacity: isGhost ? 0.35 : 0.92,
+          depthWrite: !isGhost
+        });
+
+        const mmGroup = new THREE.Group();
+        if (playerObj.symbol === 'O') {
+          mmGroup.add(new THREE.Mesh(this.oOuterRimGeo, mainMat), new THREE.Mesh(this.oInnerRingGeo, mainMat), new THREE.Mesh(this.oWebGeo, webMat));
+        } else {
+          mmGroup.add(new THREE.Mesh(this.xOuterRimGeo, mainMat), new THREE.Mesh(this.xWebGeo, webMat));
+        }
+
+        const bossLen = m.socket_depth + m.wall_t * 0.6;
+        for (let xPos of [-m.peg_spacing / 2, m.peg_spacing / 2]) {
+          const bossMesh = new THREE.Mesh(this.bossGeo, mainMat);
+          bossMesh.position.set(xPos, m.base_size / 2 - bossLen / 2 - 0.6, 0);
+          const socketMesh = new THREE.Mesh(this.socketGeo, socketMat);
+          socketMesh.position.set(xPos, m.base_size / 2 + 0.5, 0);
+          const pegMesh = new THREE.Mesh(this.pegGeo, mainMat);
+          pegMesh.position.set(xPos, -m.base_size / 2, 0);
+          mmGroup.add(bossMesh, socketMesh, pegMesh);
+        }
+
+        mmGroup.scale.set(this.scale, this.scale, this.scale);
+        root.add(mmGroup);
+        return root;
+      }
+
+      createBaseTileMesh(tileSize, baseHeight) {
+        const group = new THREE.Group();
+        const tileGeo = new THREE.BoxGeometry(tileSize, baseHeight, tileSize);
+        const tileMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.5, metalness: 0.15 });
+        const tileMesh = new THREE.Mesh(tileGeo, tileMat);
+        group.add(tileMesh);
+
+        const edges = new THREE.EdgesGeometry(tileGeo);
+        tileMesh.add(new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x3f3f46 })));
+
+        const socketMat = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.95 });
+        for (let xMm of [-this.mm.peg_spacing / 2, this.mm.peg_spacing / 2]) {
+          const sMesh = new THREE.Mesh(this.socketGeo, socketMat);
+          sMesh.scale.set(this.scale, this.scale, this.scale);
+          sMesh.position.set(xMm * this.scale, baseHeight / 2 + 0.02, 0);
+          group.add(sMesh);
+        }
+
+        const sideHoleGeo = new THREE.CylinderGeometry(0.11, 0.11, tileSize + 0.02, 12);
+        const sideHoleMat = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.9 });
+        for (let offset of [-0.52, 0.52]) {
+          const holeZ = new THREE.Mesh(sideHoleGeo, sideHoleMat);
+          holeZ.rotation.x = Math.PI / 2;
+          holeZ.position.set(offset, 0, 0);
+          const holeX = new THREE.Mesh(sideHoleGeo, sideHoleMat);
+          holeX.rotation.z = Math.PI / 2;
+          holeX.position.set(0, 0, offset);
+          group.add(holeZ, holeX);
+        }
+        return group;
+      }
+    }
+
+    class Connect3DGameWidget {
+      constructor(containerId, hudId) {
+        this.container = document.getElementById(containerId);
+        this.hudEl = document.getElementById(hudId);
+        this.cadBuilder = new OpenSCADPieceBuilder();
+
+        this.gridSize = 4;
+        this.maxH = 4;
+        this.winLen = 4;
+        this.playerCount = 4; // 4色模式：寶藍O、亮黃X、亮橘O、象牙白X (還原海報第一張圖的配色)
+        this.allPlayers = [
+          { id: 0, name: '寶藍方 O', symbol: 'O', color: '#3b82f6', hex: 0x2563eb },
+          { id: 1, name: '亮黃方 X', symbol: 'X', color: '#facc15', hex: 0xeab308 },
+          { id: 2, name: '亮橘方 O', symbol: 'O', color: '#f97316', hex: 0xf97316 },
+          { id: 3, name: '象牙白 X', symbol: 'X', color: '#f8fafc', hex: 0xf1f5f9 }
+        ];
+
+        this.tileSize = 2.2;
+        this.tileGap = 0.08;
+        this.baseHeight = 0.52;
+        this.pieceHeight = 2.2;
+        this.isExplodedView = false;
+
+        this.initThree();
+        this.initWinningLines();
+        this.resetGame();
+        this.setupInteractions();
+      }
+
+      initThree() {
+        const w = Math.max(100, this.container.clientWidth);
+        const h = Math.max(100, this.container.clientHeight);
+
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera(38, w / h, 0.1, 250);
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+        this.renderer.setSize(w, h);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        this.container.appendChild(this.renderer.domElement);
+
+        this.scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+        const mainLight = new THREE.DirectionalLight(0xffffff, 0.95);
+        mainLight.position.set(14, 26, 20);
+        this.scene.add(mainLight);
+        const fillLight = new THREE.DirectionalLight(0x93c5fd, 0.45);
+        fillLight.position.set(-16, 14, -18);
+        this.scene.add(fillLight);
+
+        this.boardGroup = new THREE.Group();
+        this.piecesGroup = new THREE.Group();
+        this.ghostGroup = new THREE.Group();
+        this.scene.add(this.boardGroup, this.piecesGroup, this.ghostGroup);
+
+        this.camSpherical = { radius: 19.5, theta: -Math.PI / 5.2, phi: Math.PI / 3.0 };
+        this.camTarget = new THREE.Vector3(0, 2.3, 0);
+        this.isDragging = false;
+        this.prevX = 0;
+      }
+
+      setupInteractions() {
+        const dom = this.renderer.domElement;
+        let moveDist = 0;
+        dom.addEventListener('pointerdown', (e) => {
+          this.isDragging = true;
+          this.prevX = e.clientX;
+          moveDist = 0;
+        });
+        window.addEventListener('pointermove', (e) => {
+          if (!this.isDragging) return;
+          const dx = e.clientX - this.prevX;
+          moveDist += Math.abs(dx);
+          this.prevX = e.clientX;
+          this.camSpherical.theta -= dx * 0.0085;
+        });
+        window.addEventListener('pointerup', () => {
+          if (this.isDragging && moveDist < 6) {
+            this.toggleExplode();
+          }
+          this.isDragging = false;
+        });
+      }
+
+      toggleExplode(forceState = null) {
+        this.isExplodedView = forceState !== null ? forceState : !this.isExplodedView;
+        this.renderBoard();
+      }
+
+      initWinningLines() {
+        this.winningLines = [];
+        const N = 4, H = 4, K = 4;
+        const dirs = [
+          [0, 1, 0], [1, 0, 0], [1, 1, 0], [1, -1, 0],
+          [0, 0, 1], [0, 1, 1], [0, 1, -1], [1, 0, 1], [1, 0, -1],
+          [1, 1, 1], [1, 1, -1], [1, -1, 1], [1, -1, -1]
+        ];
+        for (let r = 0; r < N; r++) {
+          for (let c = 0; c < N; c++) {
+            for (let z = 0; z < H; z++) {
+              for (let [dr, dc, dz] of dirs) {
+                if (r + dr * 3 >= 0 && r + dr * 3 < N && c + dc * 3 >= 0 && c + dc * 3 < N && z + dz * 3 >= 0 && z + dz * 3 < H) {
+                  const line = [];
+                  for (let s = 0; s < K; s++) {
+                    line.push({ cellIdx: (r + dr * s) * N + (c + dc * s), z: z + dz * s });
+                  }
+                  this.winningLines.push(line);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      resetGame() {
+        this.stacks = Array.from({ length: 16 }, () => []);
+        this.currentPlayer = 0;
+        this.pendingTargetCell = null;
+        this.winningCoords = [];
+        this.phase = 'THINKING';
+        this.phaseTimer = 0;
+        this.stepCount = 0;
+        this.renderBoard();
+        this.hudEl.textContent = '🧊 3D Connect AI 對局開始';
+      }
+
+      getCellWorldPos(cellIdx, layerZ = 0) {
+        const r = Math.floor(cellIdx / this.gridSize);
+        const c = cellIdx % this.gridSize;
+        const step = this.tileSize + this.tileGap;
+        const offset = (this.gridSize - 1) * step * 0.5;
+        const x = c * step - offset;
+        const z = r * step - offset;
+        const explodeGap = this.isExplodedView ? layerZ * 0.48 : 0;
+        const y = this.baseHeight + layerZ * this.pieceHeight + this.pieceHeight * 0.5 + explodeGap;
+        return new THREE.Vector3(x, y, z);
+      }
+
+      // 使用 3d_OX_game.htm 的線段潛力評估選出最佳落子格
+      chooseBestMove() {
+        const aiPid = this.currentPlayer;
+        const legalCells = [];
+        for (let c = 0; c < 16; c++) {
+          if (this.stacks[c].length < this.maxH) legalCells.push(c);
+        }
+        if (legalCells.length === 0) return null;
+
+        let bestCell = legalCells[0];
+        let bestScore = -Infinity;
+
+        for (const cIdx of legalCells) {
+          this.stacks[cIdx].push(aiPid);
+          let score = 0;
+
+          // 檢查所有 76 條 3D 空間勝利直線 (依符號 O / X 或同玩家連線加分)
+          const mySymbol = this.allPlayers[aiPid].symbol;
+          for (const line of this.winningLines) {
+            let mySymCount = 0, oppSymCount = 0, cost = 0;
+            for (const pt of line) {
+              const st = this.stacks[pt.cellIdx];
+              if (pt.z < st.length) {
+                const pSym = this.allPlayers[st[pt.z]].symbol;
+                if (pSym === mySymbol) mySymCount++;
+                else oppSymCount++;
+              } else {
+                cost += (pt.z - st.length);
+              }
+            }
+            if (mySymCount === 4) score += 100000;
+            else if (mySymCount > 0 && oppSymCount === 0) {
+              score += Math.pow(mySymCount, 3) * 40 / (1 + cost * 0.4);
+            } else if (oppSymCount === 3 && mySymCount === 1) {
+              score += 1800 / (1 + cost * 0.3); // 攔截對手聽牌
+            }
+          }
+
+          // 鼓勵高塔錯落立體堆疊感
+          const r = Math.floor(cIdx / 4), col = cIdx % 4;
+          const centerBonus = (3 - (Math.abs(r - 1.5) + Math.abs(col - 1.5))) * 15;
+          score += centerBonus + (Math.random() * 55);
+
+          this.stacks[cIdx].pop();
+          if (score > bestScore) {
+            bestScore = score;
+            bestCell = cIdx;
+          }
+        }
+        return bestCell;
+      }
+
+      checkSymbolWin() {
+        for (const line of this.winningLines) {
+          const firstPt = line[0];
+          const st0 = this.stacks[firstPt.cellIdx];
+          if (firstPt.z >= st0.length) continue;
+          const sym0 = this.allPlayers[st0[firstPt.z]].symbol;
+          let match = true;
+          for (let k = 1; k < 4; k++) {
+            const pt = line[k];
+            const st = this.stacks[pt.cellIdx];
+            if (pt.z >= st.length || this.allPlayers[st[pt.z]].symbol !== sym0) {
+              match = false;
+              break;
+            }
+          }
+          if (match) {
+            this.winningCoords = line;
+            return sym0;
+          }
+        }
+        return null;
+      }
+
+      renderBoard() {
+        while (this.boardGroup.children.length > 0) this.boardGroup.remove(this.boardGroup.children[0]);
+        while (this.piecesGroup.children.length > 0) this.piecesGroup.remove(this.piecesGroup.children[0]);
+        while (this.ghostGroup.children.length > 0) this.ghostGroup.remove(this.ghostGroup.children[0]);
+
+        const step = this.tileSize + this.tileGap;
+        const offset = (this.gridSize - 1) * step * 0.5;
+
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 4; c++) {
+            const cellIdx = r * 4 + c;
+            const x = c * step - offset;
+            const z = r * step - offset;
+
+            const tileGroup = this.cadBuilder.createBaseTileMesh(this.tileSize, this.baseHeight);
+            tileGroup.position.set(x, this.baseHeight * 0.5, z);
+            this.boardGroup.add(tileGroup);
+
+            const stack = this.stacks[cellIdx];
+            const winLayers = this.winningCoords.filter(w => w.cellIdx === cellIdx).map(w => w.z);
+
+            for (let layerZ = 0; layerZ < stack.length; layerZ++) {
+              const pid = stack[layerZ];
+              const pObj = this.allPlayers[pid];
+              const isWinPiece = winLayers.includes(layerZ);
+
+              const pieceMesh = this.cadBuilder.createPieceMesh(pObj, false, false, isWinPiece);
+              pieceMesh.position.copy(this.getCellWorldPos(cellIdx, layerZ));
+              this.piecesGroup.add(pieceMesh);
+            }
+          }
+        }
+
+        if (this.pendingTargetCell !== null) {
+          const pObj = this.allPlayers[this.currentPlayer];
+          const ghostMesh = this.cadBuilder.createPieceMesh(pObj, true, false, false);
+          ghostMesh.position.copy(this.getCellWorldPos(this.pendingTargetCell, this.stacks[this.pendingTargetCell].length));
+          this.ghostGroup.add(ghostMesh);
+        }
+
+        if (this.winningCoords.length >= 2) {
+          const first = this.winningCoords[0];
+          const last = this.winningCoords[this.winningCoords.length - 1];
+          const pStart = this.getCellWorldPos(first.cellIdx, first.z);
+          const pEnd = this.getCellWorldPos(last.cellIdx, last.z);
+          const curve = new THREE.LineCurve3(pStart, pEnd);
+          const tubeGeo = new THREE.TubeGeometry(curve, 12, 0.14, 10, false);
+          this.piecesGroup.add(new THREE.Mesh(tubeGeo, new THREE.MeshBasicMaterial({ color: 0xfde047 })));
+        }
+      }
+
+      resize() {
+        const w = Math.max(100, this.container.clientWidth);
+        const h = Math.max(100, this.container.clientHeight);
+        this.camera.aspect = w / h;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(w, h);
+        this.camSpherical.radius = w < 330 ? 21.5 : 19.2;
+      }
+
+      update(dt, now) {
+        const scaledDt = dt * GLOBAL_SPEED;
+        this.phaseTimer += scaledDt;
+
+        if (!this.isDragging) {
+          this.camSpherical.theta = -Math.PI / 5.2 + Math.sin(now * 0.0005) * 0.25;
+        }
+
+        if (this.phase === 'THINKING' && this.phaseTimer >= 0.5) {
+          const targetCell = this.chooseBestMove();
+          if (targetCell === null || this.stepCount >= 22) {
+            this.resetGame();
+            return;
+          }
+          this.pendingTargetCell = targetCell;
+          this.renderBoard();
+          const p = this.allPlayers[this.currentPlayer];
+          const r = Math.floor(targetCell / 4) + 1, c = (targetCell % 4) + 1;
+          this.hudEl.textContent = `✨ ${p.name} 預覽 (${c},${r}) 第${this.stacks[targetCell].length + 1}層`;
+          this.phase = 'PREVIEWING';
+          this.phaseTimer = 0;
+        } else if (this.phase === 'PREVIEWING' && this.phaseTimer >= 0.48) {
+          const cellIdx = this.pendingTargetCell;
+          this.pendingTargetCell = null;
+          this.stacks[cellIdx].push(this.currentPlayer);
+          this.stepCount++;
+
+          const winSym = this.checkSymbolWin();
+          this.renderBoard();
+
+          if (winSym) {
+            this.hudEl.textContent = `🎉 3D CONNECT！${winSym} 方達成 4 子立體連線！`;
+            this.phase = 'WIN_HOLD';
+            this.phaseTimer = 0;
+          } else {
+            this.currentPlayer = (this.currentPlayer + 1) % this.playerCount;
+            this.phase = 'THINKING';
+            this.phaseTimer = 0;
+          }
+        } else if (this.phase === 'WIN_HOLD' && this.phaseTimer >= 3.0) {
+          this.resetGame();
+        }
+
+        const { radius, theta, phi } = this.camSpherical;
+        this.camera.position.x = this.camTarget.x + radius * Math.sin(phi) * Math.sin(theta);
+        this.camera.position.y = this.camTarget.y + radius * Math.cos(phi);
+        this.camera.position.z = this.camTarget.z + radius * Math.sin(phi) * Math.cos(theta);
+        this.camera.lookAt(this.camTarget);
+        this.renderer.render(this.scene, this.camera);
+      }
+    }
+
+    /* ==========================================================================================
+     * 【遊戲三：鯨魚平衡積木】— 完整解析自 whale_balance_game.htm
+     * 包含：computeWhaleGeometry (R=115mm 真圓弧底 + 深U型背谷 + 9個蜂巢減重空腔)、
+     * computeFishPolygon (標準魚/雙鰭魚/大型魚/小鯊魚)、雙面陰刻魚骨花紋、
+     * Matter.js 真實剛體物理引擎、外圈量角器旋轉輔助環，以及支點 P / 穩心 M / CG_whale / CG_sys 標記
+     * ========================================================================================== */
+    class WhaleBalanceGameWidget {
+      constructor(canvasId, hudId) {
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas.getContext('2d');
+        this.hudEl = document.getElementById(hudId);
+
+        // OpenSCAD 幾何與物理參數 (來自 whale_balance_game.htm)
+        this.SCAD_PARAMS = {
+          block_thickness: 18,
+          wall_skin: 2.4,
+          enable_balance_cavity: true,
+          show_physics_guide: true,
+          cutaway_view: false,
+          rocker_radius: 115,
+          balance_x_shift: -6,
+          y_bottom: -45,
+          wood_density: 0.00072,
+          surface_friction: 0.65
+        };
+
+        this.WHALE_CAVITY_CIRCLES = [
+          { x: -68, y: 28, r: 7.8 }, { x: -48, y: 44, r: 7.8 }, { x: -26, y: 40, r: 7.8 },
+          { x: -72, y: 10, r: 7.8 }, { x: -50, y: 22, r: 7.8 }, { x: -28, y: 22, r: 7.8 }, { x: -12, y: 14, r: 7.8 },
+          { x: -52, y: 0,  r: 7.8 }, { x: -30, y: 2,  r: 7.8 }
+        ];
+
+        this.FISH_CAVITY_CIRCLES = [
+          { x: -5.0, y: 0, r: 5.8 },
+          { x: 6.5,  y: 0, r: 4.8 }
+        ];
+
+        this.DICE_COLORS = [
+          { key: "blue",      name: "藍色",   hex: "#2563eb", rgb: [0.15, 0.39, 0.92] },
+          { key: "orange",    name: "橘色",   hex: "#f97316", rgb: [0.98, 0.45, 0.09] },
+          { key: "red",       name: "紅色",   hex: "#ef4444", rgb: [0.94, 0.27, 0.27] },
+          { key: "green",     name: "綠色",   hex: "#22c55e", rgb: [0.13, 0.77, 0.37] },
+          { key: "pink",      name: "粉紅色", hex: "#ec4899", rgb: [0.93, 0.28, 0.60] },
+          { key: "lightblue", name: "淺藍色", hex: "#38bdf8", rgb: [0.22, 0.74, 0.97] }
+        ];
+
+        this.INITIAL_FISH_SPECS = [
+          { id: 1,  type: "standard", colorKey: "green" },
+          { id: 2,  type: "finned",   colorKey: "orange" },
+          { id: 3,  type: "large",    colorKey: "pink" },
+          { id: 4,  type: "standard", colorKey: "blue" },
+          { id: 5,  type: "finned",   colorKey: "green" },
+          { id: 6,  type: "large",    colorKey: "blue" },
+          { id: 7,  type: "standard", colorKey: "red" },
+          { id: 8,  type: "shark",    colorKey: "lightblue" },
+          { id: 9,  type: "finned",   colorKey: "blue" },
+          { id: 10, type: "large",    colorKey: "orange" },
+          { id: 11, type: "standard", colorKey: "green" },
+          { id: 12, type: "large",    colorKey: "red" }
+        ];
+
+        this.COLLISION_CAT_PLACED = 0x0001;
+        this.COLLISION_CAT_GHOST  = 0x0002;
+
+        this.initMatterEngine();
+        this.resize(true);
+
+        this.canvas.addEventListener('pointerdown', () => {
+          this.SCAD_PARAMS.cutaway_view = !this.SCAD_PARAMS.cutaway_view;
+        });
+      }
+
+      // 完整移植自 whale_balance_game.htm：計算鯨魚 2D 解析幾何頂點
+      computeWhaleGeometry(rocker_radius, balance_x_shift, y_bottom) {
+        const c0_x = balance_x_shift;
+        const c0_y = rocker_radius + y_bottom;
+
+        const r1 = 50;
+        const d01 = rocker_radius - r1;
+        const c1_y = c0_y - 52;
+        const c1_x = c0_x - Math.sqrt(Math.max(0, d01 * d01 - 52 * 52));
+        const ang_head = Math.atan2(c1_y - c0_y, c1_x - c0_x);
+
+        const r2 = 50;
+        const d02 = rocker_radius - r2;
+        const c2_y = c0_y - 60;
+        const c2_x = c0_x + Math.sqrt(Math.max(0, d02 * d02 - 60 * 60));
+        const ang_tail = Math.atan2(c2_y - c0_y, c2_x - c0_x);
+
+        const c3_x = 64,  c3_y = 22,  r3 = 9.5;
+        const ctl_x = 50, ctl_y = 37, rtl = 4.5;
+        const ctr_x = 86, ctr_y = 37, rtr = 4.5;
+
+        const rv = 28.5;
+        const d13 = Math.hypot(c3_x - c1_x, c3_y - c1_y);
+        const L1 = r1 + rv, L3 = r3 + rv;
+        const a_v = (L1 * L1 - L3 * L3 + d13 * d13) / (2 * d13);
+        const h_v = Math.sqrt(Math.max(0, L1 * L1 - a_v * a_v));
+        const ux_v = (c3_x - c1_x) / d13, uy_v = (c3_y - c1_y) / d13;
+        const cv_x = c1_x + a_v * ux_v - h_v * uy_v;
+        const cv_y = c1_y + a_v * uy_v + h_v * ux_v;
+
+        const t1_x = c1_x + (r1 / L1) * (cv_x - c1_x);
+        const t1_y = c1_y + (r1 / L1) * (cv_y - c1_y);
+
+        const rfr = 18.0;
+        const d2r = Math.hypot(ctr_x - c2_x, ctr_y - c2_y);
+        const L2 = r2 + rfr, Lr = rtr + rfr;
+        const a_r = (L2 * L2 - Lr * Lr + d2r * d2r) / (2 * d2r);
+        const h_r = Math.sqrt(Math.max(0, L2 * L2 - a_r * a_r));
+        const ux_r = (ctr_x - c2_x) / d2r, uy_r = (ctr_y - c2_y) / d2r;
+        const cfr_x = c2_x + a_r * ux_r + h_r * uy_r;
+        const cfr_y = c2_y + a_r * uy_r - h_r * ux_r;
+        const t2_x = c2_x + (r2 / L2) * (cfr_x - c2_x);
+        const t2_y = c2_y + (r2 / L2) * (cfr_y - c2_y);
+        const tr_x = ctr_x + (rtr / Lr) * (cfr_x - ctr_x);
+        const tr_y = ctr_y + (rtr / Lr) * (cfr_y - ctr_y);
+
+        const rft = 32.0;
+        const cft_x = (ctl_x + ctr_x) / 2;
+        const dx_t = (ctr_x - ctl_x) / 2;
+        const Lt = rtl + rft;
+        const cft_y = ctl_y + Math.sqrt(Math.max(0, Lt * Lt - dx_t * dx_t));
+        const tl_top_x = ctl_x + (rtl / Lt) * (cft_x - ctl_x);
+        const tl_top_y = ctl_y + (rtl / Lt) * (cft_y - ctl_y);
+        const tr_top_x = ctr_x + (rtr / Lt) * (cft_x - ctr_x);
+        const tr_top_y = ctr_y + (rtr / Lt) * (cft_y - ctr_y);
+
+        const pts = [];
+        const pushArc = (cx, cy, r, aStart, aEnd, steps, includeEnd = false) => {
+          for (let i = 0; i < (includeEnd ? steps + 1 : steps); i++) {
+            const t = i / steps;
+            const a = aStart + (aEnd - aStart) * t;
+            pts.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+          }
+        };
+        const normAngleUp = (aStart, aEnd) => { while (aEnd < aStart) aEnd += Math.PI * 2; return aEnd; };
+        const normAngleDown = (aStart, aEnd) => { while (aEnd > aStart) aEnd -= Math.PI * 2; return aEnd; };
+
+        pushArc(c0_x, c0_y, rocker_radius, ang_head, ang_tail, 64);
+        pushArc(c2_x, c2_y, r2, ang_tail, normAngleUp(ang_tail, Math.atan2(t2_y - c2_y, t2_x - c2_x)), 14);
+        pushArc(cfr_x, cfr_y, rfr, Math.atan2(t2_y - cfr_y, t2_x - cfr_x), normAngleDown(Math.atan2(t2_y - cfr_y, t2_x - cfr_x), Math.atan2(tr_y - cfr_y, tr_x - cfr_x)), 12);
+        pushArc(ctr_x, ctr_y, rtr, Math.atan2(tr_y - ctr_y, tr_x - ctr_x), normAngleUp(Math.atan2(tr_y - ctr_y, tr_x - ctr_x), Math.atan2(tr_top_y - ctr_y, tr_top_x - ctr_x)), 10);
+        pushArc(cft_x, cft_y, rft, Math.atan2(tr_top_y - cft_y, tr_top_x - cft_x), normAngleDown(Math.atan2(tr_top_y - cft_y, tr_top_x - cft_x), Math.atan2(tl_top_y - cft_y, tl_top_x - cft_x)), 14);
+
+        const dx_ctl_c3 = ctl_x - c3_x, dy_ctl_c3 = ctl_y - c3_y;
+        const dist_ctl_c3 = Math.hypot(dx_ctl_c3, dy_ctl_c3);
+        const ang_hull_left = Math.atan2(dy_ctl_c3, dx_ctl_c3) + Math.acos((r3 - rtl) / dist_ctl_c3);
+        pushArc(ctl_x, ctl_y, rtl, Math.atan2(tl_top_y - ctl_y, tl_top_x - ctl_x), normAngleUp(Math.atan2(tl_top_y - ctl_y, tl_top_x - ctl_x), ang_hull_left), 10, true);
+
+        const p_ctl_tan = { x: ctl_x + rtl * Math.cos(ang_hull_left), y: ctl_y + rtl * Math.sin(ang_hull_left) };
+        const p_c3_tan = { x: c3_x + r3 * Math.cos(ang_hull_left), y: c3_y + r3 * Math.sin(ang_hull_left) };
+        const vx_seg = p_c3_tan.x - p_ctl_tan.x, vy_seg = p_c3_tan.y - p_ctl_tan.y;
+        const ox_seg = p_ctl_tan.x - cv_x, oy_seg = p_ctl_tan.y - cv_y;
+        const qa = vx_seg * vx_seg + vy_seg * vy_seg;
+        const qb = 2 * (ox_seg * vx_seg + oy_seg * vy_seg);
+        const qc = ox_seg * ox_seg + oy_seg * oy_seg - rv * rv;
+        const t_join = Math.max(0, Math.min(1, (-qb + Math.sqrt(Math.max(0, qb * qb - 4 * qa * qc))) / (2 * qa)));
+        const p_valley_join = { x: p_ctl_tan.x + t_join * vx_seg, y: p_ctl_tan.y + t_join * vy_seg };
+
+        pushArc(cv_x, cv_y, rv, Math.atan2(p_valley_join.y - cv_y, p_valley_join.x - cv_x), normAngleDown(Math.atan2(p_valley_join.y - cv_y, p_valley_join.x - cv_x), Math.atan2(t1_y - cv_y, t1_x - cv_x)), 24);
+        pushArc(c1_x, c1_y, r1, Math.atan2(t1_y - c1_y, t1_x - c1_x), normAngleUp(Math.atan2(t1_y - c1_y, t1_x - c1_x), ang_head), 26);
+
+        return { pts, c0: { x: c0_x, y: c0_y, r: rocker_radius } };
+      }
+
+      // 完整移植自 whale_balance_game.htm：計算 4 種小魚的 2D 頂點
+      computeFishPolygon(type) {
+        const pts = [];
+        const addPt = (x, y) => pts.push({ x, y });
+        if (type === "standard") {
+          for (let deg = 35; deg <= 325; deg += 12) {
+            const rad = deg * Math.PI / 180;
+            addPt(1.35 * 13 * Math.cos(rad), 13 * Math.sin(rad));
+          }
+          addPt(22, -8.8); addPt(24.5, -6.5); addPt(24.5, 6.5); addPt(22, 8.8);
+        } else if (type === "finned") {
+          addPt(11, 14.9); addPt(1, 13.0);
+          for (let deg = 115; deg <= 245; deg += 12) {
+            const rad = deg * Math.PI / 180;
+            addPt(1.38 * 13.2 * Math.cos(rad), 13.2 * Math.sin(rad));
+          }
+          addPt(1, -13.0); addPt(11, -14.9); addPt(14.5, -8.5);
+          addPt(23, -9.5); addPt(25.5, -7.0); addPt(25.5, 7.0); addPt(23, 9.5); addPt(14.5, 8.5);
+        } else if (type === "large") {
+          addPt(13, 17.1); addPt(3, 15.5);
+          for (let deg = 110; deg <= 320; deg += 12) {
+            const rad = deg * Math.PI / 180;
+            addPt(1.32 * 16 * Math.cos(rad), 16 * Math.sin(rad));
+          }
+          addPt(26, -11.0); addPt(29, -8.0); addPt(29, 8.0); addPt(26, 11.0); addPt(16.5, 9.5);
+        } else if (type === "shark") {
+          addPt(2, 18.9); addPt(-5, 13.0);
+          for (let deg = 125; deg <= 330; deg += 12) {
+            const rad = deg * Math.PI / 180;
+            addPt(1.35 * 13.5 * Math.cos(rad), 0.95 * 13.5 * Math.sin(rad));
+          }
+          addPt(23, -4.5); addPt(25.5, -2.0); addPt(23.5, 11.5); addPt(21, 13.5); addPt(10, 7.5);
+        }
+        return pts;
+      }
+
+      computePolygonAreaAndCentroid(pts) {
+        let area = 0, cx = 0, cy = 0;
+        const n = pts.length;
+        for (let i = 0; i < n; i++) {
+          const p1 = pts[i], p2 = pts[(i + 1) % n];
+          const cross = p1.x * p2.y - p2.x * p1.y;
+          area += cross;
+          cx += (p1.x + p2.x) * cross;
+          cy += (p1.y + p2.y) * cross;
+        }
+        area *= 0.5;
+        if (Math.abs(area) < 1e-5) return { area: 0, cx: 0, cy: 0 };
+        return { area: Math.abs(area), cx: cx / (6 * area), cy: cy / (6 * area) };
+      }
+
+      computeSolidWoodProperties(pts, cavities, isWhale = false) {
+        const base = this.computePolygonAreaAndCentroid(pts);
+        const thickness = this.SCAD_PARAMS.block_thickness;
+        const cavityH = Math.max(0, thickness - this.SCAD_PARAMS.wall_skin * 2);
+        let rawCavityVol = 0, rawCavityMomentX = 0, rawCavityMomentY = 0;
+        for (const c of cavities) {
+          const v = Math.PI * c.r * c.r * cavityH;
+          rawCavityVol += v;
+          rawCavityMomentX += v * c.x;
+          rawCavityMomentY += v * c.y;
+        }
+        const solidVol = base.area * thickness;
+        const netVol = Math.max(100, solidVol - rawCavityVol);
+        const trueCgX = (solidVol * base.cx - rawCavityMomentX) / netVol;
+        const rawCgY = (solidVol * base.cy - rawCavityMomentY) / netVol;
+        const cgY = isWhale ? -13.2 : rawCgY;
+        const massGrams = netVol * this.SCAD_PARAMS.wood_density;
+        return { massGrams, cgScad: { x: trueCgX, y: cgY }, inertiaFactor: 1.22 };
+      }
+
+      initMatterEngine() {
+        const { Engine, Common } = Matter;
+        if (typeof decomp !== 'undefined' && Common && Common.setDecomp) {
+          Common.setDecomp(decomp);
+        }
+        this.engine = Engine.create({ positionIterations: 14, velocityIterations: 12, constraintIterations: 6 });
+        this.world = this.engine.world;
+        this.engine.gravity.y = 1.0;
+
+        this.FLOOR_SCAD_Y = -45;
+        this.groundBody = null;
+        this.whaleBody = null;
+        this.fishBodies = [];
+        this.stagedFishBody = null;
+        this.draggedBody = null;
+        this.dragInteractionMode = null;
+
+        this.aiState = {
+          phase: 'SPAWN_NEXT',
+          phaseStartTime: 0,
+          startAngle: 0,
+          targetAngle: 0,
+          startPos: { x: 0, y: 0 },
+          targetPos: { x: 0, y: 0 }
+        };
+      }
+
+      scadToWorld(sx, sy) {
+        return { x: this.ORIGIN_X + sx * this.SCALE, y: this.ORIGIN_Y - sy * this.SCALE };
+      }
+      worldToScad(wx, wy) {
+        return { x: (wx - this.ORIGIN_X) / this.SCALE, y: (this.ORIGIN_Y - wy) / this.SCALE };
+      }
+
+      alignCompoundBodyCenterOfGravity(body, screenVerts, cgScad, targetWorldPos) {
+        const { Body } = Matter;
+        Body.setAngle(body, 0);
+        Body.setPosition(body, { x: 0, y: 0 });
+        let rawMinX = Infinity, rawMaxX = -Infinity, rawMinY = Infinity, rawMaxY = -Infinity;
+        for (const v of screenVerts) {
+          if (v.x < rawMinX) rawMinX = v.x;
+          if (v.x > rawMaxX) rawMaxX = v.x;
+          if (v.y < rawMinY) rawMinY = v.y;
+          if (v.y > rawMaxY) rawMaxY = v.y;
+        }
+        const matterCentreX = (rawMinX + rawMaxX) / 2 - (body.bounds.min.x + body.bounds.max.x) / 2;
+        const matterCentreY = (rawMinY + rawMaxY) / 2 - (body.bounds.min.y + body.bounds.max.y) / 2;
+        Body.setCentre(body, { x: cgScad.x * this.SCALE - matterCentreX, y: -cgScad.y * this.SCALE - matterCentreY }, true);
+        Body.setPosition(body, targetWorldPos);
+      }
+
+      setBodyCollisionMode(body, isGhost) {
+        const filter = isGhost
+          ? { group: 0, category: this.COLLISION_CAT_GHOST, mask: 0 }
+          : { group: 0, category: this.COLLISION_CAT_PLACED, mask: this.COLLISION_CAT_PLACED };
+        for (const part of body.parts) part.collisionFilter = { ...filter };
+      }
+
+      setBodyStaticSafe(body, isStatic) {
+        const { Body } = Matter;
+        if (!body) return;
+        if (body.isStatic !== isStatic) Body.setStatic(body, isStatic);
+        if (!isStatic) {
+          for (const part of body.parts) {
+            part.positionPrev.x = part.position.x;
+            part.positionPrev.y = part.position.y;
+            part.anglePrev = part.angle;
+            part.velocity.x = 0; part.velocity.y = 0; part.angularVelocity = 0;
+          }
+        }
+      }
+
+      setupFreshScene() {
+        const { Composite, Bodies, Body } = Matter;
+        Composite.clear(this.world, false);
+        this.fishBodies = [];
+        this.stagedFishBody = null;
+        this.draggedBody = null;
+        this.dragInteractionMode = null;
+
+        // 隱形物理桌面邊界
+        const floorPos = this.scadToWorld(0, this.FLOOR_SCAD_Y);
+        this.groundBody = Bodies.rectangle(this.w / 2, floorPos.y + 60, this.w * 3, 120, {
+          isStatic: true, friction: 0.98, restitution: 0.05, label: 'ground',
+          collisionFilter: { group: 0, category: this.COLLISION_CAT_PLACED, mask: this.COLLISION_CAT_PLACED }
+        });
+        Composite.add(this.world, this.groundBody);
+
+        // 建立鯨魚剛體
+        const geom = this.computeWhaleGeometry(this.SCAD_PARAMS.rocker_radius, this.SCAD_PARAMS.balance_x_shift, this.SCAD_PARAMS.y_bottom);
+        const woodProps = this.computeSolidWoodProperties(geom.pts, this.WHALE_CAVITY_CIRCLES, true);
+        const screenVerts = geom.pts.map(p => ({ x: p.x * this.SCALE, y: -p.y * this.SCALE }));
+        const c0World = this.scadToWorld(geom.c0.x, geom.c0.y);
+        const targetWorldPos = {
+          x: c0World.x + (woodProps.cgScad.x - geom.c0.x) * this.SCALE,
+          y: c0World.y - (woodProps.cgScad.y - geom.c0.y) * this.SCALE
+        };
+
+        this.whaleBody = Bodies.fromVertices(0, 0, [screenVerts], {
+          friction: 0.65, frictionStatic: 0.75, frictionAir: 0.012, restitution: 0.02, slop: 0.01, label: 'whale',
+          collisionFilter: { group: 0, category: this.COLLISION_CAT_PLACED, mask: this.COLLISION_CAT_PLACED }
+        }, true, 0.00001, 0.01, 0.00001);
+
+        this.alignCompoundBodyCenterOfGravity(this.whaleBody, screenVerts, woodProps.cgScad, targetWorldPos);
+        this.setBodyCollisionMode(this.whaleBody, false);
+        Body.setMass(this.whaleBody, woodProps.massGrams * 0.12);
+        Body.setInertia(this.whaleBody, this.whaleBody.inertia * 1.22);
+
+        this.whaleBody.scadMeta = {
+          kind: 'whale', geom, woodProps,
+          localOriginOffset: { x: -woodProps.cgScad.x * this.SCALE, y: woodProps.cgScad.y * this.SCALE }
+        };
+        Composite.add(this.world, this.whaleBody);
+
+        this.fishQueue = [...this.INITIAL_FISH_SPECS];
+        this.aiState.phase = 'SPAWN_NEXT';
+        this.aiState.phaseStartTime = performance.now();
+      }
+
+      createSingleFishBody(spec, worldX, worldY, angleDeg = 0, isGhostStaged = true) {
+        const { Bodies, Body, Composite } = Matter;
+        const pts = this.computeFishPolygon(spec.type);
+        const woodProps = this.computeSolidWoodProperties(pts, this.FISH_CAVITY_CIRCLES, false);
+        const screenVerts = pts.map(p => ({ x: p.x * this.SCALE, y: -p.y * this.SCALE }));
+
+        const body = Bodies.fromVertices(0, 0, [screenVerts], {
+          friction: 0.68, frictionStatic: 0.85, frictionAir: 0.02, restitution: 0.02, slop: 0.01, label: 'fish'
+        }, true, 0.0001, 0.05, 0.0001);
+
+        this.alignCompoundBodyCenterOfGravity(body, screenVerts, woodProps.cgScad, { x: worldX, y: worldY });
+        this.setBodyCollisionMode(body, isGhostStaged);
+        Body.setMass(body, woodProps.massGrams * 0.12);
+        Body.setInertia(body, body.inertia * 1.2);
+        Body.setAngle(body, -angleDeg * Math.PI / 180);
+
+        const colorObj = this.DICE_COLORS.find(c => c.key === spec.colorKey) || this.DICE_COLORS[0];
+        body.scadMeta = {
+          kind: 'fish', id: spec.id, type: spec.type, colorKey: spec.colorKey, color: colorObj.rgb,
+          pts, woodProps, isLockedAfterDrop: !isGhostStaged,
+          localOriginOffset: { x: -woodProps.cgScad.x * this.SCALE, y: woodProps.cgScad.y * this.SCALE }
+        };
+        this.fishBodies.push(body);
+        Composite.add(this.world, body);
+        return body;
+      }
+
+      checkBodyOverlapWithPlaced(testBody) {
+        const obstacles = [this.whaleBody, this.groundBody];
+        for (const fb of this.fishBodies) {
+          if (fb !== testBody && fb.scadMeta.isLockedAfterDrop) obstacles.push(fb);
+        }
+        const testParts = testBody.parts.length > 1 ? testBody.parts.slice(1) : testBody.parts;
+        for (const tp of testParts) Matter.Bounds.update(tp.bounds, tp.vertices, testBody.velocity);
+        for (const obs of obstacles) {
+          if (!obs) continue;
+          const obsParts = obs.parts.length > 1 ? obs.parts.slice(1) : obs.parts;
+          for (const tp of testParts) {
+            for (const op of obsParts) {
+              Matter.Bounds.update(op.bounds, op.vertices, obs.velocity);
+              if (Matter.Bounds.overlaps(tp.bounds, op.bounds)) {
+                const col = Matter.SAT.collides(tp, op);
+                if (col && col.collided) return true;
+              }
+            }
+          }
+        }
+        return false;
+      }
+
+      // 移植自 whale_balance_game.htm：AI 計算最佳擺放位置與契合角度
+      computeAiOptimalPlacement(fishBody) {
+        const { Body } = Matter;
+        const origPos = { x: fishBody.position.x, y: fishBody.position.y };
+        const origAngle = fishBody.angle;
+
+        const wMeta = this.whaleBody.scadMeta;
+        const c0Scad = wMeta.geom.c0;
+        const localC0 = {
+          x: c0Scad.x * this.SCALE + wMeta.localOriginOffset.x,
+          y: -c0Scad.y * this.SCALE + wMeta.localOriginOffset.y
+        };
+        const cosA = Math.cos(this.whaleBody.angle), sinA = Math.sin(this.whaleBody.angle);
+        const metacenterWorldX = this.whaleBody.position.x + (localC0.x * cosA - localC0.y * sinA);
+
+        let totalMass = wMeta.woodProps.massGrams;
+        let momentX = totalMass * this.whaleBody.position.x;
+        for (const fb of this.fishBodies) {
+          if (fb !== fishBody && fb.scadMeta.isLockedAfterDrop) {
+            const m = fb.scadMeta.woodProps.massGrams;
+            totalMass += m;
+            momentX += m * fb.position.x;
+          }
+        }
+        const fishMass = fishBody.scadMeta.woodProps.massGrams;
+
+        const candidateSlots = [
+          { scadX: 20,  scadDeg: -16, zoneBias: -10 },
+          { scadX: 10,  scadDeg: 5,   zoneBias: -8 },
+          { scadX: 28,  scadDeg: -8,  zoneBias: -6 },
+          { scadX: -40, scadDeg: 8,   zoneBias: 0 },
+          { scadX: -48, scadDeg: 10,  zoneBias: 2 },
+          { scadX: -28, scadDeg: 4,   zoneBias: 0 },
+          { scadX: 54,  scadDeg: -12, zoneBias: 0 },
+          { scadX: 68,  scadDeg: -4,  zoneBias: 2 },
+          { scadX: 15,  scadDeg: 0,   zoneBias: -4 }
+        ];
+
+        let bestPlan = null, bestScore = Infinity;
+        const floorY = this.scadToWorld(0, this.FLOOR_SCAD_Y).y;
+
+        for (const slot of candidateSlots) {
+          const localScadX = slot.scadX + (Math.random() - 0.5) * 3.5;
+          const localPxX = localScadX * this.SCALE + wMeta.localOriginOffset.x;
+          const localPxY = -40 * this.SCALE + wMeta.localOriginOffset.y;
+          const candWorldX = this.whaleBody.position.x + (localPxX * cosA - localPxY * sinA);
+          const candAngle = (-slot.scadDeg * Math.PI / 180) + this.whaleBody.angle * 0.65;
+
+          Body.setAngle(fishBody, candAngle);
+          const scanStartY = Math.max(40, this.scadToWorld(0, 185).y);
+          let safeDropY = scanStartY, foundSurface = false;
+
+          for (let testY = scanStartY; testY < floorY - 20 * this.SCALE; testY += 3) {
+            Body.setPosition(fishBody, { x: candWorldX, y: testY });
+            if (this.checkBodyOverlapWithPlaced(fishBody)) {
+              safeDropY = Math.max(35, testY - 5.0 * this.SCALE);
+              foundSurface = true;
+              break;
+            }
+          }
+          if (!foundSurface) continue;
+          Body.setPosition(fishBody, { x: candWorldX, y: safeDropY });
+          if (this.checkBodyOverlapWithPlaced(fishBody)) continue;
+
+          const predictedSysCGX = (momentX + fishMass * candWorldX) / (totalMass + fishMass);
+          const predictedLeverArmMM = Math.abs(predictedSysCGX - metacenterWorldX) / this.SCALE;
+          const dropHeightMM = this.worldToScad(candWorldX, safeDropY).y;
+          const score = predictedLeverArmMM * 3.4 + dropHeightMM * 0.38 + slot.zoneBias;
+          if (score < bestScore) {
+            bestScore = score;
+            bestPlan = { targetX: candWorldX, targetY: safeDropY, targetAngle: candAngle };
+          }
+        }
+
+        Body.setPosition(fishBody, origPos);
+        Body.setAngle(fishBody, origAngle);
+        return bestPlan || { targetX: this.whaleBody.position.x, targetY: origPos.y + 10, targetAngle: 0 };
+      }
+
+      applyWhaleTrueRockerPhysics() {
+        const { Body } = Matter;
+        if (!this.whaleBody) return;
+        const wMeta = this.whaleBody.scadMeta;
+        const c0Scad = wMeta.geom.c0;
+        const localC0 = {
+          x: c0Scad.x * this.SCALE + wMeta.localOriginOffset.x,
+          y: -c0Scad.y * this.SCALE + wMeta.localOriginOffset.y
+        };
+        const cosA = Math.cos(this.whaleBody.angle), sinA = Math.sin(this.whaleBody.angle);
+        const metacenterWorldX = this.whaleBody.position.x + (localC0.x * cosA - localC0.y * sinA);
+
+        let totalMass = wMeta.woodProps.massGrams;
+        let momentX = totalMass * this.whaleBody.position.x;
+        for (const fb of this.fishBodies) {
+          if (fb !== this.stagedFishBody && fb.scadMeta.isLockedAfterDrop) {
+            const m = fb.scadMeta.woodProps.massGrams;
+            totalMass += m;
+            momentX += m * fb.position.x;
+          }
+        }
+        const sysCGWorldX = momentX / totalMass;
+        const leverArmPx = sysCGWorldX - metacenterWorldX;
+        const rockerRadiusPx = this.SCAD_PARAMS.rocker_radius * this.SCALE;
+
+        if (Math.abs(this.whaleBody.angle) < 0.56) {
+          const targetTorqueAccel = (leverArmPx / rockerRadiusPx) * 0.0028;
+          const nextOmega = (this.whaleBody.angularVelocity + targetTorqueAccel) * 0.955;
+          Body.setAngularVelocity(this.whaleBody, Math.abs(nextOmega) < 0.00008 && Math.abs(leverArmPx) < 0.4 ? 0 : nextOmega);
+        }
+      }
+
+      // 完整移植自 whale_balance_game.htm：繪製鯨魚與雙面陰刻細節
+      renderWhale(body) {
+        const ctx = this.ctx, SCALE = this.SCALE;
+        const meta = body.scadMeta;
+        const pts = meta.geom.pts;
+
+        ctx.save();
+        ctx.translate(body.position.x, body.position.y);
+        ctx.rotate(body.angle);
+        ctx.translate(meta.localOriginOffset.x, meta.localOriginOffset.y);
+
+        ctx.save();
+        ctx.beginPath();
+        pts.forEach((p, i) => {
+          const px = p.x * SCALE, py = -p.y * SCALE;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        });
+        ctx.closePath();
+
+        const whaleGrad = ctx.createLinearGradient(0, -60 * SCALE, 0, 50 * SCALE);
+        whaleGrad.addColorStop(0, '#1969b2');
+        whaleGrad.addColorStop(1, '#0d4785');
+        ctx.fillStyle = whaleGrad;
+        ctx.fill();
+        ctx.lineWidth = 2.0;
+        ctx.strokeStyle = '#38bdf8';
+        ctx.stroke();
+        ctx.restore();
+
+        // OpenSCAD 雙面陰刻凹槽細節 (眼睛、腮紅、肚皮四條圓弧紋、小胸鰭)
+        ctx.save();
+        ctx.fillStyle = '#bfe6fa';
+        ctx.strokeStyle = '#bfe6fa';
+
+        const eyeX = -45 * SCALE, eyeY = -22 * SCALE;
+        ctx.lineWidth = 2.0 * SCALE;
+        ctx.beginPath();
+        ctx.arc(eyeX, eyeY, 10 * SCALE, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(eyeX - 1.5 * SCALE, eyeY + 0.5 * SCALE, 5.8 * SCALE, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#145899';
+        ctx.beginPath();
+        ctx.arc(eyeX - 3.5 * SCALE, eyeY - 1.5 * SCALE, 1.8 * SCALE, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.save();
+        ctx.translate(-28 * SCALE, -8 * SCALE);
+        ctx.rotate(-25 * Math.PI / 180);
+        ctx.scale(1.5, 0.9);
+        ctx.fillStyle = 'rgba(251, 146, 160, 0.88)';
+        ctx.beginPath();
+        ctx.arc(0, 0, 3.6 * SCALE, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // 肚皮四條圓弧條紋
+        ctx.save();
+        ctx.beginPath();
+        pts.forEach((p, i) => {
+          const px = p.x * SCALE, py = -p.y * SCALE;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        });
+        ctx.closePath();
+        ctx.clip();
+
+        ctx.strokeStyle = 'rgba(191, 230, 250, 0.85)';
+        ctx.lineWidth = 1.5 * SCALE;
+        for (const rVal of [79.5, 85, 90.5, 96]) {
+          ctx.beginPath();
+          ctx.arc(-2 * SCALE, -58 * SCALE, rVal * SCALE, 0.22 * Math.PI, 0.78 * Math.PI);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        // 小胸鰭輪廓
+        ctx.save();
+        ctx.translate(-20 * SCALE, 23 * SCALE);
+        ctx.rotate(-15 * Math.PI / 180);
+        ctx.strokeStyle = '#bfe6fa';
+        ctx.lineWidth = 1.5 * SCALE;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 8.2 * 0.65 * SCALE, 8.2 * 1.3 * SCALE, 0, 0.1 * Math.PI, 0.9 * Math.PI);
+        ctx.stroke();
+        ctx.restore();
+        ctx.restore();
+
+        // 剖面檢視模式：顯示內部 9 個蜂巢減重孔
+        if (this.SCAD_PARAMS.cutaway_view) {
+          ctx.save();
+          for (const c of this.WHALE_CAVITY_CIRCLES) {
+            ctx.beginPath();
+            ctx.arc(c.x * SCALE, -c.y * SCALE, c.r * SCALE, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.86)';
+            ctx.fill();
+            ctx.lineWidth = 1.4;
+            ctx.strokeStyle = '#f59e0b';
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+        ctx.restore();
+      }
+
+      // 完整移植自 whale_balance_game.htm：繪製小魚與雙面陰刻魚骨花紋
+      renderFish(body) {
+        const ctx = this.ctx, SCALE = this.SCALE;
+        const meta = body.scadMeta;
+        const pts = meta.pts;
+        const [r, g, b] = meta.color;
+        const rgbCss = `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+
+        ctx.save();
+        ctx.translate(body.position.x, body.position.y);
+        ctx.rotate(body.angle);
+        ctx.translate(meta.localOriginOffset.x, meta.localOriginOffset.y);
+
+        ctx.beginPath();
+        pts.forEach((p, i) => {
+          const px = p.x * SCALE, py = -p.y * SCALE;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        });
+        ctx.closePath();
+        ctx.fillStyle = rgbCss;
+        ctx.fill();
+        ctx.lineWidth = 1.6;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.78)';
+        ctx.stroke();
+
+        // 魚眼、魚鰓與專屬花紋
+        const eyePos = (meta.type === "large") ? [-14, 3] : (meta.type === "shark") ? [-11, -1.5] : [-11.5, 2.5];
+        ctx.strokeStyle = '#faf2e0';
+        ctx.fillStyle = '#faf2e0';
+        ctx.lineWidth = 1.2 * SCALE;
+        ctx.beginPath();
+        ctx.arc(eyePos[0] * SCALE, -eyePos[1] * SCALE, 3.1 * SCALE, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc((eyePos[0] - 0.4) * SCALE, -eyePos[1] * SCALE, 1.4 * SCALE, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(-11 * SCALE, 0, 8.1 * SCALE, -0.36 * Math.PI, 0.36 * Math.PI);
+        ctx.stroke();
+
+        if (meta.type === "large") {
+          for (const pt of [[0, 6], [0, -5], [6, 1], [8, 9], [8, -8], [14, 3], [14, -4]]) {
+            ctx.beginPath();
+            ctx.arc(pt[0] * SCALE, -pt[1] * SCALE, 2.0 * SCALE, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else if (meta.type === "shark") {
+          for (const xPos of [2, 7, 12]) {
+            ctx.save();
+            ctx.translate(xPos * SCALE, -3 * SCALE);
+            ctx.rotate(-15 * Math.PI / 180);
+            ctx.fillRect(-0.75 * SCALE, -5.5 * SCALE, 1.5 * SCALE, 11 * SCALE);
+            ctx.restore();
+          }
+        } else {
+          for (const xPos of [1, 6, 11]) {
+            ctx.fillRect((xPos - 0.8) * SCALE, -7.5 * SCALE, 1.6 * SCALE, 15 * SCALE);
+          }
+        }
+
+        if (this.SCAD_PARAMS.cutaway_view) {
+          for (const c of this.FISH_CAVITY_CIRCLES) {
+            ctx.beginPath();
+            ctx.arc(c.x * SCALE, -c.y * SCALE, c.r * SCALE, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+            ctx.fill();
+            ctx.strokeStyle = '#38bdf8';
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+
+        // 小魚單體重心點
+        ctx.save();
+        ctx.fillStyle = '#fde047';
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(body.position.x, body.position.y, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 移植自 whale_balance_game.htm：繪製待命小魚外圍的量角器旋轉輔助環
+      renderStagedRotationGizmo(fishBody) {
+        if (!fishBody || this.aiState.phase !== 'ROTATING') return;
+        const ctx = this.ctx, SCALE = this.SCALE;
+        const center = fishBody.position;
+        const ringRadius = 34 * SCALE;
+        const ang = fishBody.angle || 0;
+
+        ctx.save();
+        ctx.strokeStyle = '#fde047';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, ringRadius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        const handleRight = { x: center.x + ringRadius * Math.cos(ang), y: center.y + ringRadius * Math.sin(ang) };
+        ctx.beginPath();
+        ctx.arc(handleRight.x, handleRight.y, 8 * SCALE, 0, Math.PI * 2);
+        ctx.fillStyle = '#f59e0b';
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 完整移植自 whale_balance_game.htm：繪製支點 P、CG_whale (-13.2)、穩心 M (+70)、CG_sys
+      renderPhysicsOverlay() {
+        if (!this.whaleBody) return;
+        const ctx = this.ctx, SCALE = this.SCALE;
+        const wMeta = this.whaleBody.scadMeta;
+        const whaleMass = wMeta.woodProps.massGrams;
+        const whaleCGWorld = this.whaleBody.position;
+
+        const c0Scad = wMeta.geom.c0;
+        const localC0 = {
+          x: c0Scad.x * SCALE + wMeta.localOriginOffset.x,
+          y: -c0Scad.y * SCALE + wMeta.localOriginOffset.y
+        };
+        const cosA = Math.cos(this.whaleBody.angle), sinA = Math.sin(this.whaleBody.angle);
+        const metacenterWorld = {
+          x: this.whaleBody.position.x + (localC0.x * cosA - localC0.y * sinA),
+          y: this.whaleBody.position.y + (localC0.x * sinA + localC0.y * cosA)
+        };
+        const floorY = this.scadToWorld(0, this.FLOOR_SCAD_Y).y;
+        const contactWorld = {
+          x: metacenterWorld.x,
+          y: Math.min(floorY, metacenterWorld.y + this.SCAD_PARAMS.rocker_radius * SCALE)
+        };
+
+        let fishMassTotal = 0;
+        let sysMomentX = whaleMass * whaleCGWorld.x;
+        let sysMomentY = whaleMass * whaleCGWorld.y;
+        for (const fb of this.fishBodies) {
+          if (fb !== this.stagedFishBody && fb.scadMeta.isLockedAfterDrop) {
+            const m = fb.scadMeta.woodProps.massGrams;
+            fishMassTotal += m;
+            sysMomentX += m * fb.position.x;
+            sysMomentY += m * fb.position.y;
+          }
+        }
+        const totalSysMass = whaleMass + fishMassTotal;
+        const sysCGWorld = { x: sysMomentX / totalSysMass, y: sysMomentY / totalSysMass };
+
+        const dWorld = { x: sysCGWorld.x - this.whaleBody.position.x, y: sysCGWorld.y - this.whaleBody.position.y };
+        const localSysY = (dWorld.x * (-sinA) + dWorld.y * cosA) - wMeta.localOriginOffset.y;
+        const sysCG_ScadY = -localSysY / SCALE;
+        const y_metacenter = this.SCAD_PARAMS.y_bottom + this.SCAD_PARAMS.rocker_radius;
+
+        ctx.save();
+        // 系統合成重心鉛垂重力向量線 (紅線)
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(244, 63, 94, 0.88)';
+        ctx.lineWidth = 1.8;
+        ctx.moveTo(sysCGWorld.x, sysCGWorld.y);
+        ctx.lineTo(sysCGWorld.x, contactWorld.y - 3);
+        ctx.stroke();
+
+        const drawMarker = (pt, fill, label, offsetX = 8, offsetY = -5) => {
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 4.8, 0, Math.PI * 2);
+          ctx.fillStyle = fill;
+          ctx.fill();
+          ctx.lineWidth = 1.6;
+          ctx.strokeStyle = '#ffffff';
+          ctx.stroke();
+
+          ctx.font = 'bold 10px "JetBrains Mono", monospace';
+          ctx.fillStyle = '#f8fafc';
+          ctx.shadowColor = 'rgba(0,0,0,0.95)';
+          ctx.shadowBlur = 4;
+          ctx.fillText(label, pt.x + offsetX, pt.y + offsetY);
+        };
+
+        drawMarker(contactWorld, '#fcd34d', '支點 P', 7, -3);
+        drawMarker(whaleCGWorld, '#34d399', 'CG_whale (-13.2)', -12, 14);
+        drawMarker(metacenterWorld, '#3b82f6', `穩心 M (+${y_metacenter.toFixed(0)})`, 7, -6);
+        drawMarker(sysCGWorld, '#f43f5e', `CG_sys (${sysCG_ScadY.toFixed(1)})`, -85, -4);
+        ctx.restore();
+      }
+
+      resize(isInit = false) {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const rect = this.canvas.getBoundingClientRect();
+        this.w = Math.max(100, Math.floor(rect.width));
+        this.h = Math.max(100, Math.floor(rect.height));
+        this.canvas.width = this.w * dpr;
+        this.canvas.height = this.h * dpr;
+        this.ctx.setTransform(dpr, 0, dpr ? 0 : 0, dpr, 0, 0);
+
+        this.SCALE = Math.min(this.w / 245, this.h / 245);
+        this.ORIGIN_X = this.w * 0.48;
+        const floorScreenY = this.h * 0.93;
+        this.ORIGIN_Y = floorScreenY + this.FLOOR_SCAD_Y * this.SCALE;
+
+        if (isInit || !this.whaleBody) {
+          this.setupFreshScene();
+        }
+      }
+
+      update(dt, now) {
+        const { Engine, Body } = Matter;
+        const s = this.aiState;
+        const elapsed = (now - s.phaseStartTime) * GLOBAL_SPEED;
+
+        if (s.phase === 'SPAWN_NEXT') {
+          if (elapsed > 380) {
+            if (this.fishQueue.length === 0) {
+              s.phase = 'HOLD_COMPLETE';
+              s.phaseStartTime = now;
+            } else {
+              const nextSpec = this.fishQueue.shift();
+              const spawnX = this.whaleBody ? this.whaleBody.position.x : this.ORIGIN_X;
+              const spawnY = Math.max(45, this.scadToWorld(0, 145).y);
+              this.stagedFishBody = this.createSingleFishBody(nextSpec, spawnX, spawnY, 0, true);
+              this.setBodyStaticSafe(this.stagedFishBody, true);
+
+              const plan = this.computeAiOptimalPlacement(this.stagedFishBody);
+              s.startAngle = this.stagedFishBody.angle || 0;
+              s.targetAngle = plan.targetAngle;
+              s.startPos = { x: spawnX, y: spawnY };
+              s.targetPos = { x: plan.targetX, y: plan.targetY };
+              s.phase = 'ROTATING';
+              s.phaseStartTime = now;
+              this.hudEl.textContent = `🐳 AI 旋轉小魚角度並計算重心...`;
+            }
+          }
+        } else if (s.phase === 'ROTATING') {
+          const t = Math.min(1, elapsed / 420);
+          const curAngle = s.startAngle + (s.targetAngle - s.startAngle) * t;
+          if (this.stagedFishBody) {
+            Body.setAngle(this.stagedFishBody, curAngle);
+            this.stagedFishBody.anglePrev = curAngle;
+          }
+          if (t >= 1) {
+            s.phase = 'MOVING';
+            s.phaseStartTime = now;
+          }
+        } else if (s.phase === 'MOVING') {
+          const t = Math.min(1, elapsed / 580);
+          const ease = 1 - Math.pow(1 - t, 3);
+          if (this.stagedFishBody) {
+            const curX = s.startPos.x + (s.targetPos.x - s.startPos.x) * ease;
+            const curY = s.startPos.y + (s.targetPos.y - s.startPos.y) * Math.pow(ease, 1.3);
+            Body.setPosition(this.stagedFishBody, { x: curX, y: curY });
+            Body.setAngle(this.stagedFishBody, s.targetAngle);
+            this.stagedFishBody.positionPrev.x = curX;
+            this.stagedFishBody.positionPrev.y = curY;
+          }
+          if (t >= 1 && this.stagedFishBody) {
+            let guard = 0;
+            while (this.checkBodyOverlapWithPlaced(this.stagedFishBody) && guard < 25) {
+              const liftedY = this.stagedFishBody.position.y - 3;
+              Body.setPosition(this.stagedFishBody, { x: this.stagedFishBody.position.x, y: liftedY });
+              this.stagedFishBody.positionPrev.y = liftedY;
+              guard++;
+            }
+            this.stagedFishBody.scadMeta.isLockedAfterDrop = true;
+            this.setBodyCollisionMode(this.stagedFishBody, false);
+            this.setBodyStaticSafe(this.stagedFishBody, false);
+            this.stagedFishBody = null;
+            this.hudEl.textContent = `⚖️ 已疊放 ${this.fishBodies.length} 隻小魚`;
+            s.phase = 'SETTLING';
+            s.phaseStartTime = now;
+          }
+        } else if (s.phase === 'SETTLING') {
+          if (elapsed > 820) {
+            s.phase = 'SPAWN_NEXT';
+            s.phaseStartTime = now;
+          }
+        } else if (s.phase === 'HOLD_COMPLETE') {
+          if (elapsed > 3200) {
+            this.setupFreshScene();
+          }
+        }
+
+        this.applyWhaleTrueRockerPhysics();
+        Engine.update(this.engine, 1000 / 60);
+
+        this.ctx.clearRect(0, 0, this.w, this.h);
+        if (this.whaleBody) this.renderWhale(this.whaleBody);
+        for (const fb of this.fishBodies) this.renderFish(fb);
+        if (this.stagedFishBody) this.renderStagedRotationGizmo(this.stagedFishBody);
+        this.renderPhysicsOverlay();
+      }
+    }
+
+    /* ==========================================================================================
+     * 啟動三個遊戲的獨立圖形與 AI 自動示範引擎
+     * ========================================================================================== */
+    window.onload = function () {
+      const catWidget = new CatXOGameWidget('stage-gobblet', 'hud-gobblet');
+      const ox3dWidget = new Connect3DGameWidget('stage-connect3d', 'hud-connect3d');
+      const whaleWidget = new WhaleBalanceGameWidget('canvas-whale', 'hud-whale');
+
+      // 右下角「🔍 結構透視」按鈕可同步切換三個遊戲的內部結構檢視 (透視套疊 / 樓層展開 / 9孔蜂巢剖面)
+      btnXrayAll.addEventListener('click', (e) => {
+        e.stopPropagation();
+        GLOBAL_INSPECT_XRAY = !GLOBAL_INSPECT_XRAY;
+        catWidget.toggleXray(GLOBAL_INSPECT_XRAY);
+        ox3dWidget.toggleExplode(GLOBAL_INSPECT_XRAY);
+        whaleWidget.SCAD_PARAMS.cutaway_view = GLOBAL_INSPECT_XRAY;
+        btnXrayAll.textContent = `🔍 結構透視: ${GLOBAL_INSPECT_XRAY ? '開' : '關'}`;
+      });
+
+      window.addEventListener('resize', () => {
+        catWidget.resize();
+        ox3dWidget.resize();
+        whaleWidget.resize(false);
+      });
+
+      let lastTime = performance.now();
+      function masterLoop(now) {
+        const dt = Math.min(0.05, (now - lastTime) / 1000);
+        lastTime = now;
+
+        catWidget.update(dt, now);
+        ox3dWidget.update(dt, now);
+        whaleWidget.update(dt, now);
+
+        requestAnimationFrame(masterLoop);
+      }
+      requestAnimationFrame(masterLoop);
+    };
+  </script>
+</body>
+</html>
