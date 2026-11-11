@@ -32,24 +32,27 @@
       height: 100vh;
       overflow: hidden;
       background-color: #0b1528;
-      font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
-      touch-action: none;
+      font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
-    /* 標題橘字白邊特效 (還原第一張圖的標題樣式) */
+    /* 標題橘字白邊特效 (還原第一張圖的標題樣式，流體縮放確保單行不換行) */
     .org-title-stroke {
       color: #e0531f;
-      -webkit-text-stroke: 3.5px #ffffff;
+      font-size: clamp(1.15rem, 3.6vw, 3.15rem);
+      -webkit-text-stroke: clamp(2px, 0.28vw, 3.8px) #ffffff;
       paint-order: stroke fill;
       text-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
-      letter-spacing: 0.04em;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
     }
 
-    /* 主標題立體白字陰影 */
+    /* 主標題立體白字陰影 (流體縮放確保單行不換行) */
     .main-title-shadow {
       color: #ffffff;
+      font-size: clamp(1.5rem, 4.5vw, 4.1rem);
       text-shadow: 0 5px 16px rgba(0, 0, 0, 0.85), 0 2px 4px rgba(0, 0, 0, 0.9);
       letter-spacing: 0.05em;
+      white-space: nowrap;
     }
 
     /* 場次黃色標題與白色時間陰影 */
@@ -99,13 +102,6 @@
     }
     .star-glint {
       animation: twinkle 4s ease-in-out infinite;
-    }
-
-    /* 針對 iPad 6 (4:3 比例 1024x768) 進行響應式字級與間距微調 */
-    @media (max-aspect-ratio: 14/10) {
-      .org-title-stroke {
-        -webkit-text-stroke: 3px #ffffff;
-      }
     }
   </style>
 </head>
@@ -225,12 +221,12 @@
       </svg>
 
       <!-- ================= 頂部標題區 (SVG 中心 Logo + 中心名稱 + 大標題) ================= -->
-      <header class="relative z-20 flex flex-col items-center justify-start pt-1 sm:pt-2 shrink-0">
-        <!-- 第一列：Logo + 新北市金山自造教育及科技中心 -->
-        <div class="flex items-center justify-center gap-3 sm:gap-5 md:gap-7 w-full max-w-6xl">
+      <header class="relative z-20 flex flex-col items-center justify-start pt-1 sm:pt-2 shrink-0 w-full">
+        <!-- 第一列：Logo + 新北市金山自造教育及科技中心 (強制單行並排不換行) -->
+        <div class="flex flex-nowrap items-center justify-center gap-2 sm:gap-4 md:gap-6 w-full px-2">
           
           <!-- 第二張附圖：新北市金山高中 MAKER & TECH 自造教育及科技中心 SVG 向量徽章 -->
-          <div class="w-24 h-20 sm:w-32 sm:h-28 md:w-40 md:h-32 shrink-0 drop-shadow-[0_6px_12px_rgba(0,0,0,0.55)] -mt-1">
+          <div class="w-[clamp(4.2rem,9.2vw,9.5rem)] aspect-[500/430] shrink-0 drop-shadow-[0_6px_12px_rgba(0,0,0,0.55)] -mt-1">
             <svg viewBox="0 0 500 430" class="w-full h-full overflow-visible" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="新北市金山高中自造教育及科技中心 Logo">
               <!-- 外層白色底盾與正六邊形結構 -->
               <!-- 六邊形頂點: (250, 12), (422, 110), (422, 320), (250, 418), (78, 320), (78, 110) -->
@@ -365,14 +361,14 @@
             </svg>
           </div>
 
-          <!-- 中心名稱 (橘底白邊大字) -->
-          <h2 class="org-title-stroke text-2xl sm:text-4xl md:text-[2.75rem] lg:text-[3.2rem] font-black tracking-wider leading-tight">
+          <!-- 中心名稱 (橘底白邊大字，固定單行顯示) -->
+          <h2 class="org-title-stroke font-black leading-tight shrink-0">
             新北市金山自造教育及科技中心
           </h2>
         </div>
 
         <!-- 第二列：主標題「AI輔助3D桌遊設計體驗」 -->
-        <h1 class="main-title-shadow text-3xl sm:text-5xl md:text-[3.6rem] lg:text-[4.1rem] font-black tracking-widest mt-1 sm:mt-2 leading-tight text-center">
+        <h1 class="main-title-shadow font-black mt-1 sm:mt-1.5 leading-tight text-center whitespace-nowrap">
           AI輔助3D桌遊設計體驗
         </h1>
       </header>
@@ -445,6 +441,11 @@
 
       <!-- ================= iPad 6 展場全螢幕與鎖定控制懸浮列 (自動隱藏，點按右下角喚醒) ================= -->
       <div id="kiosk-controls" class="fixed bottom-3 right-4 z-50 flex items-center gap-2 transition-opacity duration-500 opacity-30 hover:opacity-100">
+        <!-- 無限循環狀態指示標籤 -->
+        <div class="px-2.5 py-1.5 rounded-full bg-indigo-950/90 text-indigo-200 border border-indigo-400/40 text-xs font-bold backdrop-blur-md shadow-lg flex items-center gap-1.5 pointer-events-none">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span>♾️ 無限循環播放中</span>
+        </div>
         <!-- iPad 鎖定教學彈窗按鈕 (整合自三個遊戲檔的展場鎖定說明) -->
         <button id="btn-ipad-guide" class="px-2.5 py-1.5 rounded-full bg-emerald-900/85 text-emerald-200 border border-emerald-400/40 text-xs font-bold backdrop-blur-md shadow-lg active:scale-95">
           🔒 iPad鎖定教學
@@ -1056,12 +1057,28 @@
         });
       }
 
+      // 預先建立 12 隻招財貓 3D 網格並常駐重用，確保 iPad 6 無限循環播放數小時也不會累積記憶體
+      ensureCatMeshesCreated() {
+        if (this.pieceMeshesMap.size === 12) return;
+        for (const owner of [1, 2]) {
+          for (let size = 0; size <= 2; size++) {
+            for (let copy = 0; copy < 2; copy++) {
+              const id = `p${owner}_s${size}_${copy}`;
+              const mesh = this.createManekiNekoMesh(size, owner);
+              this.scene.add(mesh);
+              this.pieceMeshesMap.set(id, mesh);
+            }
+          }
+        }
+      }
+
       initPieces() {
+        this.ensureCatMeshesCreated();
         this.activeAnimations.length = 0;
-        this.pieceMeshesMap.forEach(m => this.scene.remove(m));
-        this.pieceMeshesMap.clear();
         if (this.winBeamMesh) {
           this.scene.remove(this.winBeamMesh);
+          if (this.winBeamMesh.geometry) this.winBeamMesh.geometry.dispose();
+          if (this.winBeamMesh.material) this.winBeamMesh.material.dispose();
           this.winBeamMesh = null;
         }
 
@@ -1072,7 +1089,9 @@
         this.gameOver = false;
         this.phase = 'THINKING';
         this.phaseTimer = 0;
+        this.roundWatchdog = 0;
         this.moveCounter = 0;
+        this.cellRingMeshes.forEach(r => { r.material.opacity = 0.0; });
 
         for (const owner of [1, 2]) {
           for (let size = 0; size <= 2; size++) {
@@ -1081,16 +1100,17 @@
               const homePos = this.getReserveWorldPos(owner, size, copy);
               this.pieces.push({ id, owner, size, copy, location: 'reserve', cellIndex: null, homePos: homePos.clone() });
 
-              const mesh = this.createManekiNekoMesh(size, owner);
-              mesh.position.copy(homePos);
-              mesh.rotation.y = owner === 1 ? 0.18 : -0.18;
-              this.scene.add(mesh);
-              this.pieceMeshesMap.set(id, mesh);
+              const mesh = this.pieceMeshesMap.get(id);
+              if (mesh) {
+                mesh.position.copy(homePos);
+                mesh.rotation.y = owner === 1 ? 0.18 : -0.18;
+              }
             }
           }
         }
+        if (!GLOBAL_INSPECT_XRAY) this.xrayMode = false;
         this.applyXrayMaterials();
-        this.hudEl.textContent = '🐱 招財貓 AI 開局佈陣中...';
+        this.hudEl.textContent = '🐱 招財貓 AI 無限循環示範中...';
       }
 
       getPieceById(id) {
@@ -1241,6 +1261,13 @@
       update(dt, now) {
         const scaledDt = dt * GLOBAL_SPEED;
         this.phaseTimer += scaledDt;
+        this.roundWatchdog = (this.roundWatchdog || 0) + scaledDt;
+
+        // 安全看門狗：若單局超過 45 秒未結束，自動重置進入下一輪無限循環
+        if (this.roundWatchdog > 45) {
+          this.initPieces();
+          return;
+        }
 
         // 緩慢微幅擺動視角展示 3D 招財貓細節
         if (!this.camControl.isDragging) {
@@ -1709,6 +1736,19 @@
         this.camTarget = new THREE.Vector3(0, 2.3, 0);
         this.isDragging = false;
         this.prevX = 0;
+
+        // 建立固定 4x4 黑色雙孔底座（常駐場景不重複建立，確保無限循環零記憶體洩漏）
+        const step = this.tileSize + this.tileGap;
+        const offset = (this.gridSize - 1) * step * 0.5;
+        for (let r = 0; r < 4; r++) {
+          for (let c = 0; c < 4; c++) {
+            const x = c * step - offset;
+            const z = r * step - offset;
+            const tileGroup = this.cadBuilder.createBaseTileMesh(this.tileSize, this.baseHeight);
+            tileGroup.position.set(x, this.baseHeight * 0.5, z);
+            this.boardGroup.add(tileGroup);
+          }
+        }
       }
 
       setupInteractions() {
@@ -1771,9 +1811,10 @@
         this.winningCoords = [];
         this.phase = 'THINKING';
         this.phaseTimer = 0;
+        this.roundWatchdog = 0;
         this.stepCount = 0;
         this.renderBoard();
-        this.hudEl.textContent = '🧊 3D Connect AI 對局開始';
+        this.hudEl.textContent = '🧊 3D Connect AI 無限循環對局';
       }
 
       getCellWorldPos(cellIdx, layerZ = 0) {
@@ -1863,24 +1904,26 @@
         return null;
       }
 
-      renderBoard() {
-        while (this.boardGroup.children.length > 0) this.boardGroup.remove(this.boardGroup.children[0]);
-        while (this.piecesGroup.children.length > 0) this.piecesGroup.remove(this.piecesGroup.children[0]);
-        while (this.ghostGroup.children.length > 0) this.ghostGroup.remove(this.ghostGroup.children[0]);
+      disposeGroupMaterials(group) {
+        while (group.children.length > 0) {
+          const child = group.children[0];
+          child.traverse(node => {
+            if (node.isMesh && node.material) {
+              if (Array.isArray(node.material)) node.material.forEach(m => m.dispose());
+              else node.material.dispose();
+            }
+          });
+          group.remove(child);
+        }
+      }
 
-        const step = this.tileSize + this.tileGap;
-        const offset = (this.gridSize - 1) * step * 0.5;
+      renderBoard() {
+        this.disposeGroupMaterials(this.piecesGroup);
+        this.disposeGroupMaterials(this.ghostGroup);
 
         for (let r = 0; r < 4; r++) {
           for (let c = 0; c < 4; c++) {
             const cellIdx = r * 4 + c;
-            const x = c * step - offset;
-            const z = r * step - offset;
-
-            const tileGroup = this.cadBuilder.createBaseTileMesh(this.tileSize, this.baseHeight);
-            tileGroup.position.set(x, this.baseHeight * 0.5, z);
-            this.boardGroup.add(tileGroup);
-
             const stack = this.stacks[cellIdx];
             const winLayers = this.winningCoords.filter(w => w.cellIdx === cellIdx).map(w => w.z);
 
@@ -1910,7 +1953,8 @@
           const pEnd = this.getCellWorldPos(last.cellIdx, last.z);
           const curve = new THREE.LineCurve3(pStart, pEnd);
           const tubeGeo = new THREE.TubeGeometry(curve, 12, 0.14, 10, false);
-          this.piecesGroup.add(new THREE.Mesh(tubeGeo, new THREE.MeshBasicMaterial({ color: 0xfde047 })));
+          const tubeMesh = new THREE.Mesh(tubeGeo, new THREE.MeshBasicMaterial({ color: 0xfde047 }));
+          this.piecesGroup.add(tubeMesh);
         }
       }
 
@@ -1926,6 +1970,13 @@
       update(dt, now) {
         const scaledDt = dt * GLOBAL_SPEED;
         this.phaseTimer += scaledDt;
+        this.roundWatchdog = (this.roundWatchdog || 0) + scaledDt;
+
+        // 安全看門狗：確保對局結束或超時必定無限循環重播
+        if (this.roundWatchdog > 45) {
+          this.resetGame();
+          return;
+        }
 
         if (!this.isDragging) {
           this.camSpherical.theta = -Math.PI / 5.2 + Math.sin(now * 0.0005) * 0.25;
@@ -2231,7 +2282,8 @@
 
         this.aiState = {
           phase: 'SPAWN_NEXT',
-          phaseStartTime: 0,
+          phaseTimer: 0,
+          roundWatchdog: 0,
           startAngle: 0,
           targetAngle: 0,
           startPos: { x: 0, y: 0 },
@@ -2328,7 +2380,9 @@
 
         this.fishQueue = [...this.INITIAL_FISH_SPECS];
         this.aiState.phase = 'SPAWN_NEXT';
-        this.aiState.phaseStartTime = performance.now();
+        this.aiState.phaseTimer = 0;
+        this.aiState.roundWatchdog = 0;
+        this.hudEl.textContent = '🐳 鯨魚平衡積木 無限循環示範中';
       }
 
       createSingleFishBody(spec, worldX, worldY, angleDeg = 0, isGhostStaged = true) {
@@ -2808,13 +2862,23 @@
       update(dt, now) {
         const { Engine, Body } = Matter;
         const s = this.aiState;
-        const elapsed = (now - s.phaseStartTime) * GLOBAL_SPEED;
+        const scaledDt = dt * GLOBAL_SPEED;
+        s.phaseTimer += scaledDt;
+        s.roundWatchdog += scaledDt;
+
+        // 安全看門狗或鯨魚大幅傾倒時，自動重置進入下一輪無限循環
+        const whaleTippedOver = this.whaleBody && Math.abs(this.whaleBody.angle) > 0.62;
+        if (s.roundWatchdog > 48 || (whaleTippedOver && s.phase !== 'HOLD_COMPLETE')) {
+          s.phase = 'HOLD_COMPLETE';
+          s.phaseTimer = 0;
+        }
 
         if (s.phase === 'SPAWN_NEXT') {
-          if (elapsed > 380) {
+          if (s.phaseTimer >= 0.38) {
             if (this.fishQueue.length === 0) {
               s.phase = 'HOLD_COMPLETE';
-              s.phaseStartTime = now;
+              s.phaseTimer = 0;
+              this.hudEl.textContent = '🎉 12 隻小魚全數平衡！即將重新循環...';
             } else {
               const nextSpec = this.fishQueue.shift();
               const spawnX = this.whaleBody ? this.whaleBody.position.x : this.ORIGIN_X;
@@ -2828,12 +2892,12 @@
               s.startPos = { x: spawnX, y: spawnY };
               s.targetPos = { x: plan.targetX, y: plan.targetY };
               s.phase = 'ROTATING';
-              s.phaseStartTime = now;
+              s.phaseTimer = 0;
               this.hudEl.textContent = `🐳 AI 旋轉小魚角度並計算重心...`;
             }
           }
         } else if (s.phase === 'ROTATING') {
-          const t = Math.min(1, elapsed / 420);
+          const t = Math.min(1, s.phaseTimer / 0.42);
           const curAngle = s.startAngle + (s.targetAngle - s.startAngle) * t;
           if (this.stagedFishBody) {
             Body.setAngle(this.stagedFishBody, curAngle);
@@ -2841,10 +2905,10 @@
           }
           if (t >= 1) {
             s.phase = 'MOVING';
-            s.phaseStartTime = now;
+            s.phaseTimer = 0;
           }
         } else if (s.phase === 'MOVING') {
-          const t = Math.min(1, elapsed / 580);
+          const t = Math.min(1, s.phaseTimer / 0.58);
           const ease = 1 - Math.pow(1 - t, 3);
           if (this.stagedFishBody) {
             const curX = s.startPos.x + (s.targetPos.x - s.startPos.x) * ease;
@@ -2866,17 +2930,17 @@
             this.setBodyCollisionMode(this.stagedFishBody, false);
             this.setBodyStaticSafe(this.stagedFishBody, false);
             this.stagedFishBody = null;
-            this.hudEl.textContent = `⚖️ 已疊放 ${this.fishBodies.length} 隻小魚`;
+            this.hudEl.textContent = `⚖️ 已疊放 ${this.fishBodies.length}/12 隻小魚`;
             s.phase = 'SETTLING';
-            s.phaseStartTime = now;
+            s.phaseTimer = 0;
           }
         } else if (s.phase === 'SETTLING') {
-          if (elapsed > 820) {
+          if (s.phaseTimer >= 0.82) {
             s.phase = 'SPAWN_NEXT';
-            s.phaseStartTime = now;
+            s.phaseTimer = 0;
           }
         } else if (s.phase === 'HOLD_COMPLETE') {
-          if (elapsed > 3200) {
+          if (s.phaseTimer >= 2.8) {
             this.setupFreshScene();
           }
         }
@@ -2900,6 +2964,14 @@
       const ox3dWidget = new Connect3DGameWidget('stage-connect3d', 'hud-connect3d');
       const whaleWidget = new WhaleBalanceGameWidget('canvas-whale', 'hud-whale');
 
+      // 當 iPad 螢幕休眠喚醒或分頁切換回來時，確保計時器平滑銜接不中斷
+      let lastTime = performance.now();
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          lastTime = performance.now();
+        }
+      });
+
       // 右下角「🔍 結構透視」按鈕可同步切換三個遊戲的內部結構檢視 (透視套疊 / 樓層展開 / 9孔蜂巢剖面)
       btnXrayAll.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -2916,9 +2988,8 @@
         whaleWidget.resize(false);
       });
 
-      let lastTime = performance.now();
       function masterLoop(now) {
-        const dt = Math.min(0.05, (now - lastTime) / 1000);
+        const dt = Math.min(0.05, Math.max(0.001, (now - lastTime) / 1000));
         lastTime = now;
 
         catWidget.update(dt, now);
